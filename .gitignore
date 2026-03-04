@@ -3,4 +3,7 @@
 !*/
 # except these
 !.gitignore
-!test.v
+!SPRING2026_LAB*/**
+SPRING2026_LAB*/02_SYN/
+SPRING2026_LAB*/03_GATE/
+SPRING2026_LAB*/09_SUBMIT/
