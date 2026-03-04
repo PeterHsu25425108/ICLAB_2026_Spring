@@ -1,0 +1,6 @@
+# exclude all files, but not the parent dir
+*
+!*/
+# except these
+!.gitignore
+!test.v
