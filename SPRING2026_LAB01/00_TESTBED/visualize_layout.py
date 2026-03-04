@@ -94,7 +94,13 @@ def plot_layout(filename):
 # %%
 # Usage
 # Ensure visual_layout.txt contains one hex value (e.g., 20843F) per line
-plot_layout('../00_TESTBED/visual_layout.txt')
+# First arg is the filename of the layout data
+import os, sys
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python visualize_layout.py <layout_file.txt>")
+    else:
+        plot_layout(sys.argv[1])
 
 # %%
 
