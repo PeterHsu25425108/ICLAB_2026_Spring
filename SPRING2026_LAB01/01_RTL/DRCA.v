@@ -217,8 +217,9 @@ wire rule_type; // 0: width, 1: spacing
 wire [2:0] rule_layer; // 3'd0: contact, 3'd1: diff, 3'd2: poly, 3'd3: m1, 3'd4: np, 3'd5: pp, 3'd6: nw
 
 wire keep_shape [0:7]; // from FilterSort, indicates whether the shape belongs to the same layer as rule_layer
-wire [3:0] sort_coor [0:7]; // from FilterSort,
-//**************************************************
+wire [3:0] sort_llx [0:7]; // from FilterSort,
+wire [3:0] sort_lly [0:7]
+;//**************************************************
 // Design 
 //**************************************************
 // unpack input shapes
@@ -311,12 +312,20 @@ endgenerate
 assign rule_type = drc_sel[0]; // LSB indicates rule type
 assign rule_layer = drc_sel[3:1]; // MSBs indicate layer for width/spacing rules
 
-FilterSort filter_sort (
+FilterSort filter_sort_x (
     .rule_layer(rule_layer),
     .shape_layer(shape_layer),
     .shape_coor(llx), // pack the coordinates into 4 bits for each shape
     .keep_shape(keep_shape), // not used in this design, can be connected to something if needed
-    .sort_coor(sort_coor) // not used in this design, can be connected to something if needed
+    .sort_coor(sort_llx) // not used in this design, can be connected to something if needed
+);
+
+FilterSort filter_sort_y (
+    .rule_layer(rule_layer),
+    .shape_layer(shape_layer),
+    .shape_coor(lly), // pack the coordinates into 4 bits for each shape
+    .keep_shape(keep_shape), // not used in this design, can be connected to something if needed
+    .sort_coor(sort_lly) // not used in this design, can be connected to something if needed
 );
 
 assign drc_out = 5'b0;
