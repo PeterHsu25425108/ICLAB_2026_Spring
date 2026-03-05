@@ -1,0 +1,11 @@
+TODO:
+1. Figure out the SingleWidthCheck module's function.
+2. Figure out the spacing algo
+3. See if we can share some HW for the 2 types of violations
+
+
+To optimize:
+1. Probably can share the keep_shape generation logic among all FilterSort.
+	Create a 1bit Top8 selector(can be based on sorters) to find out the shapes we need & their indexes
+	Then pick the 8 coordinates to sort and send them to a 8-sorter.
+	Not sure if this is more efficient.
