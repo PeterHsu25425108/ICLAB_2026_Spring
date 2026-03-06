@@ -77,65 +77,42 @@ assign rule_val_mode = rule_type ? w_rvm : s_rvm;
 
 endmodule
 
-// add 1 violation if row1 has a certain type of violation but row2 doesn't, 
-// or vice versa
-module RowMod (
-    input [16:0] row1,
-    input [16:0] row2,
-    input rule_type,
-    input [2:0] rule_layer,
+// RowModLite: takes pre-computed CheckMask match vectors for two adjacent rows,
+// computes overlap-based violation counts, and selects based on rvm.
+// This avoids duplicating CheckMask instances for shared rows between adjacent pairs.
+module RowModLite (
+    input [16:0] match_v1_row1,
+    input [16:0] match_v2_row1,
+    input [16:0] match_v3_row1,
+    input [16:0] match_v4_row1,
+    input [16:0] match_v1_row2,
+    input [16:0] match_v2_row2,
+    input [16:0] match_v3_row2,
+    input [16:0] match_v4_row2,
     input [1:0] rvm,
     output reg [3:0] total_nv
 );
-    // apply CheckMask to each row
-    wire [16:0] match_010_or_101_row1, match_0110_or_1001_row1, match_01110_or_10001_row1, match_011110_row1;
-    wire [16:0] match_010_or_101_row2, match_0110_or_1001_row2, match_01110_or_10001_row2, match_011110_row2;
-    CheckMask check_row1 (
-        .data_in(row1),
-        .rule_type(rule_type),
-        .match_010_or_101(match_010_or_101_row1),
-        .match_0110_or_1001(match_0110_or_1001_row1),
-        .match_01110_or_10001(match_01110_or_10001_row1),
-        .match_011110(match_011110_row1)
-    );
-    CheckMask check_row2 (
-        .data_in(row2),
-        .rule_type(rule_type),
-        .match_010_or_101(match_010_or_101_row2),
-        .match_0110_or_1001(match_0110_or_1001_row2),
-        .match_01110_or_10001(match_01110_or_10001_row2),
-        .match_011110(match_011110_row2)
-    );
-
     // check for occurence of the same type of match on the exact same loc on the 2 rows
     wire [16:0] v1_overlap;
-    assign v1_overlap = match_010_or_101_row1 & ~match_010_or_101_row2;
-    // max num of v2(0110/1001): 16
-    //idx| 16 15 14        2  1  0 |
-    // 0 | 1  1   0... ==> 0  1  1 | 0
-    // check output (match_0110_or_1001_row1 & match_0110_or_1001_row2)
-    //   | 1 0 0...    ==> 0  1  0 |  so there are 16 possible locations for v2 cuz the pattern is reported at the left most 1, 
+    assign v1_overlap = match_v1_row1 & ~match_v1_row2;
+
     wire [16:0] v2_xor;
-    assign v2_xor = match_0110_or_1001_row1 & ~match_0110_or_1001_row2;
+    assign v2_xor = match_v2_row1 & ~match_v2_row2;
     wire [15:0] v2_overlap;
     assign v2_overlap = v2_xor[16:1];
 
     wire [16:0] v3_xor;
-    assign v3_xor = match_01110_or_10001_row1 & ~match_01110_or_10001_row2;
+    assign v3_xor = match_v3_row1 & ~match_v3_row2;
     wire [14:0] v3_overlap;
     assign v3_overlap = v3_xor[16:2];
 
     wire [16:0] v4_xor;
-    assign v4_xor = match_011110_row1 & ~match_011110_row2;
+    assign v4_xor = match_v4_row1 & ~match_v4_row2;
     wire [13:0] v4_overlap;
     assign v4_overlap = v4_xor[16:3];
 
-    // sum up the total num of violations for this row pair
-    // note that in the real case, at most 8 violations can occur on one row
-    // so we can use 4 bits to count each type of violation, and 4 bits to sum up the total (max 15)
     reg [3:0] v1_count, v2_count, v3_count, v4_count;
 
-    // count the number of 1s in v1_overlap, v2_overlap, v3_overlap, v4_overlap
     always @(*) begin
         v1_count = 0;
         v2_count = 0;
@@ -150,20 +127,20 @@ module RowMod (
         for (integer k = 0; k < 14; k = k + 1)
             v4_count = v4_count + v4_overlap[k];
     end
+
     reg [3:0] w1_nv, w2_nv, w3_nv, w4_nv;
-    // total violations for this row pair = v1_count + v2_count + v3_count + v4_count
-    always @(*) begin : RowMod_mode_selection_logic
+    always @(*) begin : RowModLite_mode_selection_logic
         w1_nv = v1_count;
         w2_nv = w1_nv + v2_count;
         w3_nv = w2_nv + v3_count;
         w4_nv = w3_nv + v4_count;
 
         casez(rvm)
-        2'd0: total_nv = w1_nv; // only count v1
-        2'd1: total_nv = w2_nv; // count v1 and v2
-        2'd2: total_nv = w3_nv; // count v1, v2 and v3
-        2'd3: total_nv = w4_nv; // count all v1, v2, v3 and v4
-        default: total_nv = 4'bx; // invalid rvm
+        2'd0: total_nv = w1_nv;
+        2'd1: total_nv = w2_nv;
+        2'd2: total_nv = w3_nv;
+        2'd3: total_nv = w4_nv;
+        default: total_nv = 4'bx;
         endcase
     end
 endmodule
@@ -229,91 +206,22 @@ wire [1:0] rvm;
 // Design 
 //**************************************************
 // unpack input shapes, assigned wires: shape_layer, llx, lly, urx, ury
-genvar i;
-generate
-    for (i = 0; i < 16; i = i + 1) begin : unpack_shapes
-        assign shape_layer[i] = (i == 0) ? shape0[18:16] :
-                               (i == 1) ? shape1[18:16] :
-                               (i == 2) ? shape2[18:16] :
-                               (i == 3) ? shape3[18:16] :
-                               (i == 4) ? shape4[18:16] :
-                               (i == 5) ? shape5[18:16] :
-                               (i == 6) ? shape6[18:16] :
-                               (i == 7) ? shape7[18:16] :
-                               (i == 8) ? shape8[18:16] :
-                               (i == 9) ? shape9[18:16] :
-                               (i == 10) ? shape10[18:16] :
-                               (i == 11) ? shape11[18:16] :
-                               (i == 12) ? shape12[18:16] :
-                               (i == 13) ? shape13[18:16] :
-                               (i == 14) ? shape14[18:16] :
-                                            shape15[18:16];
-        assign llx[i] = (i == 0) ? shape0[15:12] :
-                        (i == 1) ? shape1[15:12] :
-                        (i == 2) ? shape2[15:12] :
-                        (i == 3) ? shape3[15:12] :
-                        (i == 4) ? shape4[15:12] :
-                        (i == 5) ? shape5[15:12] :
-                        (i == 6) ? shape6[15:12] :
-                        (i == 7) ? shape7[15:12] :
-                        (i == 8) ? shape8[15:12] :
-                        (i == 9) ? shape9[15:12] :
-                        (i == 10) ? shape10[15:12] :
-                        (i == 11) ? shape11[15:12] :
-                        (i == 12) ? shape12[15:12] :
-                        (i == 13) ? shape13[15:12] :
-                        (i == 14) ? shape14[15:12] :
-                                     shape15[15:12];
-        assign lly[i] = (i == 0) ? shape0[11:8] :
-                        (i == 1) ? shape1[11:8] :
-                        (i == 2) ? shape2[11:8] :
-                        (i == 3) ? shape3[11:8] :       
-                        (i == 4) ? shape4[11:8] :
-                        (i == 5) ? shape5[11:8] :
-                        (i == 6) ? shape6[11:8] :
-                        (i == 7) ? shape7[11:8] :
-                        (i == 8) ? shape8[11:8] :
-                        (i == 9) ? shape9[11:8] :
-                        (i == 10) ? shape10[11:8] :
-                        (i == 11) ? shape11[11:8] :
-                        (i == 12) ? shape12[11:8] :
-                        (i == 13) ? shape13[11:8] :
-                        (i == 14) ? shape14[11:8] :
-                                     shape15[11:8];
-        assign urx[i] = (i == 0) ? shape0[7:4] :
-                        (i == 1) ? shape1[7:4] :
-                        (i == 2) ? shape2[7:4] :
-                        (i == 3) ? shape3[7:4] :
-                        (i == 4) ? shape4[7:4] :
-                        (i == 5) ? shape5[7:4] :
-                        (i == 6) ? shape6[7:4] :
-                        (i == 7) ? shape7[7:4] :
-                        (i == 8) ? shape8[7:4] :
-                        (i == 9) ? shape9[7:4] :
-                        (i == 10) ? shape10[7:4] :
-                        (i == 11) ? shape11[7:4] :
-                        (i == 12) ? shape12[7:4] :
-                        (i == 13) ? shape13[7:4] :
-                        (i == 14) ? shape14[7:4] :
-                                     shape15[7:4];
-        assign ury[i] = (i == 0) ? shape0[3:0] :
-                        (i == 1) ? shape1[3:0] :
-                        (i == 2) ? shape2[3:0] :
-                        (i == 3) ? shape3[3:0] :
-                        (i == 4) ? shape4[3:0] :
-                        (i == 5) ? shape5[3:0] :
-                        (i == 6) ? shape6[3:0] :    
-                        (i == 7) ? shape7[3:0] :
-                        (i == 8) ? shape8[3:0] :
-                        (i == 9) ? shape9[3:0] :
-                        (i == 10) ? shape10[3:0] :
-                        (i == 11) ? shape11[3:0] :
-                        (i == 12) ? shape12[3:0] :
-                        (i == 13) ? shape13[3:0] :
-                        (i == 14) ? shape14[3:0] :
-                                     shape15[3:0];
-    end
-endgenerate
+assign shape_layer[0]  = shape0[18:16];   assign llx[0]  = shape0[15:12];   assign lly[0]  = shape0[11:8];   assign urx[0]  = shape0[7:4];   assign ury[0]  = shape0[3:0];
+assign shape_layer[1]  = shape1[18:16];   assign llx[1]  = shape1[15:12];   assign lly[1]  = shape1[11:8];   assign urx[1]  = shape1[7:4];   assign ury[1]  = shape1[3:0];
+assign shape_layer[2]  = shape2[18:16];   assign llx[2]  = shape2[15:12];   assign lly[2]  = shape2[11:8];   assign urx[2]  = shape2[7:4];   assign ury[2]  = shape2[3:0];
+assign shape_layer[3]  = shape3[18:16];   assign llx[3]  = shape3[15:12];   assign lly[3]  = shape3[11:8];   assign urx[3]  = shape3[7:4];   assign ury[3]  = shape3[3:0];
+assign shape_layer[4]  = shape4[18:16];   assign llx[4]  = shape4[15:12];   assign lly[4]  = shape4[11:8];   assign urx[4]  = shape4[7:4];   assign ury[4]  = shape4[3:0];
+assign shape_layer[5]  = shape5[18:16];   assign llx[5]  = shape5[15:12];   assign lly[5]  = shape5[11:8];   assign urx[5]  = shape5[7:4];   assign ury[5]  = shape5[3:0];
+assign shape_layer[6]  = shape6[18:16];   assign llx[6]  = shape6[15:12];   assign lly[6]  = shape6[11:8];   assign urx[6]  = shape6[7:4];   assign ury[6]  = shape6[3:0];
+assign shape_layer[7]  = shape7[18:16];   assign llx[7]  = shape7[15:12];   assign lly[7]  = shape7[11:8];   assign urx[7]  = shape7[7:4];   assign ury[7]  = shape7[3:0];
+assign shape_layer[8]  = shape8[18:16];   assign llx[8]  = shape8[15:12];   assign lly[8]  = shape8[11:8];   assign urx[8]  = shape8[7:4];   assign ury[8]  = shape8[3:0];
+assign shape_layer[9]  = shape9[18:16];   assign llx[9]  = shape9[15:12];   assign lly[9]  = shape9[11:8];   assign urx[9]  = shape9[7:4];   assign ury[9]  = shape9[3:0];
+assign shape_layer[10] = shape10[18:16];  assign llx[10] = shape10[15:12];  assign lly[10] = shape10[11:8];  assign urx[10] = shape10[7:4];  assign ury[10] = shape10[3:0];
+assign shape_layer[11] = shape11[18:16];  assign llx[11] = shape11[15:12];  assign lly[11] = shape11[11:8];  assign urx[11] = shape11[7:4];  assign ury[11] = shape11[3:0];
+assign shape_layer[12] = shape12[18:16];  assign llx[12] = shape12[15:12];  assign lly[12] = shape12[11:8];  assign urx[12] = shape12[7:4];  assign ury[12] = shape12[3:0];
+assign shape_layer[13] = shape13[18:16];  assign llx[13] = shape13[15:12];  assign lly[13] = shape13[11:8];  assign urx[13] = shape13[7:4];  assign ury[13] = shape13[3:0];
+assign shape_layer[14] = shape14[18:16];  assign llx[14] = shape14[15:12];  assign lly[14] = shape14[11:8];  assign urx[14] = shape14[7:4];  assign ury[14] = shape14[3:0];
+assign shape_layer[15] = shape15[18:16];  assign llx[15] = shape15[15:12];  assign lly[15] = shape15[11:8];  assign urx[15] = shape15[7:4];  assign ury[15] = shape15[3:0];
 // unpack DRC rule
 assign rule_type = drc_sel[0]; // LSB indicates rule type
 assign rule_layer = drc_sel[3:1]; // MSBs indicate layer for width/spacing rules
@@ -355,6 +263,7 @@ always @(*) begin
 end
 
 // check which shapes are on the same layer as the rule_layer, store in is_layer_2_Check
+genvar i;
 generate
     for (i = 0; i < 16; i = i + 1) begin : check_layer
         assign is_layer_2_Check[i] = (shape_layer[i] == trans_rule_layer) ? 1 : 0;
@@ -395,7 +304,7 @@ generate
 endgenerate
 
 wire [16:0] grid_tr[0:16]; // a transposed version of grid to facilitate counting vertical violations column by column
-// transpose the grid to get grid_tr, so that we can reuse RowMod to count vertical violations by treating each column as a row
+// transpose the grid to get grid_tr, so that we can reuse RowModLite to count vertical violations by treating each column as a row
 // genvar i, j;
 generate
     for (i = 0; i < 17; i = i + 1) begin : transpose_grid
@@ -405,23 +314,49 @@ generate
     end
 endgenerate
 
-// Connect the rows of grid to 16 RowMod to count the horizontal violations
-// expected inputs dim of RowMod: row1[16:0], row2[16:0], rule_type; output dim: total_nv[4:0]
+// Pre-compute CheckMask for each row of grid_tr (for horizontal violations)
+// 17 instances instead of 32 (one per unique row, shared between adjacent pairs)
+wire [16:0] h_cm_v1 [0:16], h_cm_v2 [0:16], h_cm_v3 [0:16], h_cm_v4 [0:16];
+generate
+    for (i = 0; i < 17; i = i + 1) begin : h_checkmask
+        CheckMask cm_h (
+            .data_in(grid_tr[i]),
+            .rule_type(rule_type),
+            .match_010_or_101(h_cm_v1[i]),
+            .match_0110_or_1001(h_cm_v2[i]),
+            .match_01110_or_10001(h_cm_v3[i]),
+            .match_011110(h_cm_v4[i])
+        );
+    end
+endgenerate
+
+// Pre-compute CheckMask for each row of grid (for vertical violations)
+// 17 instances instead of 32
+wire [16:0] v_cm_v1 [0:16], v_cm_v2 [0:16], v_cm_v3 [0:16], v_cm_v4 [0:16];
+generate
+    for (i = 0; i < 17; i = i + 1) begin : v_checkmask
+        CheckMask cm_v (
+            .data_in(grid[i]),
+            .rule_type(rule_type),
+            .match_010_or_101(v_cm_v1[i]),
+            .match_0110_or_1001(v_cm_v2[i]),
+            .match_01110_or_10001(v_cm_v3[i]),
+            .match_011110(v_cm_v4[i])
+        );
+    end
+endgenerate
+
+// Connect 16 RowModLite for horizontal violations using shared CheckMask results
 wire [3:0] h_nv_per_row [0:15];   // one count per adjacent row pair
-reg [4:0] h_nv; // total horizontal violations, assigned to h_nv_temp after accumulation
-// connecting pair: (0,1), (1,2), ... , (15, 16)
-// a total of 16 row pairs, so we need 16 RowMod instances to cover all the horizontal violations between adjacent rows.
+reg [4:0] h_nv; // total horizontal violations
 
 generate
     for (i = 0; i < 16; i = i + 1) begin : h_row_mods
-    // DRCA.h_row_mods[0].row_mod_h
-    // ...
-    // DRCA.h_row_mods[15].row_mod_h
-        RowMod row_mod_h (
-            .row1(grid_tr[i]),
-            .row2(grid_tr[i+1]),
-            .rule_type(rule_type),
-            .rule_layer(rule_layer),
+        RowModLite row_mod_h (
+            .match_v1_row1(h_cm_v1[i]),   .match_v2_row1(h_cm_v2[i]),
+            .match_v3_row1(h_cm_v3[i]),   .match_v4_row1(h_cm_v4[i]),
+            .match_v1_row2(h_cm_v1[i+1]), .match_v2_row2(h_cm_v2[i+1]),
+            .match_v3_row2(h_cm_v3[i+1]), .match_v4_row2(h_cm_v4[i+1]),
             .rvm(rvm),
             .total_nv(h_nv_per_row[i])
         );
@@ -436,20 +371,17 @@ always @(*) begin
     end
 end
 
-// group the vertical violations by column and count the total num of vertical violations, store in v_nv
-reg [4:0] v_nv; // total vertical violations, assigned to v_nv_temp after accumulation
+// Connect 16 RowModLite for vertical violations using shared CheckMask results
+reg [4:0] v_nv; // total vertical violations
 wire [3:0] v_nv_per_col [0:15]; // vertical violations per column
-
-// connecting pair: (0,1), (1,2), ... , (15, 16) of grid to count vertical violations column by column
-
 
 generate
     for (i = 0; i < 16; i = i + 1) begin : v_row_mods
-        RowMod row_mod_v (
-            .row1(grid[i]),
-            .row2(grid[i+1]),
-            .rule_type(rule_type),
-            .rule_layer(rule_layer),
+        RowModLite row_mod_v (
+            .match_v1_row1(v_cm_v1[i]),   .match_v2_row1(v_cm_v2[i]),
+            .match_v3_row1(v_cm_v3[i]),   .match_v4_row1(v_cm_v4[i]),
+            .match_v1_row2(v_cm_v1[i+1]), .match_v2_row2(v_cm_v2[i+1]),
+            .match_v3_row2(v_cm_v3[i+1]), .match_v4_row2(v_cm_v4[i+1]),
             .rvm(rvm),
             .total_nv(v_nv_per_col[i])
         );
