@@ -1,11 +1,11 @@
 module CheckMask(
-    input  wire [17:0] data_in,
+    input  wire [16:0] data_in,
     input  wire        rule_type,
     // the occurence is reported on the left most 1/0, left meaning towards the MSB
-    output wire [17:0] match_010_or_101,
-    output wire [17:0] match_0110_or_1001,
-    output wire [17:0] match_01110_or_10001,
-    output wire [17:0] match_011110
+    output wire [16:0] match_010_or_101,
+    output wire [16:0] match_0110_or_1001,
+    output wire [16:0] match_01110_or_10001,
+    output wire [16:0] match_011110
 );
     // MSB-left bit ordering: bit[15] is leftmost, bit[0] is rightmost.
     // At position k, its left  neighbor is bit[k+1] (higher index, toward MSB).
@@ -17,18 +17,18 @@ module CheckMask(
     // Example: data_in >> 1: 0 D[15] D[14] ... D[2] D[1]  (shr1[k] = D[k+1])
 
     // Modified data and shifts for the first three patterns (supports inversion via rule_type)
-    wire [17:0] data_mod = data_in ^ {18{rule_type}};
-    wire [17:0] shr1 = {rule_type, data_mod[17:1]}; // shr1[k] = data_mod[k+1]: left  neighbor of k; MSB padded with rule_type
-    wire [17:0] shl1 = {data_mod[16:0], rule_type};  // shl1[k] = data_mod[k-1]: right neighbor of k, 1 away; LSB padded with rule_type
-    wire [17:0] shl2 = {data_mod[15:0], {2{rule_type}}}; // shl2[k] = data_mod[k-2]: right neighbor of k, 2 away
-    wire [17:0] shl3 = {data_mod[14:0], {3{rule_type}}}; // shl3[k] = data_mod[k-3]: right neighbor of k, 3 away
+    wire [16:0] data_mod = data_in ^ {17{rule_type}};
+    wire [16:0] shr1 = {rule_type, data_mod[16:1]}; // shr1[k] = data_mod[k+1]: left  neighbor of k; MSB padded with rule_type
+    wire [16:0] shl1 = {data_mod[15:0], rule_type};  // shl1[k] = data_mod[k-1]: right neighbor of k, 1 away; LSB padded with rule_type
+    wire [16:0] shl2 = {data_mod[14:0], {2{rule_type}}}; // shl2[k] = data_mod[k-2]: right neighbor of k, 2 away
+    wire [16:0] shl3 = {data_mod[13:0], {3{rule_type}}}; // shl3[k] = data_mod[k-3]: right neighbor of k, 3 away
 
     // Raw data and shifts for the 011110 pattern (fixed 0 padding, no inversion)
-    wire [17:0] raw_shr1 = {1'b0, data_in[17:1]};         // raw_shr1[k] = data_in[k+1]
-    wire [17:0] raw_shl1 = {data_in[16:0], 1'b0};          // raw_shl1[k] = data_in[k-1]
-    wire [17:0] raw_shl2 = {data_in[15:0], 2'b00};          // raw_shl2[k] = data_in[k-2]
-    wire [17:0] raw_shl3 = {data_in[14:0], 3'b000};         // raw_shl3[k] = data_in[k-3]
-    wire [17:0] raw_shl4 = {data_in[13:0], 4'b0000};        // raw_shl4[k] = data_in[k-4]
+    wire [16:0] raw_shr1 = {1'b0, data_in[16:1]};         // raw_shr1[k] = data_in[k+1]
+    wire [16:0] raw_shl1 = {data_in[15:0], 1'b0};          // raw_shl1[k] = data_in[k-1]
+    wire [16:0] raw_shl2 = {data_in[14:0], 2'b00};          // raw_shl2[k] = data_in[k-2]
+    wire [16:0] raw_shl3 = {data_in[13:0], 3'b000};         // raw_shl3[k] = data_in[k-3]
+    wire [16:0] raw_shl4 = {data_in[12:0], 4'b0000};        // raw_shl4[k] = data_in[k-4]
 
     // 1. 010 / 101: isolated 1/0. At match bit k: data_mod[k+1..k-1] = 0,1,0.
     //    Reported at bit k (the sole 1/0 of the run).
@@ -80,16 +80,16 @@ endmodule
 // add 1 violation if row1 has a certain type of violation but row2 doesn't, 
 // or vice versa
 module RowMod (
-    input [17:0] row1,
-    input [17:0] row2,
+    input [16:0] row1,
+    input [16:0] row2,
     input rule_type,
     input [2:0] rule_layer,
     input [1:0] rvm,
     output reg [3:0] total_nv
 );
     // apply CheckMask to each row
-    wire [17:0] match_010_or_101_row1, match_0110_or_1001_row1, match_01110_or_10001_row1, match_011110_row1;
-    wire [17:0] match_010_or_101_row2, match_0110_or_1001_row2, match_01110_or_10001_row2, match_011110_row2;
+    wire [16:0] match_010_or_101_row1, match_0110_or_1001_row1, match_01110_or_10001_row1, match_011110_row1;
+    wire [16:0] match_010_or_101_row2, match_0110_or_1001_row2, match_01110_or_10001_row2, match_011110_row2;
     CheckMask check_row1 (
         .data_in(row1),
         .rule_type(rule_type),
@@ -108,29 +108,27 @@ module RowMod (
     );
 
     // check for occurence of the same type of match on the exact same loc on the 2 rows
-    wire [17:0] v1_overlap;
+    wire [16:0] v1_overlap;
     assign v1_overlap = match_010_or_101_row1 & ~match_010_or_101_row2;
-    // max num of v2(0110/1001): 17
-    //idx| 17 16 15        2  1  0 |
+    // max num of v2(0110/1001): 16
+    //idx| 16 15 14        2  1  0 |
     // 0 | 1  1   0... ==> 0  1  1 | 0
     // check output (match_0110_or_1001_row1 & match_0110_or_1001_row2)
-    //   | 1 0 0...    ==> 0  1  0 |  so there are 17 possible locations for v2 cuz the pattern is reported at the left most 1, 
-    wire [17:0] v2_xor;
+    //   | 1 0 0...    ==> 0  1  0 |  so there are 16 possible locations for v2 cuz the pattern is reported at the left most 1, 
+    wire [16:0] v2_xor;
     assign v2_xor = match_0110_or_1001_row1 & ~match_0110_or_1001_row2;
-    wire [16:0] v2_overlap;
-    assign v2_overlap = v2_xor[17:1];
+    wire [15:0] v2_overlap;
+    assign v2_overlap = v2_xor[16:1];
 
-    wire [17:0] v3_xor;
+    wire [16:0] v3_xor;
     assign v3_xor = match_01110_or_10001_row1 & ~match_01110_or_10001_row2;
-    wire [15:0] v3_overlap;
-    // assign v3_overlap = v3_xor[16:1];
-    assign v3_overlap = v3_xor[17:2];
+    wire [14:0] v3_overlap;
+    assign v3_overlap = v3_xor[16:2];
 
-    wire [17:0] v4_xor;
+    wire [16:0] v4_xor;
     assign v4_xor = match_011110_row1 & ~match_011110_row2;
-    wire [14:0] v4_overlap;
-    // assign v4_overlap = v4_xor[15:1];
-    assign v4_overlap = v4_xor[17:3];
+    wire [13:0] v4_overlap;
+    assign v4_overlap = v4_xor[16:3];
 
     // sum up the total num of violations for this row pair
     // note that in the real case, at most 8 violations can occur on one row
@@ -143,13 +141,13 @@ module RowMod (
         v2_count = 0;
         v3_count = 0;
         v4_count = 0;
-        for (integer k = 0; k < 18; k = k + 1)
-            v1_count = v1_count + v1_overlap[k];
         for (integer k = 0; k < 17; k = k + 1)
-            v2_count = v2_count + v2_overlap[k];
+            v1_count = v1_count + v1_overlap[k];
         for (integer k = 0; k < 16; k = k + 1)
-            v3_count = v3_count + v3_overlap[k];
+            v2_count = v2_count + v2_overlap[k];
         for (integer k = 0; k < 15; k = k + 1)
+            v3_count = v3_count + v3_overlap[k];
+        for (integer k = 0; k < 14; k = k + 1)
             v4_count = v4_count + v4_overlap[k];
     end
     reg [3:0] w1_nv, w2_nv, w3_nv, w4_nv;
@@ -215,8 +213,8 @@ wire [3:0] ury [0:15];
 wire rule_type; // 0: width, 1: spacing
 wire [2:0] rule_layer; // 3'd0: contact, 3'd1: diff, 3'd2: poly, 3'd3: m1, 3'd4: np, 3'd5: pp, 3'd6: nw
 
-// grid for the selected layer (18x18 with zero-padded borders)
-wire [17:0] grid[0:17];
+// grid for the selected layer (17x17 with zero-padded borders)
+wire [16:0] grid[0:16];
 // indicate if the shape_layer[i] == rule_layer for each shape 
 wire is_layer_2_Check[0:15];
 
@@ -363,15 +361,15 @@ generate
     end
 endgenerate
 
-// construct the grid (18x18 with zero-padded borders, original 16x16 content in [1:16][1:16])
+// construct the grid (17x17 with zero-padded borders, original 15x15 content in [1:15][1:15])
 genvar j;
 generate
-    // The outer border rows (0, 17) and columns (bit 0, bit 17) are zero-padded.
-    // The original 16x16 content is placed in grid[1..16][1..16].
+    // The outer border rows (0, 16) and columns (bit 0, bit 16) are zero-padded.
+    // The original 15x15 content is placed in grid[1..15][1..15].
     // For a shape with llx=0, lly=4, urx=3, ury=10: grid[1..3][5..10] = 1 (shifted by +1).
-    for (i = 0; i < 18; i = i + 1) begin : construct_grids
-        for (j = 0; j < 18; j = j + 1) begin : construct_grid_bits
-            if (i == 0 || i == 17 || j == 0 || j == 17) begin : zero_pad
+    for (i = 0; i < 17; i = i + 1) begin : construct_grids
+        for (j = 0; j < 17; j = j + 1) begin : construct_grid_bits
+            if (i == 0 || i == 16 || j == 0 || j == 16) begin : zero_pad
                 assign grid[i][j] = 1'b0;
             end else begin : interior
                 assign grid[i][j] = 
@@ -396,29 +394,29 @@ generate
     end
 endgenerate
 
-wire [17:0] grid_tr[0:17]; // a transposed version of grid to facilitate counting vertical violations column by column
+wire [16:0] grid_tr[0:16]; // a transposed version of grid to facilitate counting vertical violations column by column
 // transpose the grid to get grid_tr, so that we can reuse RowMod to count vertical violations by treating each column as a row
 // genvar i, j;
 generate
-    for (i = 0; i < 18; i = i + 1) begin : transpose_grid
-        for (j = 0; j < 18; j = j + 1) begin
+    for (i = 0; i < 17; i = i + 1) begin : transpose_grid
+        for (j = 0; j < 17; j = j + 1) begin
             assign grid_tr[i][j] = grid[j][i];
         end
     end
 endgenerate
 
-// Connect the rows of grid to 17 RowMod to count the horizontal violations
-// expected inputs dim of RowMod: row1[17:0], row2[17:0], rule_type; output dim: total_nv[4:0]
-wire [3:0] h_nv_per_row [0:16];   // one count per adjacent row pair
+// Connect the rows of grid to 16 RowMod to count the horizontal violations
+// expected inputs dim of RowMod: row1[16:0], row2[16:0], rule_type; output dim: total_nv[4:0]
+wire [3:0] h_nv_per_row [0:15];   // one count per adjacent row pair
 reg [4:0] h_nv; // total horizontal violations, assigned to h_nv_temp after accumulation
-// connecting pair: (0,1), (1,2), ... , (16, 17)
-// a total of 17 row pairs, so we need 17 RowMod instances to cover all the horizontal violations between adjacent rows.
+// connecting pair: (0,1), (1,2), ... , (15, 16)
+// a total of 16 row pairs, so we need 16 RowMod instances to cover all the horizontal violations between adjacent rows.
 
 generate
-    for (i = 0; i < 17; i = i + 1) begin : h_row_mods
+    for (i = 0; i < 16; i = i + 1) begin : h_row_mods
     // DRCA.h_row_mods[0].row_mod_h
     // ...
-    // DRCA.h_row_mods[16].row_mod_h
+    // DRCA.h_row_mods[15].row_mod_h
         RowMod row_mod_h (
             .row1(grid_tr[i]),
             .row2(grid_tr[i+1]),
@@ -433,20 +431,20 @@ endgenerate
 // accumulate the total horizontal violations from each row pair
 always @(*) begin
     h_nv = 0;
-    for (integer k = 0; k < 17; k = k + 1) begin
+    for (integer k = 0; k < 16; k = k + 1) begin
         h_nv = h_nv + h_nv_per_row[k];
     end
 end
 
 // group the vertical violations by column and count the total num of vertical violations, store in v_nv
 reg [4:0] v_nv; // total vertical violations, assigned to v_nv_temp after accumulation
-wire [3:0] v_nv_per_col [0:16]; // vertical violations per column
+wire [3:0] v_nv_per_col [0:15]; // vertical violations per column
 
-// connecting pair: (0,1), (1,2), ... , (16, 17) of grid to count vertical violations column by column
+// connecting pair: (0,1), (1,2), ... , (15, 16) of grid to count vertical violations column by column
 
 
 generate
-    for (i = 0; i < 17; i = i + 1) begin : v_row_mods
+    for (i = 0; i < 16; i = i + 1) begin : v_row_mods
         RowMod row_mod_v (
             .row1(grid[i]),
             .row2(grid[i+1]),
@@ -461,7 +459,7 @@ endgenerate
 // accumulate the total vertical violations from each column pair
 always @(*) begin
     v_nv = 0;
-    for (integer k = 0; k < 17; k = k + 1) begin
+    for (integer k = 0; k < 16; k = k + 1) begin
         v_nv = v_nv + v_nv_per_col[k];
     end
 end
