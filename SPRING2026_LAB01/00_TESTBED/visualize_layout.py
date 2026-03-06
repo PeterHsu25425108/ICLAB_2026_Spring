@@ -21,7 +21,23 @@ def parse_shape(shape_hex):
 
 
 # %%
-def plot_layout(filename):
+def split_into_layouts(lines):
+    """Split file lines into groups of shapes, separated by blank lines."""
+    groups = []
+    current = []
+    for line in lines:
+        if line.strip():
+            current.append(line)
+        else:
+            if current:
+                groups.append(current)
+                current = []
+    if current:
+        groups.append(current)
+    return groups
+
+
+def plot_layout(shape_lines, output_path):
     fig, ax = plt.subplots(figsize=(8, 8))
     
     # Layer styling and Priority (zorder)
@@ -38,10 +54,7 @@ def plot_layout(filename):
     }
 
     try:
-        with open(filename, 'r') as f:
-            shapes = f.readlines()
-            
-        for line in shapes[:16]: # Process up to 16 shapes
+        for line in shape_lines[:16]: # Process up to 16 shapes
             input_string = line.strip()
             if( not input_string or input_string.startswith("//") or input_string.startswith("endl")):
                 continue
@@ -65,8 +78,8 @@ def plot_layout(filename):
             )
             ax.add_patch(rect)
 
-    except FileNotFoundError:
-        print(f"Error: {filename} not found.")
+    except Exception as e:
+        print(f"Error processing layout: {e}")
         return
 
     # Grid and Axis Setup
@@ -89,18 +102,75 @@ def plot_layout(filename):
     by_label = dict(zip(labels, handles))
     plt.legend(by_label.values(), by_label.keys(), loc='upper right', bbox_to_anchor=(1.2, 1), facecolor='#8e8e8e', edgecolor='white', framealpha=0.9)
 
-    plt.show()
+    plt.savefig(output_path, bbox_inches='tight')
+    plt.close()
+    print(f"Saved: {output_path}")
 
 # %%
 # Usage
-# Ensure visual_layout.txt contains one hex value (e.g., 20843F) per line
-# First arg is the filename of the layout data
+# Mode 1: python visualize_layout.py <layout_file.txt>
+#   - Treats file as groups of shapes separated by blank lines.
+#   - Each group produces one output PNG: [filename]_[index].png
+#
+# Mode 2: python visualize_layout.py <LAB1_case.txt> <pattern_index>
+#   - Parses the PATTERN.v/LAB1_case format:
+#     Line 1: PATNUM
+#     Per pattern: golden_out, drc_sel, then 16 lines of "typ llx lly urx ury"
+#   - Plots the specified pattern index (0-based).
 import os, sys
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python visualize_layout.py <layout_file.txt>")
+        print("Usage:")
+        print("  python visualize_layout.py <layout_file.txt>")
+        print("  python visualize_layout.py <LAB1_case.txt> <pattern_index>")
+    elif len(sys.argv) == 3:
+        # Mode 2: LAB1_case format with pattern index
+        filename = sys.argv[1]
+        pat_idx = int(sys.argv[2])
+        base = os.path.splitext(filename)[0]
+        try:
+            with open(filename, 'r') as f:
+                lines = [l.strip() for l in f.readlines() if l.strip()]
+        except FileNotFoundError:
+            print(f"Error: {filename} not found.")
+            sys.exit(1)
+
+        patnum = int(lines[0])
+        if pat_idx < 0 or pat_idx >= patnum:
+            print(f"Error: pattern index {pat_idx} out of range [0, {patnum-1}]")
+            sys.exit(1)
+
+        # Each pattern: 1 line golden + 1 line drc_sel + 16 shape lines = 18 lines
+        offset = 1 + pat_idx * 18
+        golden = int(lines[offset])
+        drc_sel = int(lines[offset + 1])
+        shape_lines = lines[offset + 2 : offset + 18]
+
+        rule_type = drc_sel & 1
+        rule_layer = (drc_sel >> 1) & 0x7
+        layer_names = {0: 'CONTACT', 1: 'DIFF', 2: 'POLY', 3: 'M1', 4: 'NP', 5: 'PP', 6: 'NW'}
+        print(f"Pattern {pat_idx}: golden={golden}, drc_sel={drc_sel} "
+              f"(rule_type={'spacing' if rule_type else 'width'}, "
+              f"rule_layer={layer_names.get(rule_layer, '?')})")
+
+        output_path = f"{base}_pat{pat_idx}.png"
+        plot_layout(shape_lines, output_path)
     else:
-        plot_layout(sys.argv[1])
+        # Mode 1: original blank-line-separated groups
+        filename = sys.argv[1]
+        base = os.path.splitext(filename)[0]
+        try:
+            with open(filename, 'r') as f:
+                lines = f.readlines()
+        except FileNotFoundError:
+            print(f"Error: {filename} not found.")
+            sys.exit(1)
+
+        groups = split_into_layouts(lines)
+        print(f"Found {len(groups)} layout(s) in {filename}")
+        for i, group in enumerate(groups):
+            output_path = f"{base}_{i}.png"
+            plot_layout(group, output_path)
 
 # %%
 

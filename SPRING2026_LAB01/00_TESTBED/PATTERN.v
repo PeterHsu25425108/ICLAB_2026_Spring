@@ -1,4 +1,4 @@
-`define CYCLE_TIME 10.0
+`define CYCLE_TIME 11.0
 
 module PATTERN (
     output reg [3:0]  drc_sel,
@@ -41,8 +41,21 @@ initial	clk = 0;
 //================================================================
 
 initial begin
-    f_in  = $fopen("../00_TESTBED/input.txt", "r");
+    // f_in  = $fopen("../00_TESTBED/input.txt", "r");
+    // f_in  = $fopen("../00_TESTBED/LAB1_case.txt", "r");
+    f_in  = $fopen("../00_TESTBED/long_poly_input.txt", "r");
     a = $fscanf(f_in, "%d", PATNUM);
+
+    /*
+        The format of input.txt:
+        1. The first line is the number of patterns.
+        
+        2. The second line is the golden output of the pattern, which is a single integer.
+        3. The third line is the drc_sel of the pattern, which is a single integer.
+        4. The next 16 lines are the shape information of the pattern, which is in the format of "typ llx lly urx ury", where typ is a 3-bit integer, llx, lly, urx, ury are 4-bit integers.
+        5. The next line is the golden output of the second pattern, which is a single integer.
+
+    */
     
     #10;
     release clk;
