@@ -1,174 +1,173 @@
-// comparator unit for DRC-A
-module CoorComp(
-    input [4:0] ele1, // MSB: valid bit, LSBs: shape coordinates
-    input [4:0] ele2,
-    // compare the coordinates of ele1 and ele2, output the bigger one and smaller one
-    output reg [4:0] big_ele,
-    output reg [4:0] small_ele
+module CheckMask(
+    input  wire [17:0] data_in,
+    input  wire        rule_type,
+    // the occurence is reported on the left most 1/0, left meaning towards the MSB
+    output wire [17:0] match_010_or_101,
+    output wire [17:0] match_0110_or_1001,
+    output wire [17:0] match_01110_or_10001,
+    output wire [17:0] match_011110
 );
+    // MSB-left bit ordering: bit[15] is leftmost, bit[0] is rightmost.
+    // At position k, its left  neighbor is bit[k+1] (higher index, toward MSB).
+    //                its right neighbor is bit[k-1] (lower  index, toward LSB).
+    // To read the left  neighbor at every k simultaneously: shift data RIGHT (>>) by 1
+    //   → shr1[k] = data[k+1]
+    // To read the right neighbor at every k simultaneously: shift data LEFT  (<<) by 1
+    //   → shl1[k] = data[k-1]
+    // Example: data_in >> 1: 0 D[15] D[14] ... D[2] D[1]  (shr1[k] = D[k+1])
 
-always @(*) begin
-    if (ele1 > ele2) begin
-        big_ele = ele1;
-        small_ele = ele2;
-    end else begin
-        big_ele = ele2;
-        small_ele = ele1;
-    end
-end
-endmodule
+    // Modified data and shifts for the first three patterns (supports inversion via rule_type)
+    wire [17:0] data_mod = data_in ^ {18{rule_type}};
+    wire [17:0] shr1 = {rule_type, data_mod[17:1]}; // shr1[k] = data_mod[k+1]: left  neighbor of k; MSB padded with rule_type
+    wire [17:0] shl1 = {data_mod[16:0], rule_type};  // shl1[k] = data_mod[k-1]: right neighbor of k, 1 away; LSB padded with rule_type
+    wire [17:0] shl2 = {data_mod[15:0], {2{rule_type}}}; // shl2[k] = data_mod[k-2]: right neighbor of k, 2 away
+    wire [17:0] shl3 = {data_mod[14:0], {3{rule_type}}}; // shl3[k] = data_mod[k-3]: right neighbor of k, 3 away
 
-// The order of the outputs: descending order
-module Sorter8 (
-    input  [4:0] in0, in1, in2, in3, in4, in5, in6, in7,
-    output [4:0] out0, out1, out2, out3, out4, out5, out6, out7
-);
-    // Stage 1
-    wire [4:0] a0, a1, a2, a3, a4, a5, a6, a7;
-    CoorComp c1_0(.ele1(in0), .ele2(in1), .big_ele(a0), .small_ele(a1));
-    CoorComp c1_1(.ele1(in2), .ele2(in3), .big_ele(a2), .small_ele(a3));
-    CoorComp c1_2(.ele1(in4), .ele2(in5), .big_ele(a4), .small_ele(a5));
-    CoorComp c1_3(.ele1(in6), .ele2(in7), .big_ele(a6), .small_ele(a7));
+    // Raw data and shifts for the 011110 pattern (fixed 0 padding, no inversion)
+    wire [17:0] raw_shr1 = {1'b0, data_in[17:1]};         // raw_shr1[k] = data_in[k+1]
+    wire [17:0] raw_shl1 = {data_in[16:0], 1'b0};          // raw_shl1[k] = data_in[k-1]
+    wire [17:0] raw_shl2 = {data_in[15:0], 2'b00};          // raw_shl2[k] = data_in[k-2]
+    wire [17:0] raw_shl3 = {data_in[14:0], 3'b000};         // raw_shl3[k] = data_in[k-3]
+    wire [17:0] raw_shl4 = {data_in[13:0], 4'b0000};        // raw_shl4[k] = data_in[k-4]
 
-    // Stage 2
-    wire [4:0] b0, b1, b2, b3, b4, b5, b6, b7;
-    CoorComp c2_0(.ele1(a0), .ele2(a2), .big_ele(b0), .small_ele(b2));
-    CoorComp c2_1(.ele1(a1), .ele2(a3), .big_ele(b1), .small_ele(b3));
-    CoorComp c2_2(.ele1(a4), .ele2(a6), .big_ele(b4), .small_ele(b6));
-    CoorComp c2_3(.ele1(a5), .ele2(a7), .big_ele(b5), .small_ele(b7));
+    // 1. 010 / 101: isolated 1/0. At match bit k: data_mod[k+1..k-1] = 0,1,0.
+    //    Reported at bit k (the sole 1/0 of the run).
+    assign match_010_or_101 = ~shr1 & data_mod & ~shl1;
 
-    // Stage 3
-    wire [4:0] c1, c2, c5, c6;
-    CoorComp c3_0(.ele1(b1), .ele2(b2), .big_ele(c1), .small_ele(c2));
-    CoorComp c3_1(.ele1(b5), .ele2(b6), .big_ele(c5), .small_ele(c6));
-    wire [4:0] c0 = b0, c3 = b3, c4 = b4, c7 = b7;
+    // 2. 0110 / 1001: run of two 1/0s. At match bit k: data_mod[k+1..k-2] = 0,1,1,0.
+    //    Reported at bit k (leftmost 1/0 of the pair).
+    assign match_0110_or_1001 = ~shr1 & data_mod & shl1 & ~shl2;
 
-    // Stage 4
-    wire [4:0] d0, d1, d2, d3, d4, d5, d6, d7;
-    CoorComp c4_0(.ele1(c0), .ele2(c4), .big_ele(d0), .small_ele(d4));
-    CoorComp c4_1(.ele1(c1), .ele2(c5), .big_ele(d1), .small_ele(d5));
-    CoorComp c4_2(.ele1(c2), .ele2(c6), .big_ele(d2), .small_ele(d6));
-    CoorComp c4_3(.ele1(c3), .ele2(c7), .big_ele(d3), .small_ele(d7));
+    // 3. 01110 / 10001: run of three 1/0s. At match bit k: data_mod[k+1..k-3] = 0,1,1,1,0.
+    //    Reported at bit k (leftmost 1/0 of the triple).
+    assign match_01110_or_10001 = ~shr1 & data_mod & shl1 & shl2 & ~shl3;
 
-    // Stage 5
-    wire [4:0] e2, e3, e4, e5;
-    CoorComp c5_0(.ele1(d2), .ele2(d4), .big_ele(e2), .small_ele(e4));
-    CoorComp c5_1(.ele1(d3), .ele2(d5), .big_ele(e3), .small_ele(e5));
-    wire [4:0] e0 = d0, e1 = d1, e6 = d6, e7 = d7;
-
-    // Stage 6
-    wire [4:0] f1, f2, f3, f4, f5, f6;
-    CoorComp c6_0(.ele1(e1), .ele2(e2), .big_ele(f1), .small_ele(f2));
-    CoorComp c6_1(.ele1(e3), .ele2(e4), .big_ele(f3), .small_ele(f4));
-    CoorComp c6_2(.ele1(e5), .ele2(e6), .big_ele(f5), .small_ele(f6));
-
-    // Final Outputs
-    assign out0 = e0;
-    assign out1 = f1;
-    assign out2 = f2;
-    assign out3 = f3;
-    assign out4 = f4;
-    assign out5 = f5;
-    assign out6 = f6;
-    assign out7 = e7;
-endmodule
-
-module Top8_Selector (
-    input  [4:0] in0, in1, in2, in3, in4, in5, in6, in7,
-    input  [4:0] in8, in9, in10, in11, in12, in13, in14, in15,
-    output [4:0] top0, top1, top2, top3, top4, top5, top6, top7
-);
-    // Sorter outputs
-    wire [4:0] sa0, sa1, sa2, sa3, sa4, sa5, sa6, sa7;
-    wire [4:0] sb0, sb1, sb2, sb3, sb4, sb5, sb6, sb7;
-
-    // Sort the first 8 inputs
-    Sorter8 sorter_A (
-        .in0(in0), .in1(in1), .in2(in2), .in3(in3), .in4(in4), .in5(in5), .in6(in6), .in7(in7),
-        .out0(sa0), .out1(sa1), .out2(sa2), .out3(sa3), .out4(sa4), .out5(sa5), .out6(sa6), .out7(sa7)
-    );
-
-    // Sort the next 8 inputs
-    Sorter8 sorter_B (
-        .in0(in8), .in1(in9), .in2(in10), .in3(in11), .in4(in12), .in5(in13), .in6(in14), .in7(in15),
-        .out0(sb0), .out1(sb1), .out2(sb2), .out3(sb3), .out4(sb4), .out5(sb5), .out6(sb6), .out7(sb7)
-    );
-
-    // Merge Stage 1: Compare top half with bottom half.
-    // We reverse the outputs of Sorter B (pairing sa0 with sb7, sa1 with sb6...) to form a bitonic sequence.
-    wire [4:0] m1_0_b, m1_1_b, m1_2_b, m1_3_b, m1_4_b, m1_5_b, m1_6_b, m1_7_b;
-
-    // substitide CoorComp with direct assignments since we only care about the bigger elements
-    assign m1_0_b = (sa0 > sb7) ? sa0 : sb7;
-    assign m1_1_b = (sa1 > sb6) ? sa1 : sb6;
-    assign m1_2_b = (sa2 > sb5) ? sa2 : sb5;
-    assign m1_3_b = (sa3 > sb4) ? sa3 : sb4;
-    assign m1_4_b = (sa4 > sb3) ? sa4 : sb3;
-    assign m1_5_b = (sa5 > sb2) ? sa5 : sb2;
-    assign m1_6_b = (sa6 > sb1) ? sa6 : sb1;
-    assign m1_7_b = (sa7 > sb0) ? sa7 : sb0;
-
-    // Merge Stage 2: Distance 4
-    wire [4:0] m2_0_b, m2_0_s, m2_1_b, m2_1_s, m2_2_b, m2_2_s, m2_3_b, m2_3_s;
-    
-    CoorComp m2_c0(.ele1(m1_0_b), .ele2(m1_4_b), .big_ele(m2_0_b), .small_ele(m2_0_s));
-    CoorComp m2_c1(.ele1(m1_1_b), .ele2(m1_5_b), .big_ele(m2_1_b), .small_ele(m2_1_s));
-    CoorComp m2_c2(.ele1(m1_2_b), .ele2(m1_6_b), .big_ele(m2_2_b), .small_ele(m2_2_s));
-    CoorComp m2_c3(.ele1(m1_3_b), .ele2(m1_7_b), .big_ele(m2_3_b), .small_ele(m2_3_s));
-
-    // Merge Stage 3: Distance 2
-    wire [4:0] m3_0_b, m3_0_s, m3_1_b, m3_1_s, m3_2_b, m3_2_s, m3_3_b, m3_3_s;
-    
-    CoorComp m3_c0(.ele1(m2_0_b), .ele2(m2_2_b), .big_ele(m3_0_b), .small_ele(m3_0_s));
-    CoorComp m3_c1(.ele1(m2_1_b), .ele2(m2_3_b), .big_ele(m3_1_b), .small_ele(m3_1_s));
-    CoorComp m3_c2(.ele1(m2_0_s), .ele2(m2_2_s), .big_ele(m3_2_b), .small_ele(m3_2_s));
-    CoorComp m3_c3(.ele1(m2_1_s), .ele2(m2_3_s), .big_ele(m3_3_b), .small_ele(m3_3_s));
-
-    // Merge Stage 4: Distance 1 (Final sorted top 8 outputs)
-    CoorComp m4_c0(.ele1(m3_0_b), .ele2(m3_1_b), .big_ele(top0), .small_ele(top1));
-    CoorComp m4_c1(.ele1(m3_0_s), .ele2(m3_1_s), .big_ele(top2), .small_ele(top3));
-    CoorComp m4_c2(.ele1(m3_2_b), .ele2(m3_3_b), .big_ele(top4), .small_ele(top5));
-    CoorComp m4_c3(.ele1(m3_2_s), .ele2(m3_3_s), .big_ele(top6), .small_ele(top7));
+    // 4. 011110 only: run of four 1s. At match bit k: data_in[k+1..k-4] = 0,1,1,1,1,0.
+    //    Reported at bit k (leftmost 1 of the quad).
+    assign match_011110 = ~raw_shr1 & data_in & raw_shl1 & raw_shl2 & raw_shl3 & ~raw_shl4;
 
 endmodule
 
-module FilterSort(
+module RuleValMode_Decoder (
+    input rule_type,
     input [2:0] rule_layer,
-    input [2:0] shape_layer [0:15],
-    input [3:0] shape_coor[0:15],
-    output keep_shape [0:7], // 1: the shape belongs to the same layer as rule_layer, 0: otherwise
-    output [3:0] sort_coor [0:7]
+    output [1:0] rule_val_mode
 );
-// output the <= 8 shapes of the same layer
-wire [4:0] ele_filtered [0:15]; // MSB: Whether this shape belongs to rule_layer, LSBs (4bits): shape coordinates
-wire [4:0] sort_ele [0:7]; // outputs from Top8_Selector, MSB: valid bit, LSBs: shape coordinates
+reg [1:0] s_rvm;
+reg [1:0] w_rvm;
 
-genvar i;
-generate
-    for (i = 0; i < 16; i = i + 1) begin : expand_ele_filtered
-        assign ele_filtered[i] = (rule_layer == shape_layer[i]) ? {1'b1, shape_coor[i]} : 5'd0;
-    end
-endgenerate
+always@(*) begin  : rvm_decoding_logic
+    casez(rule_layer) 
+        3'd0, 3'd2: s_rvm = 0;
+        3'd1, 3'd3: s_rvm = 1;
+        3'd4, 3'd5: s_rvm = 2;
+        3'd6: s_rvm = 3;
+        default: s_rvm = 3'bx;
+    endcase
 
-// Use Top8_Selector to select the top 8 shapes of the same layer
-Top8_Selector top8_selector (
-    .in0(ele_filtered[0]), .in1(ele_filtered[1]), .in2(ele_filtered[2]), .in3(ele_filtered[3]), .in4(ele_filtered[4]), 
-    .in5(ele_filtered[5]), .in6(ele_filtered[6]), .in7(ele_filtered[7]), .in8(ele_filtered[8]), .in9(ele_filtered[9]),
-    .in10(ele_filtered[10]), .in11(ele_filtered[11]), .in12(ele_filtered[12]), .in13(ele_filtered[13]), 
-    .in14(ele_filtered[14]), .in15(ele_filtered[15]),
-    .top0(sort_ele[0]), .top1(sort_ele[1]), .top2(sort_ele[2]), .top3(sort_ele[3]), .top4(sort_ele[4]), 
-    .top5(sort_ele[5]), .top6(sort_ele[6]), .top7(sort_ele[7])
+    casez(rule_layer)
+        3'd0, 3'd1, 3'd2, 3'd3: w_rvm = 0;
+        3'd4, 3'd5: w_rvm = 1;
+        3'd6: w_rvm = 2;
+        default: w_rvm = 3'bx;
+    endcase
+end
+
+assign rule_val_mode = rule_type ? w_rvm : s_rvm;
+
+endmodule
+
+// add 1 violation if row1 has a certain type of violation but row2 doesn't, 
+// or vice versa
+module RowMod (
+    input [17:0] row1,
+    input [17:0] row2,
+    input rule_type,
+    input [2:0] rule_layer,
+    input [1:0] rvm,
+    output reg [3:0] total_nv
 );
+    // apply CheckMask to each row
+    wire [17:0] match_010_or_101_row1, match_0110_or_1001_row1, match_01110_or_10001_row1, match_011110_row1;
+    wire [17:0] match_010_or_101_row2, match_0110_or_1001_row2, match_01110_or_10001_row2, match_011110_row2;
+    CheckMask check_row1 (
+        .data_in(row1),
+        .rule_type(rule_type),
+        .match_010_or_101(match_010_or_101_row1),
+        .match_0110_or_1001(match_0110_or_1001_row1),
+        .match_01110_or_10001(match_01110_or_10001_row1),
+        .match_011110(match_011110_row1)
+    );
+    CheckMask check_row2 (
+        .data_in(row2),
+        .rule_type(rule_type),
+        .match_010_or_101(match_010_or_101_row2),
+        .match_0110_or_1001(match_0110_or_1001_row2),
+        .match_01110_or_10001(match_01110_or_10001_row2),
+        .match_011110(match_011110_row2)
+    );
 
-// unpack the outputs of Top8_Selector
-genvar j;
-generate
-    for (j = 0; j < 8; j = j + 1) begin : unpack_sort_outputs
-        assign keep_shape[j] = sort_ele[j][4]; // valid bit
-        assign sort_coor[j] = sort_ele[j][3:0]; // shape coordinates
+    // check for occurence of the same type of match on the exact same loc on the 2 rows
+    wire [17:0] v1_overlap;
+    assign v1_overlap = match_010_or_101_row1 & ~match_010_or_101_row2;
+    // max num of v2(0110/1001): 17
+    //idx| 17 16 15        2  1  0 |
+    // 0 | 1  1   0... ==> 0  1  1 | 0
+    // check output (match_0110_or_1001_row1 & match_0110_or_1001_row2)
+    //   | 1 0 0...    ==> 0  1  0 |  so there are 17 possible locations for v2 cuz the pattern is reported at the left most 1, 
+    wire [17:0] v2_xor;
+    assign v2_xor = match_0110_or_1001_row1 & ~match_0110_or_1001_row2;
+    wire [16:0] v2_overlap;
+    assign v2_overlap = v2_xor[17:1];
+
+    wire [17:0] v3_xor;
+    assign v3_xor = match_01110_or_10001_row1 & ~match_01110_or_10001_row2;
+    wire [15:0] v3_overlap;
+    // assign v3_overlap = v3_xor[16:1];
+    assign v3_overlap = v3_xor[17:2];
+
+    wire [17:0] v4_xor;
+    assign v4_xor = match_011110_row1 & ~match_011110_row2;
+    wire [14:0] v4_overlap;
+    // assign v4_overlap = v4_xor[15:1];
+    assign v4_overlap = v4_xor[17:3];
+
+    // sum up the total num of violations for this row pair
+    // note that in the real case, at most 8 violations can occur on one row
+    // so we can use 4 bits to count each type of violation, and 4 bits to sum up the total (max 15)
+    reg [3:0] v1_count, v2_count, v3_count, v4_count;
+
+    // count the number of 1s in v1_overlap, v2_overlap, v3_overlap, v4_overlap
+    always @(*) begin
+        v1_count = 0;
+        v2_count = 0;
+        v3_count = 0;
+        v4_count = 0;
+        for (integer k = 0; k < 18; k = k + 1)
+            v1_count = v1_count + v1_overlap[k];
+        for (integer k = 0; k < 17; k = k + 1)
+            v2_count = v2_count + v2_overlap[k];
+        for (integer k = 0; k < 16; k = k + 1)
+            v3_count = v3_count + v3_overlap[k];
+        for (integer k = 0; k < 15; k = k + 1)
+            v4_count = v4_count + v4_overlap[k];
     end
-endgenerate
+    reg [3:0] w1_nv, w2_nv, w3_nv, w4_nv;
+    // total violations for this row pair = v1_count + v2_count + v3_count + v4_count
+    always @(*) begin : RowMod_mode_selection_logic
+        w1_nv = v1_count;
+        w2_nv = w1_nv + v2_count;
+        w3_nv = w2_nv + v3_count;
+        w4_nv = w3_nv + v4_count;
 
+        casez(rvm)
+        2'd0: total_nv = w1_nv; // only count v1
+        2'd1: total_nv = w2_nv; // count v1 and v2
+        2'd2: total_nv = w3_nv; // count v1, v2 and v3
+        2'd3: total_nv = w4_nv; // count all v1, v2, v3 and v4
+        default: total_nv = 4'bx; // invalid rvm
+        endcase
+    end
 endmodule
 
 module DRCA (
@@ -216,13 +215,22 @@ wire [3:0] ury [0:15];
 wire rule_type; // 0: width, 1: spacing
 wire [2:0] rule_layer; // 3'd0: contact, 3'd1: diff, 3'd2: poly, 3'd3: m1, 3'd4: np, 3'd5: pp, 3'd6: nw
 
-wire keep_shape [0:7]; // from FilterSort, indicates whether the shape belongs to the same layer as rule_layer
-wire [3:0] sort_llx [0:7]; // from FilterSort,
-wire [3:0] sort_lly [0:7]
-;//**************************************************
+// grid for the selected layer (18x18 with zero-padded borders)
+wire [17:0] grid[0:17];
+// indicate if the shape_layer[i] == rule_layer for each shape 
+wire is_layer_2_Check[0:15];
+
+// the total num of violations caused by width and spacing 
+wire [4:0] width_nv;
+wire [4:0] spacing_nv;
+
+// get rule value mode
+wire [1:0] rvm;
+
+//**************************************************
 // Design 
 //**************************************************
-// unpack input shapes
+// unpack input shapes, assigned wires: shape_layer, llx, lly, urx, ury
 genvar i;
 generate
     for (i = 0; i < 16; i = i + 1) begin : unpack_shapes
@@ -312,22 +320,152 @@ endgenerate
 assign rule_type = drc_sel[0]; // LSB indicates rule type
 assign rule_layer = drc_sel[3:1]; // MSBs indicate layer for width/spacing rules
 
-FilterSort filter_sort_x (
+// get rule value mode (depends on rule type and rule layer)
+RuleValMode_Decoder rvm_decoder (
+    .rule_type(rule_type),
     .rule_layer(rule_layer),
-    .shape_layer(shape_layer),
-    .shape_coor(llx), // pack the coordinates into 4 bits for each shape
-    .keep_shape(keep_shape), // not used in this design, can be connected to something if needed
-    .sort_coor(sort_llx) // not used in this design, can be connected to something if needed
+    .rule_val_mode(rvm)
 );
 
-FilterSort filter_sort_y (
-    .rule_layer(rule_layer),
-    .shape_layer(shape_layer),
-    .shape_coor(lly), // pack the coordinates into 4 bits for each shape
-    .keep_shape(keep_shape), // not used in this design, can be connected to something if needed
-    .sort_coor(sort_lly) // not used in this design, can be connected to something if needed
-);
+// translate shape_layer to rule_layer 
+reg [2:0] trans_rule_layer;
+always @(*) begin
+    // for (integer idx = 0; idx < 16; idx = idx + 1) begin
+    //     casez(shape_layer[idx])
+    //     3'd1: trans_shape_layer[idx] = 3'd0; // CO
+    //     3'd2: trans_shape_layer[idx] = 3'd1; // OD
+    //     3'd3: trans_shape_layer[idx] = 3'd2; // PO
+    //     3'd4: trans_shape_layer[idx] = 3'd3; // M1
+    //     3'd5: trans_shape_layer[idx] = 3'd4; // NP
+    //     3'd6: trans_shape_layer[idx] = 3'd5; // PP
+    //     3'd7: trans_shape_layer[idx] = 3'd6; // NW
+    //     default: trans_shape_layer[idx] = 3'bx;
+    //     endcase
+    // end
 
-assign drc_out = 5'b0;
+    // translate rule layer to shape layer
+    casez(rule_layer)
+        3'd0: trans_rule_layer = 3'd1; // CO
+        3'd1: trans_rule_layer = 3'd2; // OD
+        3'd2: trans_rule_layer = 3'd3; // PO
+        3'd3: trans_rule_layer = 3'd4; // M1
+        3'd4: trans_rule_layer = 3'd5; // NP
+        3'd5: trans_rule_layer = 3'd6; // PP
+        3'd6: trans_rule_layer = 3'd7; // NW
+        default: trans_rule_layer = 3'bx;
+    endcase
+end
+
+// check which shapes are on the same layer as the rule_layer, store in is_layer_2_Check
+generate
+    for (i = 0; i < 16; i = i + 1) begin : check_layer
+        assign is_layer_2_Check[i] = (shape_layer[i] == trans_rule_layer) ? 1 : 0;
+    end
+endgenerate
+
+// construct the grid (18x18 with zero-padded borders, original 16x16 content in [1:16][1:16])
+genvar j;
+generate
+    // The outer border rows (0, 17) and columns (bit 0, bit 17) are zero-padded.
+    // The original 16x16 content is placed in grid[1..16][1..16].
+    // For a shape with llx=0, lly=4, urx=3, ury=10: grid[1..3][5..10] = 1 (shifted by +1).
+    for (i = 0; i < 18; i = i + 1) begin : construct_grids
+        for (j = 0; j < 18; j = j + 1) begin : construct_grid_bits
+            if (i == 0 || i == 17 || j == 0 || j == 17) begin : zero_pad
+                assign grid[i][j] = 1'b0;
+            end else begin : interior
+                assign grid[i][j] = 
+                ((is_layer_2_Check[0]) && (llx[0] <= (i-1)) && (urx[0] > (i-1)) && (lly[0] <= (j-1)) && (ury[0] > (j-1))) ||
+                ((is_layer_2_Check[1]) && (llx[1] <= (i-1)) && (urx[1] > (i-1)) && (lly[1] <= (j-1)) && (ury[1] > (j-1))) ||
+                ((is_layer_2_Check[2]) && (llx[2] <= (i-1)) && (urx[2] > (i-1)) && (lly[2] <= (j-1)) && (ury[2] > (j-1))) ||
+                ((is_layer_2_Check[3]) && (llx[3] <= (i-1)) && (urx[3] > (i-1)) && (lly[3] <= (j-1)) && (ury[3] > (j-1))) ||
+                ((is_layer_2_Check[4]) && (llx[4] <= (i-1)) && (urx[4] > (i-1)) && (lly[4] <= (j-1)) && (ury[4] > (j-1))) ||
+                ((is_layer_2_Check[5]) && (llx[5] <= (i-1)) && (urx[5] > (i-1)) && (lly[5] <= (j-1)) && (ury[5] > (j-1))) ||
+                ((is_layer_2_Check[6]) && (llx[6] <= (i-1)) && (urx[6] > (i-1)) && (lly[6] <= (j-1)) && (ury[6] > (j-1))) ||
+                ((is_layer_2_Check[7]) && (llx[7] <= (i-1)) && (urx[7] > (i-1)) && (lly[7] <= (j-1)) && (ury[7] > (j-1))) ||
+                ((is_layer_2_Check[8]) && (llx[8] <= (i-1)) && (urx[8] > (i-1)) && (lly[8] <= (j-1)) && (ury[8] > (j-1))) ||
+                ((is_layer_2_Check[9]) && (llx[9] <= (i-1)) && (urx[9] > (i-1)) && (lly[9] <= (j-1)) && (ury[9] > (j-1))) ||
+                ((is_layer_2_Check[10]) && (llx[10] <= (i-1)) && (urx[10] > (i-1)) && (lly[10] <= (j-1)) && (ury[10] > (j-1))) ||
+                ((is_layer_2_Check[11]) && (llx[11] <= (i-1)) && (urx[11] > (i-1)) && (lly[11] <= (j-1)) && (ury[11] > (j-1))) ||
+                ((is_layer_2_Check[12]) && (llx[12] <= (i-1)) && (urx[12] > (i-1)) && (lly[12] <= (j-1)) && (ury[12] > (j-1))) ||
+                ((is_layer_2_Check[13]) && (llx[13] <= (i-1)) && (urx[13] > (i-1)) && (lly[13] <= (j-1)) && (ury[13] > (j-1))) ||
+                ((is_layer_2_Check[14]) && (llx[14] <= (i-1)) && (urx[14] > (i-1)) && (lly[14] <= (j-1)) && (ury[14] > (j-1))) ||
+                ((is_layer_2_Check[15]) && (llx[15] <= (i-1)) && (urx[15] > (i-1)) && (lly[15] <= (j-1)) && (ury[15] > (j-1)));
+            end
+        end
+    end
+endgenerate
+
+wire [17:0] grid_tr[0:17]; // a transposed version of grid to facilitate counting vertical violations column by column
+// transpose the grid to get grid_tr, so that we can reuse RowMod to count vertical violations by treating each column as a row
+// genvar i, j;
+generate
+    for (i = 0; i < 18; i = i + 1) begin : transpose_grid
+        for (j = 0; j < 18; j = j + 1) begin
+            assign grid_tr[i][j] = grid[j][i];
+        end
+    end
+endgenerate
+
+// Connect the rows of grid to 17 RowMod to count the horizontal violations
+// expected inputs dim of RowMod: row1[17:0], row2[17:0], rule_type; output dim: total_nv[4:0]
+wire [3:0] h_nv_per_row [0:16];   // one count per adjacent row pair
+reg [4:0] h_nv; // total horizontal violations, assigned to h_nv_temp after accumulation
+// connecting pair: (0,1), (1,2), ... , (16, 17)
+// a total of 17 row pairs, so we need 17 RowMod instances to cover all the horizontal violations between adjacent rows.
+
+generate
+    for (i = 0; i < 17; i = i + 1) begin : h_row_mods
+    // DRCA.h_row_mods[0].row_mod_h
+    // ...
+    // DRCA.h_row_mods[16].row_mod_h
+        RowMod row_mod_h (
+            .row1(grid_tr[i]),
+            .row2(grid_tr[i+1]),
+            .rule_type(rule_type),
+            .rule_layer(rule_layer),
+            .rvm(rvm),
+            .total_nv(h_nv_per_row[i])
+        );
+    end
+endgenerate
+
+// accumulate the total horizontal violations from each row pair
+always @(*) begin
+    h_nv = 0;
+    for (integer k = 0; k < 17; k = k + 1) begin
+        h_nv = h_nv + h_nv_per_row[k];
+    end
+end
+
+// group the vertical violations by column and count the total num of vertical violations, store in v_nv
+reg [4:0] v_nv; // total vertical violations, assigned to v_nv_temp after accumulation
+wire [3:0] v_nv_per_col [0:16]; // vertical violations per column
+
+// connecting pair: (0,1), (1,2), ... , (16, 17) of grid to count vertical violations column by column
+
+
+generate
+    for (i = 0; i < 17; i = i + 1) begin : v_row_mods
+        RowMod row_mod_v (
+            .row1(grid[i]),
+            .row2(grid[i+1]),
+            .rule_type(rule_type),
+            .rule_layer(rule_layer),
+            .rvm(rvm),
+            .total_nv(v_nv_per_col[i])
+        );
+    end
+endgenerate
+
+// accumulate the total vertical violations from each column pair
+always @(*) begin
+    v_nv = 0;
+    for (integer k = 0; k < 17; k = k + 1) begin
+        v_nv = v_nv + v_nv_per_col[k];
+    end
+end
+
+assign drc_out = h_nv + v_nv; // total violations = horizontal violations + vertical violations
 
 endmodule

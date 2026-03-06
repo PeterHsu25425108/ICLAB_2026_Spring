@@ -1,4 +1,5 @@
 TODO:
+Crucial: include shape_idx into the sorting sys so we know which shape is which
 1. Figure out the SingleWidthCheck module's function.
 2. Figure out the spacing algo
 3. See if we can share some HW for the 2 types of violations
