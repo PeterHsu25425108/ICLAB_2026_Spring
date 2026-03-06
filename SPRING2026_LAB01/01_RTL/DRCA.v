@@ -135,6 +135,25 @@ module RowMod (
     // so we can use 4 bits to count each type of violation, and 4 bits to sum up the total (max 15)
     reg [3:0] v1_count, v2_count, v3_count, v4_count;
 
+    // reg [3:0] w1_nv, w2_nv, w3_nv, w4_nv;
+    reg [3:0] en_violate;
+
+    // total violations for this row pair = v1_count + v2_count + v3_count + v4_count
+    always @(*) begin : RowMod_mode_selection_logic
+        // w1_nv = v1_count;
+        // w2_nv = w1_nv + v2_count;
+        // w3_nv = w2_nv + v3_count;
+        // w4_nv = w3_nv + v4_count;
+
+        casez(rvm)
+            2'd0: en_violate = 4'b0001; // count v1
+            2'd1: en_violate = 4'b0011; // count v1 and v2
+            2'd2: en_violate = 4'b0111; // count v1, v2 and v3
+            2'd3: en_violate = 4'b1111; // count all v1, v2, v3 and v4
+            default: en_violate = 4'bx; // invalid rvm
+        endcase
+    end
+
     // count the number of 1s in v1_overlap, v2_overlap, v3_overlap, v4_overlap
     always @(*) begin
         v1_count = 0;
@@ -142,30 +161,17 @@ module RowMod (
         v3_count = 0;
         v4_count = 0;
         for (integer k = 0; k < 17; k = k + 1)
-            v1_count = v1_count + v1_overlap[k];
+            v1_count = v1_count + (v1_overlap[k] & en_violate[0]);
         for (integer k = 0; k < 16; k = k + 1)
-            v2_count = v2_count + v2_overlap[k];
+            v2_count = v2_count + (v2_overlap[k] & en_violate[1]);
         for (integer k = 0; k < 15; k = k + 1)
-            v3_count = v3_count + v3_overlap[k];
+            v3_count = v3_count + (v3_overlap[k] & en_violate[2]);
         for (integer k = 0; k < 14; k = k + 1)
-            v4_count = v4_count + v4_overlap[k];
+            v4_count = v4_count + (v4_overlap[k] & en_violate[3]);
     end
-    reg [3:0] w1_nv, w2_nv, w3_nv, w4_nv;
-    // total violations for this row pair = v1_count + v2_count + v3_count + v4_count
-    always @(*) begin : RowMod_mode_selection_logic
-        w1_nv = v1_count;
-        w2_nv = w1_nv + v2_count;
-        w3_nv = w2_nv + v3_count;
-        w4_nv = w3_nv + v4_count;
 
-        casez(rvm)
-        2'd0: total_nv = w1_nv; // only count v1
-        2'd1: total_nv = w2_nv; // count v1 and v2
-        2'd2: total_nv = w3_nv; // count v1, v2 and v3
-        2'd3: total_nv = w4_nv; // count all v1, v2, v3 and v4
-        default: total_nv = 4'bx; // invalid rvm
-        endcase
-    end
+    // accumulate the total violations for this row pair
+    assign total_nv = v1_count + v2_count + v3_count + v4_count;
 endmodule
 
 module DRCA (
