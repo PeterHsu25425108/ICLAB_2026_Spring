@@ -5,7 +5,8 @@
 !.gitignore
 !SPRING2026_LAB*/**
 # ignore these
-SPRING2026_LAB*/02_SYN/
+SPRING2026_LAB*/02_SYN/*
+!SPRING2026_LAB*/02_SYN/syn.log
 SPRING2026_LAB*/03_GATE/
 SPRING2026_LAB*/09_SUBMIT/
 # for SPRING2026_LAB*/00_TESTBED and SPRING2026_LAB*/01_RTL, track only .v, .py, .cpp, .txt files
