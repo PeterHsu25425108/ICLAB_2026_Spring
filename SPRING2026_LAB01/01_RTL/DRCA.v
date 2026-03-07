@@ -196,7 +196,7 @@ module DRCA (
     input [18:0] shape13 ,
     input [18:0] shape14 ,
     input [18:0] shape15 ,
-    output [4:0] drc_out
+    output reg [4:0] drc_out
 );
 
 
@@ -381,7 +381,7 @@ assign h_cm_v3[0] = 13'b0; assign h_cm_v3[16] = 13'b0;
 assign h_cm_v4[0] = 12'b0; assign h_cm_v4[16] = 12'b0;
 
 generate
-    for (i = 0; i < 16; i = i + 1) begin : h_checkmask
+    for (i = 1; i < 16; i = i + 1) begin : h_checkmask
         CheckMask cm_h (
             .data_in(grid_tr[i]),
             // .rule_type(rule_type),
@@ -406,7 +406,7 @@ assign v_cm_v3[0] = 13'b0; assign v_cm_v3[16] = 13'b0;
 assign v_cm_v4[0] = 12'b0; assign v_cm_v4[16] = 12'b0;
 
 generate
-    for (i = 0; i < 17; i = i + 1) begin : v_checkmask
+    for (i = 1; i < 16; i = i + 1) begin : v_checkmask
         CheckMask cm_v (
             .data_in(grid[i]),
             // .rule_type(rule_type),
@@ -419,11 +419,11 @@ generate
 endgenerate
 
 // Connect 16 RowModLite for horizontal violations using shared CheckMask results
-wire [3:0] h_nv_per_row [0:15];   // one count per adjacent row pair
+wire [3:0] h_nv_per_row [1:15];   // one count per adjacent row pair
 reg [4:0] h_nv; // total horizontal violations
 
 // 3. Hardwire Row 0 violations to 0
-assign h_nv_per_row[0] = 4'd0;
+// assign h_nv_per_row[0] = 4'd0;
 
 generate
     for (i = 1; i < 16; i = i + 1) begin : h_row_mods
@@ -442,12 +442,12 @@ endgenerate
 
 
 // accumulate the total horizontal violations from each row pair
-always @(*) begin
-    h_nv = 0;
-    for (integer k = 0; k < 16; k = k + 1) begin
-        h_nv = h_nv + h_nv_per_row[k];
-    end
-end
+// always @(*) begin
+//     h_nv = 0;
+//     for (integer k = 0; k < 16; k = k + 1) begin
+//         h_nv = h_nv + h_nv_per_row[k];
+//     end
+// end
 
 // Flatten the 2D arrays into 64-bit packed buses
 // wire [63:0] h_nv_packed = {
@@ -466,7 +466,7 @@ end
 // Connect 16 RowModLite for vertical violations using shared CheckMask results
 reg [4:0] v_nv; // total vertical violations
 wire [3:0] v_nv_per_col [0:15]; // vertical violations per column
-assign v_nv_per_col[0] = 4'd0;
+// assign v_nv_per_col[0] = 4'd0;
 
 generate
     for (i = 1; i < 16; i = i + 1) begin : v_row_mods
@@ -485,12 +485,12 @@ endgenerate
 
 
 // accumulate the total vertical violations from each column pair
-always @(*) begin
-    v_nv = 0;
-    for (integer k = 0; k < 16; k = k + 1) begin
-        v_nv = v_nv + v_nv_per_col[k];
-    end
-end
+// always @(*) begin
+//     v_nv = 0;
+//     for (integer k = 0; k < 16; k = k + 1) begin
+//         v_nv = v_nv + v_nv_per_col[k];
+//     end
+// end
 
 
 // wire [63:0] v_nv_packed = {
@@ -507,6 +507,12 @@ end
 // );
 
 
-assign drc_out = h_nv + v_nv; // total violations = horizontal violations + vertical violations
+// assign drc_out = h_nv + v_nv; // total violations = horizontal violations + vertical violations
+always @(*) begin
+    drc_out = 0;
+    for (integer k = 1; k < 16; k = k + 1) begin
+        drc_out = drc_out + h_nv_per_row[k] + v_nv_per_col[k];
+    end
+end
 
 endmodule
