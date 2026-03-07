@@ -6,17 +6,18 @@ module CheckMask(
     output wire [11:0] match_011110     // Evaluates valid center bits [15:4]
 );
 
-    // 1. 010 (15 bits): ~Left & Center & ~Right
-    assign match_010    = ~data_in[16:2] & data_in[15:1] & ~data_in[14:0];
+    // Shared prefix chain: each level reuses the previous to eliminate redundant AND gates.
+    // suf1[k]  = data[k+1] & ~data[k]                          (right anchor)
+    // pre{n}[k] = data[k+n] & pre{n-1}[k]                     (extend left)
+    wire [14:0] suf1 = data_in[15:1]  & ~data_in[14:0];
+    wire [13:0] pre2 = data_in[15:2]  &  suf1[13:0];
+    wire [12:0] pre3 = data_in[15:3]  &  pre2[12:0];
+    wire [11:0] pre4 = data_in[15:4]  &  pre3[11:0];
 
-    // 2. 0110 (14 bits): ~Left & Center1 & Center0 & ~Right
-    assign match_0110   = ~data_in[16:3] & data_in[15:2] & data_in[14:1] & ~data_in[13:0];
-
-    // 3. 01110 (13 bits): ~Left & Center2 & Center1 & Center0 & ~Right
-    assign match_01110  = ~data_in[16:4] & data_in[15:3] & data_in[14:2] & data_in[13:1] & ~data_in[12:0];
-
-    // 4. 011110 (12 bits): ~Left & Center3 & Center2 & Center1 & Center0 & ~Right
-    assign match_011110 = ~data_in[16:5] & data_in[15:4] & data_in[14:3] & data_in[13:2] & data_in[12:1] & ~data_in[11:0];
+    assign match_010    = ~data_in[16:2]  & suf1;
+    assign match_0110   = ~data_in[16:3]  & pre2;
+    assign match_01110  = ~data_in[16:4]  & pre3;
+    assign match_011110 = ~data_in[16:5]  & pre4;
 
 endmodule
 
@@ -95,7 +96,8 @@ module RowModLite (
     wire [3:0] v3_overlap; // Ceil(13/4) = 4 
     wire [2:0] v4_overlap; // Ceil(12/5) = 3 
 
-    reg [3:0] v1_count, v2_count;
+    reg [3:0] v1_count;
+    reg [2:0] v2_count;
     reg [2:0] v3_count;
     reg [1:0] v4_count;
 
