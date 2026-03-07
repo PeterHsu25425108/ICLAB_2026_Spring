@@ -1,10 +1,10 @@
 module CheckMask(
     input  wire [16:0] data_in,
-    input  wire        rule_type,
+    // input  wire        rule_type,
     // the occurence is reported on the left most 1/0, left meaning towards the MSB
-    output wire [16:0] match_010_or_101,
-    output wire [16:0] match_0110_or_1001,
-    output wire [16:0] match_01110_or_10001,
+    output wire [16:0] match_010,
+    output wire [16:0] match_0110,
+    output wire [16:0] match_01110,
     output wire [16:0] match_011110
 );
     // MSB-left bit ordering: bit[15] is leftmost, bit[0] is rightmost.
@@ -17,30 +17,29 @@ module CheckMask(
     // Example: data_in >> 1: 0 D[15] D[14] ... D[2] D[1]  (shr1[k] = D[k+1])
 
     // Modified data and shifts for the first three patterns (supports inversion via rule_type)
-    wire [16:0] data_mod = data_in ^ {17{rule_type}};
-    wire [16:0] shr1 = {rule_type, data_mod[16:1]}; // shr1[k] = data_mod[k+1]: left  neighbor of k; MSB padded with rule_type
-    wire [16:0] shl1 = {data_mod[15:0], rule_type};  // shl1[k] = data_mod[k-1]: right neighbor of k, 1 away; LSB padded with rule_type
-    wire [16:0] shl2 = {data_mod[14:0], {2{rule_type}}}; // shl2[k] = data_mod[k-2]: right neighbor of k, 2 away
-    wire [16:0] shl3 = {data_mod[13:0], {3{rule_type}}}; // shl3[k] = data_mod[k-3]: right neighbor of k, 3 away
+    // wire [16:0] data_mod = data_in ^ {17{rule_type}};
+    wire [16:0] shr1 = {data_in[16], data_in[16:1]}; // shr1[k] = data_mod[k+1]: left  neighbor of k; MSB padded with rule_type
+    wire [16:0] shl1 = {data_in[15:0], data_in[0]};  // shl1[k] = data_mod[k-1]: right neighbor of k, 1 away; LSB padded with rule_type
+    wire [16:0] shl2 = {data_in[14:0], {2{data_in[0]}}}; // shl2[k] = data_mod[k-2]: right neighbor of k, 2 away
+    wire [16:0] shl3 = {data_in[13:0], {3{data_in[0]}}}; // shl3[k] = data_mod[k-3]: right neighbor of k, 3 away
 
     // Raw data and shifts for the 011110 pattern (fixed 0 padding, no inversion)
-    wire [16:0] raw_shr1 = {1'b0, data_in[16:1]};         // raw_shr1[k] = data_in[k+1]
-    wire [16:0] raw_shl1 = {data_in[15:0], 1'b0};          // raw_shl1[k] = data_in[k-1]
-    wire [16:0] raw_shl2 = {data_in[14:0], 2'b00};          // raw_shl2[k] = data_in[k-2]
-    wire [16:0] raw_shl3 = {data_in[13:0], 3'b000};         // raw_shl3[k] = data_in[k-3]
-    wire [16:0] raw_shl4 = {data_in[12:0], 4'b0000};        // raw_shl4[k] = data_in[k-4]
+    wire [16:0] raw_shr1 = data_in >> 1; //{1'b0, data_in[16:1]};         
+    wire [16:0] raw_shl1 = data_in << 1; //{data_in[15:0], 1'b0};          
+    wire [16:0] raw_shl2 = data_in << 2; //{data_in[14:0], 2'b00};          
+    wire [16:0] raw_shl3 = data_in << 3; //{data_in[13:0], 3'b000};         
+    wire [16:0] raw_shl4 = data_in << 4; //{data_in[12:0], 4'b0000};        
 
     // 1. 010 / 101: isolated 1/0. At match bit k: data_mod[k+1..k-1] = 0,1,0.
     //    Reported at bit k (the sole 1/0 of the run).
-    assign match_010_or_101 = ~shr1 & data_mod & ~shl1;
-
+    assign match_010 = ~shr1 & data_in & ~shl1;
     // 2. 0110 / 1001: run of two 1/0s. At match bit k: data_mod[k+1..k-2] = 0,1,1,0.
     //    Reported at bit k (leftmost 1/0 of the pair).
-    assign match_0110_or_1001 = ~shr1 & data_mod & shl1 & ~shl2;
+    assign match_0110 = ~shr1 & data_in & shl1 & ~shl2;
 
     // 3. 01110 / 10001: run of three 1/0s. At match bit k: data_mod[k+1..k-3] = 0,1,1,1,0.
     //    Reported at bit k (leftmost 1/0 of the triple).
-    assign match_01110_or_10001 = ~shr1 & data_mod & shl1 & shl2 & ~shl3;
+    assign match_01110 = ~shr1 & data_in & shl1 & shl2 & ~shl3;
 
     // 4. 011110 only: run of four 1s. At match bit k: data_in[k+1..k-4] = 0,1,1,1,1,0.
     //    Reported at bit k (leftmost 1 of the quad).
@@ -49,31 +48,22 @@ module CheckMask(
 endmodule
 
 module RuleValMode_Decoder (
-    input rule_type,
-    input [2:0] rule_layer,
-    output [1:0] rule_val_mode
+    // input rule_type,
+    // input [2:0] rule_layer,
+    // output [1:0] rule_val_mode
+    input [3:0] drc_sel,
+    output reg[2:0] en_violate
 );
-reg [1:0] s_rvm;
-reg [1:0] w_rvm;
 
 always@(*) begin  : rvm_decoding_logic
-    casez(rule_layer) 
-        3'd0, 3'd2: s_rvm = 0;
-        3'd1, 3'd3: s_rvm = 1;
-        3'd4, 3'd5: s_rvm = 2;
-        3'd6: s_rvm = 3;
-        default: s_rvm = 3'bx;
-    endcase
-
-    casez(rule_layer)
-        3'd0, 3'd1, 3'd2, 3'd3: w_rvm = 0;
-        3'd4, 3'd5: w_rvm = 1;
-        3'd6: w_rvm = 2;
-        default: w_rvm = 3'bx;
+    casez(drc_sel) 
+        4'd0, 4'd1, 4'd3, 4'd4, 4'd5, 4'd7: en_violate = 3'b000;
+        4'd2, 4'd6, 4'd9, 4'd11: en_violate = 3'b001;
+        4'd8, 4'd10, 4'd13: en_violate = 3'b011;
+        4'd12: en_violate = 3'b111;
+        default: en_violate = 3'bx;
     endcase
 end
-
-assign rule_val_mode = rule_type ? w_rvm : s_rvm;
 
 endmodule
 
@@ -89,7 +79,8 @@ module RowModLite (
     input [16:0] match_v2_row2,
     input [16:0] match_v3_row2,
     input [16:0] match_v4_row2,
-    input [1:0] rvm,
+    // input [1:0] rvm,
+    input [2:0] en_violate,
     output reg [3:0] total_nv
 );
     // check for occurence of the same type of match on the exact same loc on the 2 rows
@@ -114,23 +105,23 @@ module RowModLite (
     reg [3:0] v1_count, v2_count, v3_count, v4_count;
 
 // reg [3:0] w1_nv, w2_nv, w3_nv, w4_nv;
-    reg [3:0] en_violate;
+    // reg [3:0] en_violate;
 
     // total violations for this row pair = v1_count + v2_count + v3_count + v4_count
-    always @(*) begin : RowMod_mode_selection_logic
-        // w1_nv = v1_count;
-        // w2_nv = w1_nv + v2_count;
-        // w3_nv = w2_nv + v3_count;
-        // w4_nv = w3_nv + v4_count;
+    // always @(*) begin : RowMod_mode_selection_logic
+    //     // w1_nv = v1_count;
+    //     // w2_nv = w1_nv + v2_count;
+    //     // w3_nv = w2_nv + v3_count;
+    //     // w4_nv = w3_nv + v4_count;
 
-        casez(rvm)
-            2'd0: en_violate = 4'b0001; // count v1
-            2'd1: en_violate = 4'b0011; // count v1 and v2
-            2'd2: en_violate = 4'b0111; // count v1, v2 and v3
-            2'd3: en_violate = 4'b1111; // count all v1, v2, v3 and v4
-            default: en_violate = 4'bx; // invalid rvm
-        endcase
-    end
+    //     casez(rvm)
+    //         2'd0: en_violate = 4'b0001; // count v1
+    //         2'd1: en_violate = 4'b0011; // count v1 and v2
+    //         2'd2: en_violate = 4'b0111; // count v1, v2 and v3
+    //         2'd3: en_violate = 4'b1111; // count all v1, v2, v3 and v4
+    //         default: en_violate = 4'bx; // invalid rvm
+    //     endcase
+    // end
 
     // count the number of 1s in v1_overlap, v2_overlap, v3_overlap, v4_overlap
     always @(*) begin
@@ -139,17 +130,22 @@ module RowModLite (
         v3_count = 0;
         v4_count = 0;
         for (integer k = 0; k < 17; k = k + 1)
-            v1_count = v1_count + (v1_overlap[k] & en_violate[0]);
+            v1_count = v1_count + v1_overlap[k];
+            // v1_count = v1_count + (v1_overlap[k] & en_violate[0]);
         for (integer k = 0; k < 16; k = k + 1)
-            v2_count = v2_count + (v2_overlap[k] & en_violate[1]);
+            v2_count = v2_count + v2_overlap[k];
+            // v2_count = v2_count + (v2_overlap[k] & en_violate[1]);
         for (integer k = 0; k < 15; k = k + 1)
-            v3_count = v3_count + (v3_overlap[k] & en_violate[2]);
+            v3_count = v3_count + v3_overlap[k];
+            // v3_count = v3_count + (v3_overlap[k] & en_violate[2]);
         for (integer k = 0; k < 14; k = k + 1)
-            v4_count = v4_count + (v4_overlap[k] & en_violate[3]);
+            v4_count = v4_count + v4_overlap[k];
+            // v4_count = v4_count + (v4_overlap[k] & en_violate[3]);
     end
 
     // accumulate the total violations for this row pair
-    assign total_nv = v1_count + v2_count + v3_count + v4_count;
+    // assign total_nv = v1_count + v2_count + v3_count + v4_count;
+    assign total_nv = (v1_count) + (v2_count & {4{en_violate[0]}}) + (v3_count & {4{en_violate[1]}}) + (v4_count & {4{en_violate[2]}});
 endmodule
 
 module DRCA (
@@ -207,7 +203,8 @@ wire [4:0] width_nv;
 wire [4:0] spacing_nv;
 
 // get rule value mode
-wire [1:0] rvm;
+wire [2:0] en_violate;
+// wire [1:0] rvm;
 
 //**************************************************
 // Design 
@@ -235,9 +232,11 @@ assign rule_layer = drc_sel[3:1]; // MSBs indicate layer for width/spacing rules
 
 // get rule value mode (depends on rule type and rule layer)
 RuleValMode_Decoder rvm_decoder (
-    .rule_type(rule_type),
-    .rule_layer(rule_layer),
-    .rule_val_mode(rvm)
+    // .rule_type(rule_type),
+    // .rule_layer(rule_layer),
+    // .rule_val_mode(rvm)
+    .drc_sel(drc_sel),
+    .en_violate(en_violate)
 );
 
 // translate shape_layer to rule_layer 
@@ -257,28 +256,44 @@ always @(*) begin
     // end
 
     // translate rule layer to shape layer
-    casez(rule_layer)
-        3'd0: trans_rule_layer = 3'd1; // CO
-        3'd1: trans_rule_layer = 3'd2; // OD
-        3'd2: trans_rule_layer = 3'd3; // PO
-        3'd3: trans_rule_layer = 3'd4; // M1
-        3'd4: trans_rule_layer = 3'd5; // NP
-        3'd5: trans_rule_layer = 3'd6; // PP
-        3'd6: trans_rule_layer = 3'd7; // NW
-        default: trans_rule_layer = 3'bx;
-    endcase
+    trans_rule_layer = rule_layer + 1;
+    // casez(rule_layer)
+    //     3'd0: trans_rule_layer = 3'd1; // CO
+    //     3'd1: trans_rule_layer = 3'd2; // OD
+    //     3'd2: trans_rule_layer = 3'd3; // PO
+    //     3'd3: trans_rule_layer = 3'd4; // M1
+    //     3'd4: trans_rule_layer = 3'd5; // NP
+    //     3'd5: trans_rule_layer = 3'd6; // PP
+    //     3'd6: trans_rule_layer = 3'd7; // NW
+    //     default: trans_rule_layer = 3'bx;
+    // endcase
 end
 
 // check which shapes are on the same layer as the rule_layer, store in is_layer_2_Check
 genvar i;
 generate
     for (i = 0; i < 16; i = i + 1) begin : check_layer
-        assign is_layer_2_Check[i] = (shape_layer[i] == trans_rule_layer) ? 1 : 0;
+        assign is_layer_2_Check[i] = (shape_layer[i] == trans_rule_layer);
+    end
+endgenerate
+
+// 1D masks for factored grid construction (reduces per-cell comparators)
+wire [14:0] x_in_range [0:15]; // x_in_range[s][k] = is_layer_2_Check[s] & (llx[s] <= k) & (urx[s] > k)
+wire [14:0] y_in_range [0:15]; // y_in_range[s][k] = (lly[s] <= k) & (ury[s] > k)
+
+genvar j;
+generate
+    for (i = 0; i < 16; i = i + 1) begin : gen_1d_masks
+        for (j = 0; j < 15; j = j + 1) begin : gen_x_bits
+            assign x_in_range[i][j] = is_layer_2_Check[i] & (llx[i] <= j) & (urx[i] > j);
+        end
+        for (j = 0; j < 15; j = j + 1) begin : gen_y_bits
+            assign y_in_range[i][j] = (lly[i] <= j) & (ury[i] > j);
+        end
     end
 endgenerate
 
 // construct the grid (17x17 with zero-padded borders, original 15x15 content in [1:15][1:15])
-genvar j;
 generate
     // The outer border rows (0, 16) and columns (bit 0, bit 16) are zero-padded.
     // The original 15x15 content is placed in grid[1..15][1..15].
@@ -286,25 +301,26 @@ generate
     for (i = 0; i < 17; i = i + 1) begin : construct_grids
         for (j = 0; j < 17; j = j + 1) begin : construct_grid_bits
             if (i == 0 || i == 16 || j == 0 || j == 16) begin : zero_pad
-                assign grid[i][j] = 1'b0;
+                assign grid[i][j] = rule_type;//1'b0;
             end else begin : interior
-                assign grid[i][j] = 
-                ((is_layer_2_Check[0]) && (llx[0] <= (i-1)) && (urx[0] > (i-1)) && (lly[0] <= (j-1)) && (ury[0] > (j-1))) ||
-                ((is_layer_2_Check[1]) && (llx[1] <= (i-1)) && (urx[1] > (i-1)) && (lly[1] <= (j-1)) && (ury[1] > (j-1))) ||
-                ((is_layer_2_Check[2]) && (llx[2] <= (i-1)) && (urx[2] > (i-1)) && (lly[2] <= (j-1)) && (ury[2] > (j-1))) ||
-                ((is_layer_2_Check[3]) && (llx[3] <= (i-1)) && (urx[3] > (i-1)) && (lly[3] <= (j-1)) && (ury[3] > (j-1))) ||
-                ((is_layer_2_Check[4]) && (llx[4] <= (i-1)) && (urx[4] > (i-1)) && (lly[4] <= (j-1)) && (ury[4] > (j-1))) ||
-                ((is_layer_2_Check[5]) && (llx[5] <= (i-1)) && (urx[5] > (i-1)) && (lly[5] <= (j-1)) && (ury[5] > (j-1))) ||
-                ((is_layer_2_Check[6]) && (llx[6] <= (i-1)) && (urx[6] > (i-1)) && (lly[6] <= (j-1)) && (ury[6] > (j-1))) ||
-                ((is_layer_2_Check[7]) && (llx[7] <= (i-1)) && (urx[7] > (i-1)) && (lly[7] <= (j-1)) && (ury[7] > (j-1))) ||
-                ((is_layer_2_Check[8]) && (llx[8] <= (i-1)) && (urx[8] > (i-1)) && (lly[8] <= (j-1)) && (ury[8] > (j-1))) ||
-                ((is_layer_2_Check[9]) && (llx[9] <= (i-1)) && (urx[9] > (i-1)) && (lly[9] <= (j-1)) && (ury[9] > (j-1))) ||
-                ((is_layer_2_Check[10]) && (llx[10] <= (i-1)) && (urx[10] > (i-1)) && (lly[10] <= (j-1)) && (ury[10] > (j-1))) ||
-                ((is_layer_2_Check[11]) && (llx[11] <= (i-1)) && (urx[11] > (i-1)) && (lly[11] <= (j-1)) && (ury[11] > (j-1))) ||
-                ((is_layer_2_Check[12]) && (llx[12] <= (i-1)) && (urx[12] > (i-1)) && (lly[12] <= (j-1)) && (ury[12] > (j-1))) ||
-                ((is_layer_2_Check[13]) && (llx[13] <= (i-1)) && (urx[13] > (i-1)) && (lly[13] <= (j-1)) && (ury[13] > (j-1))) ||
-                ((is_layer_2_Check[14]) && (llx[14] <= (i-1)) && (urx[14] > (i-1)) && (lly[14] <= (j-1)) && (ury[14] > (j-1))) ||
-                ((is_layer_2_Check[15]) && (llx[15] <= (i-1)) && (urx[15] > (i-1)) && (lly[15] <= (j-1)) && (ury[15] > (j-1)));
+                assign grid[i][j] = (
+                    (x_in_range[0][i-1]  & y_in_range[0][j-1])  |
+                    (x_in_range[1][i-1]  & y_in_range[1][j-1])  |
+                    (x_in_range[2][i-1]  & y_in_range[2][j-1])  |
+                    (x_in_range[3][i-1]  & y_in_range[3][j-1])  |
+                    (x_in_range[4][i-1]  & y_in_range[4][j-1])  |
+                    (x_in_range[5][i-1]  & y_in_range[5][j-1])  |
+                    (x_in_range[6][i-1]  & y_in_range[6][j-1])  |
+                    (x_in_range[7][i-1]  & y_in_range[7][j-1])  |
+                    (x_in_range[8][i-1]  & y_in_range[8][j-1])  |
+                    (x_in_range[9][i-1]  & y_in_range[9][j-1])  |
+                    (x_in_range[10][i-1] & y_in_range[10][j-1]) |
+                    (x_in_range[11][i-1] & y_in_range[11][j-1]) |
+                    (x_in_range[12][i-1] & y_in_range[12][j-1]) |
+                    (x_in_range[13][i-1] & y_in_range[13][j-1]) |
+                    (x_in_range[14][i-1] & y_in_range[14][j-1]) |
+                    (x_in_range[15][i-1] & y_in_range[15][j-1])
+                ) ^ rule_type;
             end
         end
     end
@@ -328,10 +344,10 @@ generate
     for (i = 0; i < 17; i = i + 1) begin : h_checkmask
         CheckMask cm_h (
             .data_in(grid_tr[i]),
-            .rule_type(rule_type),
-            .match_010_or_101(h_cm_v1[i]),
-            .match_0110_or_1001(h_cm_v2[i]),
-            .match_01110_or_10001(h_cm_v3[i]),
+            // .rule_type(rule_type),
+            .match_010(h_cm_v1[i]),
+            .match_0110(h_cm_v2[i]),
+            .match_01110(h_cm_v3[i]),
             .match_011110(h_cm_v4[i])
         );
     end
@@ -344,10 +360,10 @@ generate
     for (i = 0; i < 17; i = i + 1) begin : v_checkmask
         CheckMask cm_v (
             .data_in(grid[i]),
-            .rule_type(rule_type),
-            .match_010_or_101(v_cm_v1[i]),
-            .match_0110_or_1001(v_cm_v2[i]),
-            .match_01110_or_10001(v_cm_v3[i]),
+            // .rule_type(rule_type),
+            .match_010(v_cm_v1[i]),
+            .match_0110(v_cm_v2[i]),
+            .match_01110(v_cm_v3[i]),
             .match_011110(v_cm_v4[i])
         );
     end
@@ -364,7 +380,8 @@ generate
             .match_v3_row1(h_cm_v3[i]),   .match_v4_row1(h_cm_v4[i]),
             .match_v1_row2(h_cm_v1[i+1]), .match_v2_row2(h_cm_v2[i+1]),
             .match_v3_row2(h_cm_v3[i+1]), .match_v4_row2(h_cm_v4[i+1]),
-            .rvm(rvm),
+            // .rvm(rvm),
+            .en_violate(en_violate),
             .total_nv(h_nv_per_row[i])
         );
     end
@@ -389,7 +406,8 @@ generate
             .match_v3_row1(v_cm_v3[i]),   .match_v4_row1(v_cm_v4[i]),
             .match_v1_row2(v_cm_v1[i+1]), .match_v2_row2(v_cm_v2[i+1]),
             .match_v3_row2(v_cm_v3[i+1]), .match_v4_row2(v_cm_v4[i+1]),
-            .rvm(rvm),
+            // .rvm(rvm),
+            .en_violate(en_violate),
             .total_nv(v_nv_per_col[i])
         );
     end
