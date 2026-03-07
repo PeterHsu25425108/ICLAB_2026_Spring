@@ -54,6 +54,7 @@ Loading db file '/usr/cad/synopsys/synthesis/2022.03/libraries/syn/standard.sldb
   Loading link library 'fsa0m_a_t33_generic_io_tt1p8v25c'
   Loading link library 'gtech'
 Running PRESTO HDLC
+<<<<<<< HEAD
 Warning:  ../01_RTL/DRCA.v:366: signed to unsigned assignment occurs. (VER-318)
 Warning:  ../01_RTL/DRCA.v:381: signed to unsigned conversion occurs. (VER-318)
 
@@ -64,16 +65,23 @@ Statistics for case statements in always block at line 336 in file
 ===============================================
 |           351            |    auto/auto     |
 ===============================================
+=======
+>>>>>>> RowModLite
 Presto compilation completed successfully. (DRCA)
 Elaborated 1 design.
 Current design is now 'DRCA'.
 Information: Building the design 'RuleValMode_Decoder'. (HDL-193)
 
+<<<<<<< HEAD
 Statistics for case statements in always block at line 59 in file
+=======
+Statistics for case statements in always block at line 31 in file
+>>>>>>> RowModLite
         '../01_RTL/DRCA.v'
 ===============================================
 |           Line           |  full/ parallel  |
 ===============================================
+<<<<<<< HEAD
 |            60            |    auto/auto     |
 |            68            |    auto/auto     |
 ===============================================
@@ -91,6 +99,15 @@ Statistics for case statements in always block at line 142 in file
 Presto compilation completed successfully. (RowMod)
 Information: Building the design 'CheckMask'. (HDL-193)
 Presto compilation completed successfully. (CheckMask)
+=======
+|            32            |    auto/auto     |
+===============================================
+Presto compilation completed successfully. (RuleValMode_Decoder)
+Information: Building the design 'CheckMask'. (HDL-193)
+Presto compilation completed successfully. (CheckMask)
+Information: Building the design 'RowModLite'. (HDL-193)
+Presto compilation completed successfully. (RowModLite)
+>>>>>>> RowModLite
 1
 # (B-2) read_sverilog
 #read_sverilog $DESIGN\.v
@@ -146,7 +163,11 @@ set_max_fanout          10      [all_inputs]
 check_timing
 Information: Checking out the license 'DesignWare'. (SEC-104)
 Information: Updating design information... (UID-85)
+<<<<<<< HEAD
 Warning: Design 'DRCA' contains 3 high-fanout nets. A fanout number of 1000 will be used for delay calculations involving these nets. (TIM-134)
+=======
+Warning: Design 'DRCA' contains 2 high-fanout nets. A fanout number of 1000 will be used for delay calculations involving these nets. (TIM-134)
+>>>>>>> RowModLite
 
 Information: Checking generated_clocks...
 
@@ -191,15 +212,24 @@ Information: Evaluating DesignWare library utilization. (UISN-27)
 | Design Information                                      | Value                                  |
 ====================================================================================================
 | Number of Scenarios                                     | 0                                      |
+<<<<<<< HEAD
 | Leaf Cell Count                                         | 59238                                  |
 | Number of User Hierarchies                              | 97                                     |
+=======
+| Leaf Cell Count                                         | 20687                                  |
+| Number of User Hierarchies                              | 64                                     |
+>>>>>>> RowModLite
 | Sequential Cell Count                                   | 0                                      |
 | Macro Count                                             | 0                                      |
 | Number of Power Domains                                 | 0                                      |
 | Number of Path Groups                                   | 2                                      |
 | Number of VT class                                      | 0                                      |
 | Number of Clocks                                        | 1                                      |
+<<<<<<< HEAD
 | Number of Dont Touch cells                              | 296                                    |
+=======
+| Number of Dont Touch cells                              | 184                                    |
+>>>>>>> RowModLite
 | Number of Dont Touch nets                               | 0                                      |
 | Number of size only cells                               | 0                                      |
 | Design with UPF Data                                    | false                                  |
@@ -210,10 +240,17 @@ Information: Evaluating DesignWare library utilization. (UISN-27)
 ====================================================================================================
 Information: Sequential output inversion is enabled.  SVF file must be used for formal verification. (OPT-1208)
 
+<<<<<<< HEAD
 Information: There are 607 potential problems in your design. Please run 'check_design' for more information. (LINT-99)
 
 Information: Uniquified 32 instances of design 'RowMod'. (OPT-1056)
 Information: Uniquified 64 instances of design 'CheckMask'. (OPT-1056)
+=======
+Information: There are 147 potential problems in your design. Please run 'check_design' for more information. (LINT-99)
+
+Information: Uniquified 33 instances of design 'CheckMask'. (OPT-1056)
+Information: Uniquified 30 instances of design 'RowModLite'. (OPT-1056)
+>>>>>>> RowModLite
   Simplifying Design 'DRCA'
 
   Loading target library 'fsa0m_a_generic_core_ff1p98vm40c'
@@ -228,7 +265,44 @@ voltage and temperatures parameters than the parameters at which target library
 fsa0m_a_generic_core_ff1p98vm40c is characterized. Delays may be inaccurate as a result. (OPT-998)
   Building model 'DW01_NAND2'
 Information: Ungrouping hierarchy rvm_decoder before Pass 1 (OPT-776)
+<<<<<<< HEAD
 Information: Ungrouping hierarchy h_row_mods[0].row_mod_h before Pass 1 (OPT-776)
+=======
+Information: Ungrouping hierarchy h_checkmask[0].cm_h before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_row_mods[1].row_mod_h before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_checkmask[16].cm_v before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_checkmask[15].cm_v before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_checkmask[14].cm_v before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_checkmask[13].cm_v before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_checkmask[12].cm_v before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_checkmask[11].cm_v before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_checkmask[10].cm_v before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_checkmask[9].cm_v before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_checkmask[8].cm_v before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_checkmask[7].cm_v before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_checkmask[6].cm_v before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_checkmask[5].cm_v before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_checkmask[4].cm_v before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_checkmask[3].cm_v before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_checkmask[2].cm_v before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_checkmask[1].cm_v before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_checkmask[0].cm_v before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_checkmask[15].cm_h before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_checkmask[14].cm_h before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_checkmask[13].cm_h before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_checkmask[12].cm_h before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_checkmask[11].cm_h before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_checkmask[10].cm_h before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_checkmask[9].cm_h before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_checkmask[8].cm_h before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_checkmask[7].cm_h before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_checkmask[6].cm_h before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_checkmask[5].cm_h before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_checkmask[4].cm_h before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_checkmask[3].cm_h before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_checkmask[2].cm_h before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_checkmask[1].cm_h before Pass 1 (OPT-776)
+>>>>>>> RowModLite
 Information: Ungrouping hierarchy v_row_mods[15].row_mod_v before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy v_row_mods[14].row_mod_v before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy v_row_mods[13].row_mod_v before Pass 1 (OPT-776)
@@ -244,7 +318,10 @@ Information: Ungrouping hierarchy v_row_mods[4].row_mod_v before Pass 1 (OPT-776
 Information: Ungrouping hierarchy v_row_mods[3].row_mod_v before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy v_row_mods[2].row_mod_v before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy v_row_mods[1].row_mod_v before Pass 1 (OPT-776)
+<<<<<<< HEAD
 Information: Ungrouping hierarchy v_row_mods[0].row_mod_v before Pass 1 (OPT-776)
+=======
+>>>>>>> RowModLite
 Information: Ungrouping hierarchy h_row_mods[15].row_mod_h before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy h_row_mods[14].row_mod_h before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy h_row_mods[13].row_mod_h before Pass 1 (OPT-776)
@@ -259,6 +336,7 @@ Information: Ungrouping hierarchy h_row_mods[5].row_mod_h before Pass 1 (OPT-776
 Information: Ungrouping hierarchy h_row_mods[4].row_mod_h before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy h_row_mods[3].row_mod_h before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy h_row_mods[2].row_mod_h before Pass 1 (OPT-776)
+<<<<<<< HEAD
 Information: Ungrouping hierarchy h_row_mods[1].row_mod_h before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy h_row_mods[0].row_mod_h/check_row1 before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy v_row_mods[15].row_mod_v/check_row2 before Pass 1 (OPT-776)
@@ -325,6 +403,9 @@ Information: Ungrouping hierarchy h_row_mods[1].row_mod_h/check_row2 before Pass
 Information: Ungrouping hierarchy h_row_mods[1].row_mod_h/check_row1 before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy h_row_mods[0].row_mod_h/check_row2 before Pass 1 (OPT-776)
 Information: Ungrouping 97 of 98 hierarchies before Pass 1 (OPT-775)
+=======
+Information: Ungrouping 64 of 65 hierarchies before Pass 1 (OPT-775)
+>>>>>>> RowModLite
 Information: State dependent leakage is now switched from on to off.
 
   Beginning Pass 1 Mapping
@@ -343,12 +424,16 @@ Information: The target library(s) contains cell(s), other than black boxes, tha
   Beginning Mapping Optimizations  (Ultra High effort)
   -------------------------------
   Mapping Optimization (Phase 1)
+<<<<<<< HEAD
   Mapping Optimization (Phase 2)
+=======
+>>>>>>> RowModLite
 
                                   TOTAL                                                
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER  
   --------- --------- --------- --------- --------- ------------------------- ---------
+<<<<<<< HEAD
     0:01:50  494762.1      0.46       0.9     339.9                           32373010.0000
     0:01:52  494702.7      0.46       0.9     321.5                           32369684.0000
 
@@ -356,6 +441,15 @@ Information: The target library(s) contains cell(s), other than black boxes, tha
   -----------------------------------
     0:01:52  494702.7      0.46       0.9     321.5                           32369684.0000
     0:01:53  494702.7      0.46       0.9     321.5                           32369684.0000
+=======
+    0:01:22  378644.5      0.20       0.3     362.6                           24776588.0000
+    0:01:23  378457.0      0.43       0.5     317.9                           24769414.0000
+
+  Beginning Constant Register Removal
+  -----------------------------------
+    0:01:23  378457.0      0.43       0.5     317.9                           24769414.0000
+    0:01:24  378432.0      0.43       0.5     317.9                           24768022.0000
+>>>>>>> RowModLite
 
   Beginning Global Optimizations
   ------------------------------
@@ -391,15 +485,21 @@ Information: The target library(s) contains cell(s), other than black boxes, tha
   Global Optimization (Phase 28)
   Global Optimization (Phase 29)
   Global Optimization (Phase 30)
+<<<<<<< HEAD
   Mapping 'DRCA_DP_OP_34864J1_154_5342_0'
   Mapping 'DRCA_DP_OP_34856J1_146_6740_2'
   Mapping 'DRCA_DP_OP_34864J1_154_5342_1'
+=======
+  Mapping 'DRCA_DP_OP_3049J1_152_7149_0'
+  Mapping 'DRCA_DP_OP_3031J1_134_8079_2'
+>>>>>>> RowModLite
 
   Beginning Isolate Ports
   -----------------------
 
   Beginning Delay Optimization
   ----------------------------
+<<<<<<< HEAD
     0:01:58  347259.0      0.85       1.9     293.1                           21657212.0000
     0:02:01  369520.1      0.00       0.0     331.8                           23617706.0000
     0:02:01  369520.1      0.00       0.0     331.8                           23617706.0000
@@ -432,6 +532,39 @@ Information: The target library(s) contains cell(s), other than black boxes, tha
     0:02:14  352293.1      0.00       0.0     315.0                           22387284.0000
     0:02:14  352293.1      0.00       0.0     315.0                           22387284.0000
     0:02:14  352293.1      0.00       0.0     315.0                           22387284.0000
+=======
+    0:01:28  247115.4      0.45       0.8     186.8                           15052048.0000
+    0:01:28  249721.5      0.00       0.0     200.6                           15315807.0000
+    0:01:28  249721.5      0.00       0.0     200.6                           15315807.0000
+    0:01:28  249721.5      0.00       0.0     200.6                           15315807.0000
+    0:01:31  249740.3      0.00       0.0     200.6                           15327026.0000
+    0:01:31  249740.3      0.00       0.0     200.6                           15327026.0000
+
+  Beginning WLM Backend Optimization
+  --------------------------------------
+    0:01:36  242971.9      0.00       0.0     187.3                           14760345.0000
+    0:01:36  242971.9      0.00       0.0     187.3                           14760345.0000
+    0:01:36  242971.9      0.00       0.0     187.3                           14760345.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+>>>>>>> RowModLite
 
 
   Beginning Design Rule Fixing  (max_transition)  (max_fanout)  (max_capacitance)
@@ -441,12 +574,21 @@ Information: The target library(s) contains cell(s), other than black boxes, tha
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER  
   --------- --------- --------- --------- --------- ------------------------- ---------
+<<<<<<< HEAD
     0:02:14  352293.1      0.00       0.0     315.0                           22387284.0000
   Global Optimization (Phase 31)
   Global Optimization (Phase 32)
   Global Optimization (Phase 33)
     0:02:15  352511.8      0.00       0.0       0.0                           22417280.0000
     0:02:15  352511.8      0.00       0.0       0.0                           22417280.0000
+=======
+    0:01:36  242790.7      0.00       0.0     187.3                           14739720.0000
+  Global Optimization (Phase 31)
+  Global Optimization (Phase 32)
+  Global Optimization (Phase 33)
+    0:01:37  242781.3      0.00       0.0       0.0                           14733557.0000
+    0:01:37  242781.3      0.00       0.0       0.0                           14733557.0000
+>>>>>>> RowModLite
 
 
   Beginning Leakage Power Optimization  (max_leakage_power 0)
@@ -456,7 +598,11 @@ Information: The target library(s) contains cell(s), other than black boxes, tha
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER  
   --------- --------- --------- --------- --------- ------------------------- ---------
+<<<<<<< HEAD
     0:02:15  352511.8      0.00       0.0       0.0                           22417280.0000
+=======
+    0:01:37  242781.3      0.00       0.0       0.0                           14733557.0000
+>>>>>>> RowModLite
   Global Optimization (Phase 34)
   Global Optimization (Phase 35)
   Global Optimization (Phase 36)
@@ -473,6 +619,7 @@ Information: The target library(s) contains cell(s), other than black boxes, tha
   Global Optimization (Phase 47)
   Global Optimization (Phase 48)
   Global Optimization (Phase 49)
+<<<<<<< HEAD
     0:02:22  323535.5      0.03       0.1       0.0                           19954758.0000
     0:02:24  329025.8      0.00       0.0     154.2                           20387058.0000
     0:02:24  329025.8      0.00       0.0     154.2                           20387058.0000
@@ -495,11 +642,36 @@ Information: The target library(s) contains cell(s), other than black boxes, tha
     0:02:24  328657.1      0.00       0.0     154.2                           20353252.0000
     0:02:24  328657.1      0.00       0.0     154.2                           20353252.0000
     0:02:24  328657.1      0.00       0.0     154.2                           20353252.0000
+=======
+    0:01:42  227760.4      0.01       0.0       0.0                           13411475.0000
+    0:01:43  228747.9      0.00       0.0       1.1                           13486868.0000
+    0:01:43  228747.9      0.00       0.0       1.1                           13486868.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+>>>>>>> RowModLite
 
                                   TOTAL                                                
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER  
   --------- --------- --------- --------- --------- ------------------------- ---------
+<<<<<<< HEAD
     0:02:25  328657.1      0.00       0.0     154.2                           20353252.0000
     0:02:27  305627.3      0.00       0.0     116.6                           18274016.0000
     0:02:27  305627.3      0.00       0.0     116.6                           18274016.0000
@@ -514,6 +686,20 @@ Information: The target library(s) contains cell(s), other than black boxes, tha
     0:02:37  312401.9      0.00       0.0       0.0                           18889324.0000
     0:02:37  312401.9      0.00       0.0       0.0                           18889324.0000
     0:02:40  302924.4      0.00       0.0       0.0                           18141914.0000
+=======
+    0:01:43  228666.6      0.00       0.0       1.1                           13480873.0000
+    0:01:45  218686.0      0.00       0.0       0.0                           12538042.0000
+    0:01:45  218686.0      0.00       0.0       0.0                           12538042.0000
+    0:01:45  218686.0      0.00       0.0       0.0                           12538042.0000
+    0:01:45  218661.0      0.00       0.0       0.0                           12535384.0000
+    0:01:47  215320.6      0.00       0.0       0.0                           12249297.0000
+    0:01:47  215320.6      0.00       0.0       0.0                           12249297.0000
+    0:01:47  215320.6      0.00       0.0       0.0                           12249297.0000
+    0:01:47  215320.6      0.00       0.0       0.0                           12249297.0000
+    0:01:47  215320.6      0.00       0.0       0.0                           12249297.0000
+    0:01:47  215320.6      0.00       0.0       0.0                           12249297.0000
+    0:01:49  207983.6      0.00       0.0       0.0                           11692125.0000
+>>>>>>> RowModLite
 Loading db file '/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ss1p62v125c.db'
 Loading db file '/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ff1p98vm40c.db'
 Loading db file '/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_t33_generic_io_ss1p62v125c.db'
@@ -592,7 +778,11 @@ report_area
 Report : area
 Design : DRCA
 Version: T-2022.03
+<<<<<<< HEAD
 Date   : Fri Mar  6 21:57:08 2026
+=======
+Date   : Sat Mar  7 18:05:59 2026
+>>>>>>> RowModLite
 ****************************************
 
 Library(s) Used:
@@ -600,6 +790,7 @@ Library(s) Used:
     fsa0m_a_generic_core_ss1p62v125c (File: /RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ss1p62v125c.db)
 
 Number of ports:                          313
+<<<<<<< HEAD
 Number of nets:                         15478
 Number of cells:                        14117
 Number of combinational cells:          14117
@@ -610,11 +801,27 @@ Number of references:                     117
 
 Combinational area:             302924.364679
 Buf/Inv area:                    22720.420793
+=======
+Number of nets:                         12502
+Number of cells:                        11633
+Number of combinational cells:          11633
+Number of sequential cells:                 0
+Number of macros/black boxes:               0
+Number of buf/inv:                       1932
+Number of references:                     119
+
+Combinational area:             207983.564923
+Buf/Inv area:                    18505.065545
+>>>>>>> RowModLite
 Noncombinational area:               0.000000
 Macro/Black Box area:                0.000000
 Net Interconnect area:      undefined  (Wire load has zero net area)
 
+<<<<<<< HEAD
 Total cell area:                302924.364679
+=======
+Total cell area:                207983.564923
+>>>>>>> RowModLite
 Total area:                 undefined
 1
 report_timing 
@@ -626,26 +833,39 @@ Report : timing
         -max_paths 1
 Design : DRCA
 Version: T-2022.03
+<<<<<<< HEAD
 Date   : Fri Mar  6 21:57:08 2026
+=======
+Date   : Sat Mar  7 18:05:59 2026
+>>>>>>> RowModLite
 ****************************************
 
 Operating Conditions: WCCOM   Library: fsa0m_a_generic_core_ss1p62v125c
 Wire Load Model Mode: top
 
+<<<<<<< HEAD
   Startpoint: drc_sel[1] (input port clocked by clk)
+=======
+  Startpoint: shape5[13] (input port clocked by clk)
+>>>>>>> RowModLite
   Endpoint: drc_out[4] (output port clocked by clk)
   Path Group: clk
   Path Type: max
 
   Des/Clust/Port     Wire Load Model       Library
   ------------------------------------------------
+<<<<<<< HEAD
   DRCA               enG50K                fsa0m_a_generic_core_ss1p62v125c
+=======
+  DRCA               enG30K                fsa0m_a_generic_core_ss1p62v125c
+>>>>>>> RowModLite
 
   Point                                    Incr       Path
   -----------------------------------------------------------
   clock clk (rise edge)                    0.00       0.00
   clock network delay (ideal)              0.00       0.00
   input external delay                     0.00       0.00 r
+<<<<<<< HEAD
   drc_sel[1] (in)                          0.00       0.00 r
   U10835/O (INV1CK)                        0.22       0.22 f
   U11147/O (NR2T)                          0.22       0.44 r
@@ -687,6 +907,41 @@ Wire Load Model Mode: top
   U13172/O (XNR2HT)                        0.20       9.80 f
   U11159/O (XNR2HT)                        0.20      10.00 f
   drc_out[4] (out)                         0.00      10.00 f
+=======
+  shape5[13] (in)                          0.00       0.00 r
+  U11819/O (OR2S)                          0.44       0.44 r
+  U15199/O (INV1S)                         0.14       0.58 f
+  U15200/O (MOAI1S)                        0.37       0.94 r
+  U15201/O (NR2)                           0.15       1.09 f
+  U12887/O (BUF2)                          0.36       1.46 f
+  U11723/O (MOAI1S)                        0.37       1.83 f
+  U16879/O (NR2)                           0.23       2.06 r
+  U16881/O (OAI112HS)                      0.17       2.23 f
+  U16882/O (NR3)                           0.25       2.48 r
+  U16883/O (OAI112HS)                      0.22       2.70 f
+  U16884/O (NR2P)                          0.23       2.92 r
+  U16886/O (OR2T)                          0.24       3.17 r
+  U16887/O (OAI12HT)                       0.16       3.33 f
+  U12481/O (NR2)                           0.34       3.67 r
+  U16904/O (INV2)                          0.12       3.79 f
+  U9841/O (NR2)                            0.24       4.03 r
+  U19325/O (INV1S)                         0.14       4.17 f
+  U19326/O (ND2S)                          0.17       4.35 r
+  U12641/S (FA1S)                          0.55       4.90 f
+  U19344/S (FA1)                           0.64       5.53 r
+  U12785/S (FA1S)                          0.56       6.09 f
+  U12795/CO (FA1S)                         0.59       6.68 f
+  U20493/S (FA1)                           0.58       7.26 f
+  U20522/S (FA1)                           0.66       7.92 f
+  U20535/CO (FA1)                          0.42       8.33 f
+  U20532/CO (FA1)                          0.41       8.74 f
+  U20531/S (FA1)                           0.64       9.39 f
+  U10779/O (ND2)                           0.17       9.56 r
+  U20536/O (INV2)                          0.09       9.65 f
+  U10407/O (AOI12HP)                       0.17       9.82 r
+  U20537/O (XOR2HP)                        0.18      10.00 r
+  drc_out[4] (out)                         0.00      10.00 r
+>>>>>>> RowModLite
   data arrival time                                  10.00
 
   clock clk (rise edge)                   10.00      10.00
@@ -702,10 +957,17 @@ Wire Load Model Mode: top
 
 1
 exit
+<<<<<<< HEAD
 Memory usage for this session 1273 Mbytes.
 Memory usage for this session including child processes 1659 Mbytes.
 CPU usage for this session 417 seconds ( 0.12 hours ).
 Elapsed time for this session 210 seconds ( 0.06 hours ).
+=======
+Memory usage for this session 464 Mbytes.
+Memory usage for this session including child processes 716 Mbytes.
+CPU usage for this session 223 seconds ( 0.06 hours ).
+Elapsed time for this session 123 seconds ( 0.03 hours ).
+>>>>>>> RowModLite
 
 Thank you...
 

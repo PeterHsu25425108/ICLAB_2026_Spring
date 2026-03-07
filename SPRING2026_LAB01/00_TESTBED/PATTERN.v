@@ -1,4 +1,4 @@
-`define CYCLE_TIME 20.0
+`define CYCLE_TIME 10.0
 
 module PATTERN (
     output reg [3:0]  drc_sel,
@@ -41,8 +41,8 @@ initial	clk = 0;
 //================================================================
 
 initial begin
-    f_in  = $fopen("../00_TESTBED/input.txt", "r");
-    // f_in  = $fopen("../00_TESTBED/LAB1_case.txt", "r");
+    // f_in  = $fopen("../00_TESTBED/input.txt", "r");
+    f_in  = $fopen("../00_TESTBED/LAB1_case.txt", "r");
     // f_in  = $fopen("../00_TESTBED/long_poly_input.txt", "r");
     a = $fscanf(f_in, "%d", PATNUM);
 
