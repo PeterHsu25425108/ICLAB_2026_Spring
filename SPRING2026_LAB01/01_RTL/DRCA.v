@@ -71,7 +71,7 @@ endmodule
 // RowModLite: takes pre-computed CheckMask match vectors for two adjacent rows,
 // computes overlap-based violation counts, and selects based on rvm.
 // This avoids duplicating CheckMask instances for shared rows between adjacent pairs.
-module RowModLite #(parameter IS_EDGE = 0) (
+module RowModLite (
     input [14:0] match_v1_row1, match_v1_row2, // 15 bits
     input [13:0] match_v2_row1, match_v2_row2, // 14 bits
     input [12:0] match_v3_row1, match_v3_row2, // 13 bits
@@ -79,11 +79,16 @@ module RowModLite #(parameter IS_EDGE = 0) (
     input [2:0] en_violate,
     output wire [3:0] total_nv 
 );
+    // Early Masking applied directly to the incoming staggered widths
+    // wire [14:0] v1_overlap_raw = (match_v1_row1 & ~match_v1_row2); 
+    // wire [13:0] v2_overlap_raw = (match_v2_row1 & ~match_v2_row2) & {14{en_violate[0]}};
+    // wire [12:0] v3_overlap_raw = (match_v3_row1 & ~match_v3_row2) & {13{en_violate[1]}};
+    // wire [11:0] v4_overlap_raw = (match_v4_row1 & ~match_v4_row2) & {12{en_violate[2]}};
 
-    wire [14:0] v1_overlap_raw = IS_EDGE ? match_v1_row1 : (match_v1_row1 & ~match_v1_row2);
-    wire [13:0] v2_overlap_raw = en_violate[0] ? (IS_EDGE ? match_v2_row1 : (match_v2_row1 & ~match_v2_row2)) : 14'b0;
-    wire [12:0] v3_overlap_raw = en_violate[1] ? (IS_EDGE ? match_v3_row1 : (match_v3_row1 & ~match_v3_row2)) : 13'b0;
-    wire [11:0] v4_overlap_raw = en_violate[2] ? (IS_EDGE ? match_v4_row1 : (match_v4_row1 & ~match_v4_row2)) : 12'b0;
+    wire [14:0] v1_overlap_raw = (match_v1_row1 & ~match_v1_row2); 
+    wire [13:0] v2_overlap_raw = en_violate[0] ? (match_v2_row1 & ~match_v2_row2) : 14'b0;
+    wire [12:0] v3_overlap_raw = en_violate[1] ? (match_v3_row1 & ~match_v3_row2) : 13'b0;
+    wire [11:0] v4_overlap_raw = en_violate[2] ? (match_v4_row1 & ~match_v4_row2) : 12'b0;
 
     // Compression Bounds: Ceil(Length / Dist)
     wire [7:0] v1_overlap; // Ceil(15/2) = 8
@@ -91,8 +96,7 @@ module RowModLite #(parameter IS_EDGE = 0) (
     wire [3:0] v3_overlap; // Ceil(13/4) = 4 
     wire [2:0] v4_overlap; // Ceil(12/5) = 3 
 
-    reg [3:0] v1_count;          // max 8, needs 4 bits
-    reg [2:0] v2_count;          // max 5, fits in 3 bits
+    reg [3:0] v1_count, v2_count;
     reg [2:0] v3_count;
     reg [1:0] v4_count;
 
@@ -126,6 +130,13 @@ module RowModLite #(parameter IS_EDGE = 0) (
 
     assign total_nv = v1_count + v2_count + v3_count + v4_count;
 
+    // RowPopcountTree popcount_inst (
+    //     .v1_in(v1_overlap),
+    //     .v2_in(v2_overlap),
+    //     .v3_in(v3_overlap),
+    //     .v4_in(v4_overlap),
+    //     .total_nv_out(total_nv) // Directly connected to your 4-bit output port
+    // );
 endmodule
 
 module AdderTree16 (
