@@ -73,6 +73,8 @@ Information: Building the design 'RowModLite'. (HDL-193)
 Presto compilation completed successfully. (RowModLite)
 Information: Building the design 'AdderTree16'. (HDL-193)
 Presto compilation completed successfully. (AdderTree16)
+Information: Building the design 'RowPopcountTree'. (HDL-193)
+Presto compilation completed successfully. (RowPopcountTree)
 1
 # (B-2) read_sverilog
 #read_sverilog $DESIGN\.v
@@ -85,7 +87,7 @@ link
   Linking design 'DRCA'
   Using the following designs and libraries:
   --------------------------------------------------------------------------
-  * (5 designs)               /RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB01/02_SYN/DRCA.db, etc
+  * (6 designs)               /RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB01/02_SYN/DRCA.db, etc
   fsa0m_a_generic_core_ss1p62v125c (library) /RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ss1p62v125c.db
   fsa0m_a_generic_core_ff1p98vm40c (library) /RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ff1p98vm40c.db
   fsa0m_a_t33_generic_io_ss1p62v125c (library) /RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_t33_generic_io_ss1p62v125c.db
@@ -174,7 +176,7 @@ Information: Evaluating DesignWare library utilization. (UISN-27)
 ====================================================================================================
 | Number of Scenarios                                     | 0                                      |
 | Leaf Cell Count                                         | 22190                                  |
-| Number of User Hierarchies                              | 69                                     |
+| Number of User Hierarchies                              | 101                                    |
 | Sequential Cell Count                                   | 0                                      |
 | Macro Count                                             | 0                                      |
 | Number of Power Domains                                 | 0                                      |
@@ -197,6 +199,7 @@ Information: There are 34 potential problems in your design. Please run 'check_d
 Information: Uniquified 34 instances of design 'CheckMask'. (OPT-1056)
 Information: Uniquified 32 instances of design 'RowModLite'. (OPT-1056)
 Information: Uniquified 2 instances of design 'AdderTree16'. (OPT-1056)
+Information: Uniquified 32 instances of design 'RowPopcountTree'. (OPT-1056)
   Simplifying Design 'DRCA'
 
   Loading target library 'fsa0m_a_generic_core_ff1p98vm40c'
@@ -279,7 +282,39 @@ Information: Ungrouping hierarchy h_row_mods[3].row_mod_h before Pass 1 (OPT-776
 Information: Ungrouping hierarchy h_row_mods[2].row_mod_h before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy h_row_mods[1].row_mod_h before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy v_adder_tree before Pass 1 (OPT-776)
-Information: Ungrouping 69 of 70 hierarchies before Pass 1 (OPT-775)
+Information: Ungrouping hierarchy h_row_mods[0].row_mod_h/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_row_mods[15].row_mod_v/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_row_mods[14].row_mod_v/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_row_mods[13].row_mod_v/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_row_mods[12].row_mod_v/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_row_mods[11].row_mod_v/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_row_mods[10].row_mod_v/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_row_mods[9].row_mod_v/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_row_mods[8].row_mod_v/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_row_mods[7].row_mod_v/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_row_mods[6].row_mod_v/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_row_mods[5].row_mod_v/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_row_mods[4].row_mod_v/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_row_mods[3].row_mod_v/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_row_mods[2].row_mod_v/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_row_mods[1].row_mod_v/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy v_row_mods[0].row_mod_v/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_row_mods[15].row_mod_h/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_row_mods[14].row_mod_h/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_row_mods[13].row_mod_h/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_row_mods[12].row_mod_h/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_row_mods[11].row_mod_h/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_row_mods[10].row_mod_h/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_row_mods[9].row_mod_h/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_row_mods[8].row_mod_h/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_row_mods[7].row_mod_h/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_row_mods[6].row_mod_h/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_row_mods[5].row_mod_h/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_row_mods[4].row_mod_h/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_row_mods[3].row_mod_h/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_row_mods[2].row_mod_h/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy h_row_mods[1].row_mod_h/popcount_inst before Pass 1 (OPT-776)
+Information: Ungrouping 101 of 102 hierarchies before Pass 1 (OPT-775)
 Information: State dependent leakage is now switched from on to off.
 
   Beginning Pass 1 Mapping
@@ -303,13 +338,13 @@ Information: The target library(s) contains cell(s), other than black boxes, tha
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER  
   --------- --------- --------- --------- --------- ------------------------- ---------
-    0:01:26  380850.6      0.07       0.1     277.8                           24841966.0000
-    0:01:27  380781.9      0.07       0.1     277.8                           24837292.0000
+    0:01:24  385947.2      0.05       0.1     259.3                           25393994.0000
+    0:01:25  385781.6      0.06       0.1     259.3                           25377484.0000
 
   Beginning Constant Register Removal
   -----------------------------------
-    0:01:27  380894.4      0.07       0.1     277.8                           24850116.0000
-    0:01:28  380894.4      0.07       0.1     277.8                           24850116.0000
+    0:01:25  385781.6      0.06       0.1     259.3                           25377484.0000
+    0:01:25  385769.1      0.07       0.1     259.3                           25376530.0000
 
   Beginning Global Optimizations
   ------------------------------
@@ -346,72 +381,59 @@ Information: The target library(s) contains cell(s), other than black boxes, tha
   Global Optimization (Phase 29)
   Global Optimization (Phase 30)
   Mapping 'DRCA_DP_OP_2977J1_154_5342_0'
-  Mapping 'DRCA_DP_OP_2961J1_138_8079_2'
-  Mapping 'DRCA_DP_OP_2950J1_127_8079_2'
-  Mapping 'DRCA_DP_OP_2977J1_154_5342_1'
-  Mapping 'DRCA_DP_OP_2972J1_149_8079_1'
-  Mapping 'DRCA_DP_OP_2963J1_140_8079_2'
-  Mapping 'DRCA_DP_OP_2970J1_147_8079_1'
-  Mapping 'DRCA_DP_OP_2971J1_148_8079_2'
-  Mapping 'DRCA_DP_OP_2957J1_134_8079_1'
-  Mapping 'DRCA_DP_OP_2966J1_143_8079_1'
-  Mapping 'DRCA_DP_OP_2956J1_133_8079_1'
-  Mapping 'DRCA_DP_OP_2949J1_126_8079_2'
-  Mapping 'DRCA_DP_OP_2968J1_145_8079_1'
-  Mapping 'DRCA_DP_OP_2974J1_151_8079_1'
-  Mapping 'DRCA_DP_OP_2977J1_154_5342_2'
+  Mapping 'DRCA_DP_OP_2961J1_138_8079_0'
 
   Beginning Isolate Ports
   -----------------------
 
   Beginning Delay Optimization
   ----------------------------
-    0:01:33  258849.1      0.66       1.3     128.4                           16265832.0000
-    0:01:36  269539.0      0.00       0.0     137.0                           17116384.0000
-    0:01:36  269539.0      0.00       0.0     137.0                           17116384.0000
-    0:01:36  269539.0      0.00       0.0     137.0                           17116384.0000
-    0:01:39  269264.0      0.00       0.0     137.0                           17099916.0000
-    0:01:40  269254.6      0.00       0.0     137.0                           17099476.0000
+    0:01:28  261039.5      0.52       1.0     179.4                           15965047.0000
+    0:01:30  269782.7      0.00       0.0     184.8                           16789424.0000
+    0:01:30  269782.7      0.00       0.0     184.8                           16789424.0000
+    0:01:30  269782.7      0.00       0.0     184.8                           16789424.0000
+    0:01:33  269823.4      0.00       0.0     184.8                           16800572.0000
+    0:01:33  269792.1      0.00       0.0     184.8                           16799112.0000
 
   Beginning WLM Backend Optimization
   --------------------------------------
-    0:01:45  262311.3      0.00       0.0     132.2                           16501073.0000
-    0:01:45  262311.3      0.00       0.0     132.2                           16501073.0000
-    0:01:45  262311.3      0.00       0.0     132.2                           16501073.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
+    0:01:38  263714.4      0.00       0.0     163.8                           16346521.0000
+    0:01:38  263714.4      0.00       0.0     163.8                           16346521.0000
+    0:01:38  263714.4      0.00       0.0     163.8                           16346521.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
 
 
-  Beginning Design Rule Fixing  (max_fanout)  (max_capacitance)
+  Beginning Design Rule Fixing  (max_transition)  (max_fanout)  (max_capacitance)
   ----------------------------
 
                                   TOTAL                                                
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER  
   --------- --------- --------- --------- --------- ------------------------- ---------
-    0:01:45  260270.8      0.00       0.0     132.2                           16280799.0000
+    0:01:38  263358.1      0.00       0.0     163.8                           16312515.0000
   Global Optimization (Phase 31)
   Global Optimization (Phase 32)
   Global Optimization (Phase 33)
-    0:01:46  260433.3      0.00       0.0       0.0                           16297530.0000
-    0:01:46  260433.3      0.00       0.0       0.0                           16297530.0000
+    0:01:40  262995.7      0.00       0.0       0.0                           16228639.0000
+    0:01:40  262995.7      0.00       0.0       0.0                           16228639.0000
 
 
   Beginning Leakage Power Optimization  (max_leakage_power 0)
@@ -421,7 +443,7 @@ Information: The target library(s) contains cell(s), other than black boxes, tha
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER  
   --------- --------- --------- --------- --------- ------------------------- ---------
-    0:01:46  260433.3      0.00       0.0       0.0                           16297530.0000
+    0:01:40  262995.7      0.00       0.0       0.0                           16228639.0000
   Global Optimization (Phase 34)
   Global Optimization (Phase 35)
   Global Optimization (Phase 36)
@@ -437,46 +459,45 @@ Information: The target library(s) contains cell(s), other than black boxes, tha
   Global Optimization (Phase 46)
   Global Optimization (Phase 47)
   Global Optimization (Phase 48)
-  Global Optimization (Phase 49)
-    0:01:51  239206.6      0.00       0.0       0.0                           14479948.0000
-    0:01:51  239206.6      0.00       0.0       0.0                           14479948.0000
-    0:01:52  239206.6      0.00       0.0       0.0                           14479948.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
+    0:01:43  239919.0      0.00       0.0       0.0                           14392949.0000
+    0:01:43  239919.0      0.00       0.0       0.0                           14392949.0000
+    0:01:43  239919.0      0.00       0.0       0.0                           14392949.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
 
                                   TOTAL                                                
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER  
   --------- --------- --------- --------- --------- ------------------------- ---------
-    0:01:52  239016.0      0.00       0.0       0.0                           14459063.0000
-    0:01:54  224716.9      0.00       0.0       0.0                           13171911.0000
-    0:01:54  224716.9      0.00       0.0       0.0                           13171911.0000
-    0:01:54  224716.9      0.00       0.0       0.0                           13171911.0000
-    0:01:54  224570.0      0.00       0.0       0.0                           13157326.0000
-    0:01:56  221770.2      0.00       0.0       0.0                           12925343.0000
-    0:01:56  221770.2      0.00       0.0       0.0                           12925343.0000
-    0:01:56  221770.2      0.00       0.0       0.0                           12925343.0000
-    0:01:56  221770.2      0.00       0.0       0.0                           12925343.0000
-    0:01:56  221770.2      0.00       0.0       0.0                           12925343.0000
-    0:01:56  221770.2      0.00       0.0       0.0                           12925343.0000
-    0:01:58  212958.2      0.00       0.0       0.0                           12250656.0000
+    0:01:44  239900.3      0.00       0.0       0.0                           14391225.0000
+    0:01:46  226073.0      0.00       0.0       0.0                           13201575.0000
+    0:01:46  226073.0      0.00       0.0       0.0                           13201575.0000
+    0:01:46  226073.0      0.00       0.0       0.0                           13201575.0000
+    0:01:47  226023.0      0.00       0.0       0.0                           13195157.0000
+    0:01:48  222604.5      0.00       0.0       0.0                           12912640.0000
+    0:01:48  222604.5      0.00       0.0       0.0                           12912640.0000
+    0:01:48  222604.5      0.00       0.0       0.0                           12912640.0000
+    0:01:48  222604.5      0.00       0.0       0.0                           12912640.0000
+    0:01:48  222604.5      0.00       0.0       0.0                           12912640.0000
+    0:01:48  222604.5      0.00       0.0       0.0                           12912640.0000
+    0:01:51  212611.4      0.00       0.0       0.0                           12194881.0000
 Loading db file '/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ss1p62v125c.db'
 Loading db file '/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ff1p98vm40c.db'
 Loading db file '/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_t33_generic_io_ss1p62v125c.db'
@@ -555,7 +576,7 @@ report_area
 Report : area
 Design : DRCA
 Version: T-2022.03
-Date   : Sat Mar  7 17:14:52 2026
+Date   : Sat Mar  7 17:23:52 2026
 ****************************************
 
 Library(s) Used:
@@ -563,21 +584,21 @@ Library(s) Used:
     fsa0m_a_generic_core_ss1p62v125c (File: /RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ss1p62v125c.db)
 
 Number of ports:                          313
-Number of nets:                         12907
-Number of cells:                        12088
-Number of combinational cells:          12088
+Number of nets:                         12770
+Number of cells:                        11918
+Number of combinational cells:          11918
 Number of sequential cells:                 0
 Number of macros/black boxes:               0
-Number of buf/inv:                       1916
-Number of references:                     121
+Number of buf/inv:                       1925
+Number of references:                     118
 
-Combinational area:             212958.246502
-Buf/Inv area:                    17723.865530
+Combinational area:             212611.393806
+Buf/Inv area:                    19039.406347
 Noncombinational area:               0.000000
 Macro/Black Box area:                0.000000
 Net Interconnect area:      undefined  (Wire load has zero net area)
 
-Total cell area:                212958.246502
+Total cell area:                212611.393806
 Total area:                 undefined
 1
 report_timing 
@@ -589,7 +610,7 @@ Report : timing
         -max_paths 1
 Design : DRCA
 Version: T-2022.03
-Date   : Sat Mar  7 17:14:52 2026
+Date   : Sat Mar  7 17:23:52 2026
 ****************************************
 
 Operating Conditions: WCCOM   Library: fsa0m_a_generic_core_ss1p62v125c
@@ -610,38 +631,41 @@ Wire Load Model Mode: top
   clock network delay (ideal)              0.00       0.00
   input external delay                     0.00       0.00 f
   drc_sel[2] (in)                          0.00       0.00 f
-  U13817/O (ND2T)                          0.24       0.24 r
-  U14109/O (XNR2HT)                        0.19       0.43 r
-  U14125/O (INV8)                          0.12       0.55 f
-  U9668/O (XNR2H)                          0.20       0.75 f
-  U15204/O (ND3HT)                         0.26       1.01 r
-  U9590/O (NR2T)                           0.18       1.19 f
-  U10918/O (OAI112HS)                      0.14       1.33 r
-  U9507/O (BUF3)                           0.43       1.77 r
-  U15396/O (OAI22S)                        0.19       1.96 f
-  U15398/O (NR3)                           0.30       2.26 r
-  U15402/O (OAI112HS)                      0.19       2.45 f
-  U9287/O (NR2)                            0.25       2.70 r
-  U11379/O (ND3P)                          0.17       2.87 f
-  U9237/O (XNR2H)                          0.32       3.19 f
-  U9060/O (NR2)                            0.43       3.62 r
-  U13146/O (ND2)                           0.21       3.84 f
-  U19922/O (NR2)                           0.27       4.11 r
-  U19923/O (AN2)                           0.29       4.40 r
-  U19924/O (ND2S)                          0.15       4.55 f
-  U11683/O (AOI13H)                        0.26       4.81 r
-  U19944/O (XOR3)                          0.53       5.34 f
-  U20267/S (FA1)                           0.57       5.92 f
-  U20274/CO (FA1)                          0.37       6.29 f
-  U20719/CO (FA1)                          0.37       6.66 f
-  U20760/S (FA1)                           0.32       6.98 f
-  U20791/S (FA1)                           0.66       7.64 f
-  U20842/CO (FA1)                          0.37       8.00 f
-  U20871/S (FA1)                           0.65       8.66 f
-  U20897/S (FA1)                           0.82       9.48 f
-  U11779/O (ND2P)                          0.22       9.70 r
-  U10991/O (OAI12HP)                       0.12       9.82 f
-  U11785/O (XNR2HP)                        0.18      10.00 f
+  U14223/O (ND2F)                          0.23       0.23 r
+  U14224/O (XNR2HT)                        0.23       0.45 r
+  U14225/O (INV12)                         0.13       0.58 f
+  U14419/O (XNR2HP)                        0.18       0.76 f
+  U14422/O (ND3HT)                         0.18       0.94 r
+  U9740/O (NR2T)                           0.16       1.10 f
+  U9571/O (INV2)                           0.21       1.31 r
+  U15725/O (OAI12HS)                       0.14       1.46 f
+  U11762/O (OAI12HS)                       0.12       1.58 r
+  U9374/O (BUF3)                           0.42       2.00 r
+  U17884/O (OAI22S)                        0.18       2.18 f
+  U9322/O (NR3)                            0.28       2.46 r
+  U11181/O (OAI12HS)                       0.16       2.62 f
+  U14099/O (NR2)                           0.38       3.00 r
+  U11104/O (INV2)                          0.10       3.10 f
+  U10327/O (NR2P)                          0.14       3.24 r
+  U9008/O (NR2P)                           0.12       3.36 f
+  U8974/O (BUF4)                           0.29       3.66 f
+  U12502/O (INV3)                          0.17       3.83 r
+  U12489/O (NR2)                           0.13       3.97 f
+  U17982/O (MOAI1S)                        0.37       4.34 f
+  U20272/CO (FA1)                          0.43       4.76 f
+  U20552/S (FA1)                           0.56       5.32 f
+  U20554/S (FA1)                           0.64       5.96 f
+  U20557/O (MOAI1H)                        0.26       6.23 f
+  U20582/S (FA1)                           0.31       6.54 f
+  U20635/S (FA1)                           0.66       7.20 f
+  U20649/S (FA1)                           0.56       7.76 f
+  U20680/CO (FA1)                          0.41       8.17 f
+  U20727/S (FA1)                           0.56       8.73 f
+  U20728/CO (FA1P)                         0.50       9.23 f
+  U13846/O (XNR2HP)                        0.19       9.42 f
+  U13850/O (XNR2HP)                        0.18       9.60 f
+  U13856/O (XNR2HP)                        0.18       9.78 f
+  U20735/O (XNR2HP)                        0.22      10.00 f
   drc_out[4] (out)                         0.00      10.00 f
   data arrival time                                  10.00
 
@@ -658,10 +682,10 @@ Wire Load Model Mode: top
 
 1
 exit
-Memory usage for this session 468 Mbytes.
-Memory usage for this session including child processes 717 Mbytes.
-CPU usage for this session 271 seconds ( 0.08 hours ).
-Elapsed time for this session 132 seconds ( 0.04 hours ).
+Memory usage for this session 466 Mbytes.
+Memory usage for this session including child processes 720 Mbytes.
+CPU usage for this session 230 seconds ( 0.06 hours ).
+Elapsed time for this session 124 seconds ( 0.03 hours ).
 
 Thank you...
 

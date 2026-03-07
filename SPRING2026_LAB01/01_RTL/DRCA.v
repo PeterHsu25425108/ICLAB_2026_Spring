@@ -49,6 +49,33 @@ end
 
 endmodule
 
+module RowPopcountTree (
+    input  wire [7:0] v1_in,
+    input  wire [4:0] v2_in,
+    input  wire [3:0] v3_in,
+    input  wire [2:0] v4_in,
+    output wire [3:0] total_nv_out // Perfectly bounded to 4 bits (Max value = 8)
+);
+
+    // 1. Explicit binary tree for v1 (8 bits) -> max 8 (needs 4 bits)
+    wire [3:0] v1_count = ( (v1_in[0] + v1_in[1]) + (v1_in[2] + v1_in[3]) ) + 
+                          ( (v1_in[4] + v1_in[5]) + (v1_in[6] + v1_in[7]) );
+                          
+    // 2. Explicit binary tree for v2 (5 bits) -> max 5 (needs 3 bits)
+    wire [2:0] v2_count = ( (v2_in[0] + v2_in[1]) + (v2_in[2] + v2_in[3]) ) + v2_in[4];
+
+    // 3. Explicit binary tree for v3 (4 bits) -> max 4 (needs 3 bits)
+    wire [2:0] v3_count = (v3_in[0] + v3_in[1]) + (v3_in[2] + v3_in[3]);
+
+    // 4. Explicit binary tree for v4 (3 bits) -> max 3 (needs 2 bits)
+    wire [1:0] v4_count = (v4_in[0] + v4_in[1]) + v4_in[2];
+
+    // 5. Final balanced tree to sum the individual counters
+    // Synthesizer will safely map this to a 4-bit final adder stage
+    assign total_nv_out = (v1_count + v2_count) + (v3_count + v4_count);
+
+endmodule
+
 // RowModLite: takes pre-computed CheckMask match vectors for two adjacent rows,
 // computes overlap-based violation counts, and selects based on rvm.
 // This avoids duplicating CheckMask instances for shared rows between adjacent pairs.
@@ -96,15 +123,23 @@ module RowModLite (
         end
     endgenerate
 
-    always @(*) begin
-        v1_count = 0; v2_count = 0; v3_count = 0; v4_count = 0;
-        for (integer k = 0; k < 8; k = k + 1) v1_count = v1_count + v1_overlap[k];
-        for (integer k = 0; k < 5; k = k + 1) v2_count = v2_count + v2_overlap[k];
-        for (integer k = 0; k < 4; k = k + 1) v3_count = v3_count + v3_overlap[k];
-        for (integer k = 0; k < 3; k = k + 1) v4_count = v4_count + v4_overlap[k];
-    end
+//     always @(*) begin
+//         v1_count = 0; v2_count = 0; v3_count = 0; v4_count = 0;
+//         for (integer k = 0; k < 8; k = k + 1) v1_count = v1_count + v1_overlap[k];
+//         for (integer k = 0; k < 5; k = k + 1) v2_count = v2_count + v2_overlap[k];
+//         for (integer k = 0; k < 4; k = k + 1) v3_count = v3_count + v3_overlap[k];
+//         for (integer k = 0; k < 3; k = k + 1) v4_count = v4_count + v4_overlap[k];
+//     end
 
-    assign total_nv = v1_count + v2_count + v3_count + v4_count;
+//     assign total_nv = v1_count + v2_count + v3_count + v4_count;
+
+    RowPopcountTree popcount_inst (
+        .v1_in(v1_overlap),
+        .v2_in(v2_overlap),
+        .v3_in(v3_overlap),
+        .v4_in(v4_overlap),
+        .total_nv_out(total_nv) // Directly connected to your 4-bit output port
+    );
 endmodule
 
 module AdderTree16 (
