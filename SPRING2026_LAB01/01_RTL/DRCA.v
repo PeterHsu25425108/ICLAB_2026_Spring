@@ -79,10 +79,15 @@ module RowModLite (
     output wire [3:0] total_nv 
 );
     // Early Masking applied directly to the incoming staggered widths
+    // wire [14:0] v1_overlap_raw = (match_v1_row1 & ~match_v1_row2); 
+    // wire [13:0] v2_overlap_raw = (match_v2_row1 & ~match_v2_row2) & {14{en_violate[0]}};
+    // wire [12:0] v3_overlap_raw = (match_v3_row1 & ~match_v3_row2) & {13{en_violate[1]}};
+    // wire [11:0] v4_overlap_raw = (match_v4_row1 & ~match_v4_row2) & {12{en_violate[2]}};
+
     wire [14:0] v1_overlap_raw = (match_v1_row1 & ~match_v1_row2); 
-    wire [13:0] v2_overlap_raw = (match_v2_row1 & ~match_v2_row2) & {14{en_violate[0]}};
-    wire [12:0] v3_overlap_raw = (match_v3_row1 & ~match_v3_row2) & {13{en_violate[1]}};
-    wire [11:0] v4_overlap_raw = (match_v4_row1 & ~match_v4_row2) & {12{en_violate[2]}};
+    wire [13:0] v2_overlap_raw = en_violate[0] ? (match_v2_row1 & ~match_v2_row2) : 14'b0;
+    wire [12:0] v3_overlap_raw = en_violate[1] ? (match_v3_row1 & ~match_v3_row2) : 13'b0;
+    wire [11:0] v4_overlap_raw = en_violate[2] ? (match_v4_row1 & ~match_v4_row2) : 12'b0;
 
     // Compression Bounds: Ceil(Length / Dist)
     wire [7:0] v1_overlap; // Ceil(15/2) = 8
@@ -114,23 +119,23 @@ module RowModLite (
         end
     endgenerate
 
-//     always @(*) begin
-//         v1_count = 0; v2_count = 0; v3_count = 0; v4_count = 0;
-//         for (integer k = 0; k < 8; k = k + 1) v1_count = v1_count + v1_overlap[k];
-//         for (integer k = 0; k < 5; k = k + 1) v2_count = v2_count + v2_overlap[k];
-//         for (integer k = 0; k < 4; k = k + 1) v3_count = v3_count + v3_overlap[k];
-//         for (integer k = 0; k < 3; k = k + 1) v4_count = v4_count + v4_overlap[k];
-//     end
+    always @(*) begin
+        v1_count = 0; v2_count = 0; v3_count = 0; v4_count = 0;
+        for (integer k = 0; k < 8; k = k + 1) v1_count = v1_count + v1_overlap[k];
+        for (integer k = 0; k < 5; k = k + 1) v2_count = v2_count + v2_overlap[k];
+        for (integer k = 0; k < 4; k = k + 1) v3_count = v3_count + v3_overlap[k];
+        for (integer k = 0; k < 3; k = k + 1) v4_count = v4_count + v4_overlap[k];
+    end
 
-//     assign total_nv = v1_count + v2_count + v3_count + v4_count;
+    assign total_nv = v1_count + v2_count + v3_count + v4_count;
 
-    RowPopcountTree popcount_inst (
-        .v1_in(v1_overlap),
-        .v2_in(v2_overlap),
-        .v3_in(v3_overlap),
-        .v4_in(v4_overlap),
-        .total_nv_out(total_nv) // Directly connected to your 4-bit output port
-    );
+    // RowPopcountTree popcount_inst (
+    //     .v1_in(v1_overlap),
+    //     .v2_in(v2_overlap),
+    //     .v3_in(v3_overlap),
+    //     .v4_in(v4_overlap),
+    //     .total_nv_out(total_nv) // Directly connected to your 4-bit output port
+    // );
 endmodule
 
 module AdderTree16 (
@@ -368,8 +373,15 @@ wire [14:0] h_cm_v1 [0:16];
 wire [13:0] h_cm_v2 [0:16];
 wire [12:0] h_cm_v3 [0:16];
 wire [11:0] h_cm_v4 [0:16];
+
+// 1. Hardwire the dead borders to 0
+assign h_cm_v1[0] = 15'b0; assign h_cm_v1[16] = 15'b0;
+assign h_cm_v2[0] = 14'b0; assign h_cm_v2[16] = 14'b0;
+assign h_cm_v3[0] = 13'b0; assign h_cm_v3[16] = 13'b0;
+assign h_cm_v4[0] = 12'b0; assign h_cm_v4[16] = 12'b0;
+
 generate
-    for (i = 0; i < 17; i = i + 1) begin : h_checkmask
+    for (i = 0; i < 16; i = i + 1) begin : h_checkmask
         CheckMask cm_h (
             .data_in(grid_tr[i]),
             // .rule_type(rule_type),
@@ -387,6 +399,12 @@ wire [14:0] v_cm_v1 [0:16];
 wire [13:0] v_cm_v2 [0:16];
 wire [12:0] v_cm_v3 [0:16];
 wire [11:0] v_cm_v4 [0:16];
+
+assign v_cm_v1[0] = 15'b0; assign v_cm_v1[16] = 15'b0;
+assign v_cm_v2[0] = 14'b0; assign v_cm_v2[16] = 14'b0;
+assign v_cm_v3[0] = 13'b0; assign v_cm_v3[16] = 13'b0;
+assign v_cm_v4[0] = 12'b0; assign v_cm_v4[16] = 12'b0;
+
 generate
     for (i = 0; i < 17; i = i + 1) begin : v_checkmask
         CheckMask cm_v (
@@ -404,8 +422,11 @@ endgenerate
 wire [3:0] h_nv_per_row [0:15];   // one count per adjacent row pair
 reg [4:0] h_nv; // total horizontal violations
 
+// 3. Hardwire Row 0 violations to 0
+assign h_nv_per_row[0] = 4'd0;
+
 generate
-    for (i = 0; i < 16; i = i + 1) begin : h_row_mods
+    for (i = 1; i < 16; i = i + 1) begin : h_row_mods
         RowModLite row_mod_h (
             .match_v1_row1(h_cm_v1[i]),   .match_v2_row1(h_cm_v2[i]),
             .match_v3_row1(h_cm_v3[i]),   .match_v4_row1(h_cm_v4[i]),
@@ -418,34 +439,37 @@ generate
     end
 endgenerate
 
-// Flatten the 2D arrays into 64-bit packed buses
-wire [63:0] h_nv_packed = {
-    h_nv_per_row[15], h_nv_per_row[14], h_nv_per_row[13], h_nv_per_row[12],
-    h_nv_per_row[11], h_nv_per_row[10], h_nv_per_row[9],  h_nv_per_row[8],
-    h_nv_per_row[7],  h_nv_per_row[6],  h_nv_per_row[5],  h_nv_per_row[4],
-    h_nv_per_row[3],  h_nv_per_row[2],  h_nv_per_row[1],  h_nv_per_row[0]
-};
+
 
 // accumulate the total horizontal violations from each row pair
-// always @(*) begin
-//     h_nv = 0;
-//     for (integer k = 0; k < 16; k = k + 1) begin
-//         h_nv = h_nv + h_nv_per_row[k];
-//     end
-// end
+always @(*) begin
+    h_nv = 0;
+    for (integer k = 0; k < 16; k = k + 1) begin
+        h_nv = h_nv + h_nv_per_row[k];
+    end
+end
 
-// Instantiate the horizontal adder tree
-AdderTree16 h_adder_tree (
-    .in_flat(h_nv_packed),
-    .out_sum(h_nv)
-);
+// Flatten the 2D arrays into 64-bit packed buses
+// wire [63:0] h_nv_packed = {
+//     h_nv_per_row[15], h_nv_per_row[14], h_nv_per_row[13], h_nv_per_row[12],
+//     h_nv_per_row[11], h_nv_per_row[10], h_nv_per_row[9],  h_nv_per_row[8],
+//     h_nv_per_row[7],  h_nv_per_row[6],  h_nv_per_row[5],  h_nv_per_row[4],
+//     h_nv_per_row[3],  h_nv_per_row[2],  h_nv_per_row[1],  h_nv_per_row[0]
+// };
+
+// // Instantiate the horizontal adder tree
+// AdderTree16 h_adder_tree (
+//     .in_flat(h_nv_packed),
+//     .out_sum(h_nv)
+// );
 
 // Connect 16 RowModLite for vertical violations using shared CheckMask results
 reg [4:0] v_nv; // total vertical violations
 wire [3:0] v_nv_per_col [0:15]; // vertical violations per column
+assign v_nv_per_col[0] = 4'd0;
 
 generate
-    for (i = 0; i < 16; i = i + 1) begin : v_row_mods
+    for (i = 1; i < 16; i = i + 1) begin : v_row_mods
         RowModLite row_mod_v (
             .match_v1_row1(v_cm_v1[i]),   .match_v2_row1(v_cm_v2[i]),
             .match_v3_row1(v_cm_v3[i]),   .match_v4_row1(v_cm_v4[i]),
@@ -458,26 +482,29 @@ generate
     end
 endgenerate
 
-wire [63:0] v_nv_packed = {
-    v_nv_per_col[15], v_nv_per_col[14], v_nv_per_col[13], v_nv_per_col[12],
-    v_nv_per_col[11], v_nv_per_col[10], v_nv_per_col[9],  v_nv_per_col[8],
-    v_nv_per_col[7],  v_nv_per_col[6],  v_nv_per_col[5],  v_nv_per_col[4],
-    v_nv_per_col[3],  v_nv_per_col[2],  v_nv_per_col[1],  v_nv_per_col[0]
-};
+
 
 // accumulate the total vertical violations from each column pair
-// always @(*) begin
-//     v_nv = 0;
-//     for (integer k = 0; k < 16; k = k + 1) begin
-//         v_nv = v_nv + v_nv_per_col[k];
-//     end
-// end
+always @(*) begin
+    v_nv = 0;
+    for (integer k = 0; k < 16; k = k + 1) begin
+        v_nv = v_nv + v_nv_per_col[k];
+    end
+end
+
+
+// wire [63:0] v_nv_packed = {
+//     v_nv_per_col[15], v_nv_per_col[14], v_nv_per_col[13], v_nv_per_col[12],
+//     v_nv_per_col[11], v_nv_per_col[10], v_nv_per_col[9],  v_nv_per_col[8],
+//     v_nv_per_col[7],  v_nv_per_col[6],  v_nv_per_col[5],  v_nv_per_col[4],
+//     v_nv_per_col[3],  v_nv_per_col[2],  v_nv_per_col[1],  v_nv_per_col[0]
+// };
 
 // Instantiate the vertical adder tree
-AdderTree16 v_adder_tree (
-    .in_flat(v_nv_packed),
-    .out_sum(v_nv)
-);
+// AdderTree16 v_adder_tree (
+//     .in_flat(v_nv_packed),
+//     .out_sum(v_nv)
+// );
 
 
 assign drc_out = h_nv + v_nv; // total violations = horizontal violations + vertical violations
