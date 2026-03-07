@@ -81,73 +81,103 @@ module RowModLite (
     input [16:0] match_v4_row2,
     // input [1:0] rvm,
     input [2:0] en_violate,
-    output reg [3:0] total_nv
+    output wire [3:0] total_nv // Changed from 'reg' to 'wire' for the continuous assign at the end
 );
     // check for occurence of the same type of match on the exact same loc on the 2 rows
-    wire [16:0] v1_overlap;
-    assign v1_overlap = match_v1_row1 & ~match_v1_row2;
+    wire [16:0] v1_overlap_raw;
+    assign v1_overlap_raw = match_v1_row1 & ~match_v1_row2; // min dist=2, 17 bits
 
     wire [16:0] v2_xor;
     assign v2_xor = match_v2_row1 & ~match_v2_row2;
-    wire [15:0] v2_overlap;
-    assign v2_overlap = v2_xor[16:1];
+    wire [15:0] v2_overlap_raw;
+    assign v2_overlap_raw = v2_xor[16:1];                   // min dist=3, 16 bits
 
     wire [16:0] v3_xor;
     assign v3_xor = match_v3_row1 & ~match_v3_row2;
-    wire [14:0] v3_overlap;
-    assign v3_overlap = v3_xor[16:2];
+    wire [14:0] v3_overlap_raw;
+    assign v3_overlap_raw = v3_xor[16:2];                   // min dist=4, 15 bits
 
     wire [16:0] v4_xor;
     assign v4_xor = match_v4_row1 & ~match_v4_row2;
-    wire [13:0] v4_overlap;
-    assign v4_overlap = v4_xor[16:3];
+    wire [13:0] v4_overlap_raw;
+    assign v4_overlap_raw = v4_xor[16:3];                   // min dist=5, 14 bits
+
+    // Corrected bit-widths based on Ceil(Raw_Bits / Min_Dist)
+    wire [8:0] v1_overlap; // Ceil(17/2) = 9
+    wire [5:0] v2_overlap; // Ceil(16/3) = 6
+    wire [3:0] v3_overlap; // Ceil(15/4) = 4 (Corrected from [4:0])
+    wire [2:0] v4_overlap; // Ceil(14/5) = 3 (Corrected from [3:0])
 
     reg [3:0] v1_count, v2_count;
     reg [2:0] v3_count;
     reg [1:0] v4_count;
 
-// reg [3:0] w1_nv, w2_nv, w3_nv, w4_nv;
-    // reg [3:0] en_violate;
+    // -------------------------------------------------------------
+    // Compression Generate Block
+    // -------------------------------------------------------------
+    genvar i;
+    generate
+        // 1. Compress v1 (17 bits, dist 2) -> 9 bits
+        for (i = 0; i < 9; i = i + 1) begin : gen_v1
+            if ((i + 1) * 2 > 17) begin
+                assign v1_overlap[i] = |v1_overlap_raw[16 : i*2];
+            end else begin
+                assign v1_overlap[i] = |v1_overlap_raw[(i+1)*2-1 : i*2];
+            end
+        end
 
-    // total violations for this row pair = v1_count + v2_count + v3_count + v4_count
-    // always @(*) begin : RowMod_mode_selection_logic
-    //     // w1_nv = v1_count;
-    //     // w2_nv = w1_nv + v2_count;
-    //     // w3_nv = w2_nv + v3_count;
-    //     // w4_nv = w3_nv + v4_count;
+        // 2. Compress v2 (16 bits, dist 3) -> 6 bits
+        for (i = 0; i < 6; i = i + 1) begin : gen_v2
+            if ((i + 1) * 3 > 16) begin
+                assign v2_overlap[i] = |v2_overlap_raw[15 : i*3];
+            end else begin
+                assign v2_overlap[i] = |v2_overlap_raw[(i+1)*3-1 : i*3];
+            end
+        end
 
-    //     casez(rvm)
-    //         2'd0: en_violate = 4'b0001; // count v1
-    //         2'd1: en_violate = 4'b0011; // count v1 and v2
-    //         2'd2: en_violate = 4'b0111; // count v1, v2 and v3
-    //         2'd3: en_violate = 4'b1111; // count all v1, v2, v3 and v4
-    //         default: en_violate = 4'bx; // invalid rvm
-    //     endcase
-    // end
+        // 3. Compress v3 (15 bits, dist 4) -> 4 bits
+        for (i = 0; i < 4; i = i + 1) begin : gen_v3
+            if ((i + 1) * 4 > 15) begin
+                assign v3_overlap[i] = |v3_overlap_raw[14 : i*4];
+            end else begin
+                assign v3_overlap[i] = |v3_overlap_raw[(i+1)*4-1 : i*4];
+            end
+        end
 
-    // count the number of 1s in v1_overlap, v2_overlap, v3_overlap, v4_overlap
+        // 4. Compress v4 (14 bits, dist 5) -> 3 bits
+        for (i = 0; i < 3; i = i + 1) begin : gen_v4
+            if ((i + 1) * 5 > 14) begin
+                assign v4_overlap[i] = |v4_overlap_raw[13 : i*5];
+            end else begin
+                assign v4_overlap[i] = |v4_overlap_raw[(i+1)*5-1 : i*5];
+            end
+        end
+    endgenerate
+
+    // count the number of 1s in compressed vectors
     always @(*) begin
         v1_count = 0;
         v2_count = 0;
         v3_count = 0;
         v4_count = 0;
-        for (integer k = 0; k < 17; k = k + 1)
+        
+        for (integer k = 0; k < 9; k = k + 1)
             v1_count = v1_count + v1_overlap[k];
-            // v1_count = v1_count + (v1_overlap[k]);
-        for (integer k = 0; k < 16; k = k + 1)
+            
+        for (integer k = 0; k < 6; k = k + 1)
             v2_count = v2_count + v2_overlap[k];
-            // v2_count = v2_count + (v2_overlap[k] & en_violate[1]);
-        for (integer k = 0; k < 15; k = k + 1)
+            
+        // Corrected upper limits for v3 and v4 to match their new sizes
+        for (integer k = 0; k < 4; k = k + 1)
             v3_count = v3_count + v3_overlap[k];
-            // v3_count = v3_count + (v3_overlap[k] & en_violate[2]);
-        for (integer k = 0; k < 14; k = k + 1)
+            
+        for (integer k = 0; k < 3; k = k + 1)
             v4_count = v4_count + v4_overlap[k];
-            // v4_count = v4_count + (v4_overlap[k] & en_violate[3]);
     end
 
     // accumulate the total violations for this row pair
-    // assign total_nv = v1_count + v2_count + v3_count + v4_count;
     assign total_nv = (v1_count) + (v2_count & {4{en_violate[0]}}) + (v3_count & {4{en_violate[1]}}) + (v4_count & {4{en_violate[2]}});
+    
 endmodule
 
 module DRCA (
