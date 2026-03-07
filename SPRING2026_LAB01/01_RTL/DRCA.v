@@ -102,7 +102,9 @@ module RowModLite (
     wire [13:0] v4_overlap;
     assign v4_overlap = v4_xor[16:3];
 
-    reg [3:0] v1_count, v2_count, v3_count, v4_count;
+    reg [3:0] v1_count, v2_count;
+    reg [2:0] v3_count;
+    reg [1:0] v4_count;
 
 // reg [3:0] w1_nv, w2_nv, w3_nv, w4_nv;
     // reg [3:0] en_violate;
@@ -131,7 +133,7 @@ module RowModLite (
         v4_count = 0;
         for (integer k = 0; k < 17; k = k + 1)
             v1_count = v1_count + v1_overlap[k];
-            // v1_count = v1_count + (v1_overlap[k] & en_violate[0]);
+            // v1_count = v1_count + (v1_overlap[k]);
         for (integer k = 0; k < 16; k = k + 1)
             v2_count = v2_count + v2_overlap[k];
             // v2_count = v2_count + (v2_overlap[k] & en_violate[1]);
