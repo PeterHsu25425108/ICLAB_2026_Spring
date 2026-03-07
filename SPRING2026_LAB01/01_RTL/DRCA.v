@@ -107,6 +107,46 @@ module RowModLite (
     assign total_nv = v1_count + v2_count + v3_count + v4_count;
 endmodule
 
+module AdderTree16 (
+    input  wire [63:0] in_flat, // 16 separate 4-bit values packed into one bus
+    output wire [4:0]  out_sum
+);
+    // ---------------------------------------------------------
+    // Layer 1: 8 adders (Summing 4-bit slices)
+    // ---------------------------------------------------------
+    wire [4:0] l1 [0:7];
+    assign l1[0] = in_flat[3:0]   + in_flat[7:4];
+    assign l1[1] = in_flat[11:8]  + in_flat[15:12];
+    assign l1[2] = in_flat[19:16] + in_flat[23:20];
+    assign l1[3] = in_flat[27:24] + in_flat[31:28];
+    assign l1[4] = in_flat[35:32] + in_flat[39:36];
+    assign l1[5] = in_flat[43:40] + in_flat[47:44];
+    assign l1[6] = in_flat[51:48] + in_flat[55:52];
+    assign l1[7] = in_flat[59:56] + in_flat[63:60];
+
+    // ---------------------------------------------------------
+    // Layer 2: 4 adders
+    // ---------------------------------------------------------
+    wire [4:0] l2 [0:3];
+    assign l2[0] = l1[0] + l1[1];
+    assign l2[1] = l1[2] + l1[3];
+    assign l2[2] = l1[4] + l1[5];
+    assign l2[3] = l1[6] + l1[7];
+
+    // ---------------------------------------------------------
+    // Layer 3: 2 adders
+    // ---------------------------------------------------------
+    wire [4:0] l3 [0:1];
+    assign l3[0] = l2[0] + l2[1];
+    assign l3[1] = l2[2] + l2[3];
+
+    // ---------------------------------------------------------
+    // Layer 4 (Final output): 1 adder
+    // ---------------------------------------------------------
+    assign out_sum = l3[0] + l3[1];
+
+endmodule
+
 module DRCA (
     input [3:0]  drc_sel,
     input [18:0] shape0 ,
@@ -352,13 +392,27 @@ generate
     end
 endgenerate
 
+// Flatten the 2D arrays into 64-bit packed buses
+wire [63:0] h_nv_packed = {
+    h_nv_per_row[15], h_nv_per_row[14], h_nv_per_row[13], h_nv_per_row[12],
+    h_nv_per_row[11], h_nv_per_row[10], h_nv_per_row[9],  h_nv_per_row[8],
+    h_nv_per_row[7],  h_nv_per_row[6],  h_nv_per_row[5],  h_nv_per_row[4],
+    h_nv_per_row[3],  h_nv_per_row[2],  h_nv_per_row[1],  h_nv_per_row[0]
+};
+
 // accumulate the total horizontal violations from each row pair
-always @(*) begin
-    h_nv = 0;
-    for (integer k = 0; k < 16; k = k + 1) begin
-        h_nv = h_nv + h_nv_per_row[k];
-    end
-end
+// always @(*) begin
+//     h_nv = 0;
+//     for (integer k = 0; k < 16; k = k + 1) begin
+//         h_nv = h_nv + h_nv_per_row[k];
+//     end
+// end
+
+// Instantiate the horizontal adder tree
+AdderTree16 h_adder_tree (
+    .in_flat(h_nv_packed),
+    .out_sum(h_nv)
+);
 
 // Connect 16 RowModLite for vertical violations using shared CheckMask results
 reg [4:0] v_nv; // total vertical violations
@@ -378,13 +432,27 @@ generate
     end
 endgenerate
 
+wire [63:0] v_nv_packed = {
+    v_nv_per_col[15], v_nv_per_col[14], v_nv_per_col[13], v_nv_per_col[12],
+    v_nv_per_col[11], v_nv_per_col[10], v_nv_per_col[9],  v_nv_per_col[8],
+    v_nv_per_col[7],  v_nv_per_col[6],  v_nv_per_col[5],  v_nv_per_col[4],
+    v_nv_per_col[3],  v_nv_per_col[2],  v_nv_per_col[1],  v_nv_per_col[0]
+};
+
 // accumulate the total vertical violations from each column pair
-always @(*) begin
-    v_nv = 0;
-    for (integer k = 0; k < 16; k = k + 1) begin
-        v_nv = v_nv + v_nv_per_col[k];
-    end
-end
+// always @(*) begin
+//     v_nv = 0;
+//     for (integer k = 0; k < 16; k = k + 1) begin
+//         v_nv = v_nv + v_nv_per_col[k];
+//     end
+// end
+
+// Instantiate the vertical adder tree
+AdderTree16 v_adder_tree (
+    .in_flat(v_nv_packed),
+    .out_sum(v_nv)
+);
+
 
 assign drc_out = h_nv + v_nv; // total violations = horizontal violations + vertical violations
 
