@@ -56,7 +56,7 @@ module RuleValMode_Decoder (
 );
 
 always@(*) begin  : rvm_decoding_logic
-    casez(drc_sel) 
+    case (drc_sel) 
         4'd0, 4'd1, 4'd3, 4'd4, 4'd5, 4'd7: en_violate = 3'b000;
         4'd2, 4'd6, 4'd9, 4'd11: en_violate = 3'b001;
         4'd8, 4'd10, 4'd13: en_violate = 3'b011;
@@ -230,10 +230,6 @@ wire [16:0] grid[0:16];
 // indicate if the shape_layer[i] == rule_layer for each shape 
 wire is_layer_2_Check[0:15];
 
-// the total num of violations caused by width and spacing 
-wire [4:0] width_nv;
-wire [4:0] spacing_nv;
-
 // get rule value mode
 wire [2:0] en_violate;
 // wire [1:0] rvm;
@@ -325,6 +321,27 @@ generate
     end
 endgenerate
 
+// Row/column shape masks let each cell use one 16-bit AND + reduction OR.
+wire [15:0] row_shape_mask [0:14];
+wire [15:0] col_shape_mask [0:14];
+
+generate
+    for (j = 0; j < 15; j = j + 1) begin : gen_row_col_masks
+        assign row_shape_mask[j] = {
+            x_in_range[15][j], x_in_range[14][j], x_in_range[13][j], x_in_range[12][j],
+            x_in_range[11][j], x_in_range[10][j], x_in_range[9][j],  x_in_range[8][j],
+            x_in_range[7][j],  x_in_range[6][j],  x_in_range[5][j],  x_in_range[4][j],
+            x_in_range[3][j],  x_in_range[2][j],  x_in_range[1][j],  x_in_range[0][j]
+        };
+        assign col_shape_mask[j] = {
+            y_in_range[15][j], y_in_range[14][j], y_in_range[13][j], y_in_range[12][j],
+            y_in_range[11][j], y_in_range[10][j], y_in_range[9][j],  y_in_range[8][j],
+            y_in_range[7][j],  y_in_range[6][j],  y_in_range[5][j],  y_in_range[4][j],
+            y_in_range[3][j],  y_in_range[2][j],  y_in_range[1][j],  y_in_range[0][j]
+        };
+    end
+endgenerate
+
 // construct the grid (17x17 with zero-padded borders, original 15x15 content in [1:15][1:15])
 generate
     // The outer border rows (0, 16) and columns (bit 0, bit 16) are zero-padded.
@@ -335,24 +352,7 @@ generate
             if (i == 0 || i == 16 || j == 0 || j == 16) begin : zero_pad
                 assign grid[i][j] = rule_type;//1'b0;
             end else begin : interior
-                assign grid[i][j] = (
-                    (x_in_range[0][i-1]  & y_in_range[0][j-1])  |
-                    (x_in_range[1][i-1]  & y_in_range[1][j-1])  |
-                    (x_in_range[2][i-1]  & y_in_range[2][j-1])  |
-                    (x_in_range[3][i-1]  & y_in_range[3][j-1])  |
-                    (x_in_range[4][i-1]  & y_in_range[4][j-1])  |
-                    (x_in_range[5][i-1]  & y_in_range[5][j-1])  |
-                    (x_in_range[6][i-1]  & y_in_range[6][j-1])  |
-                    (x_in_range[7][i-1]  & y_in_range[7][j-1])  |
-                    (x_in_range[8][i-1]  & y_in_range[8][j-1])  |
-                    (x_in_range[9][i-1]  & y_in_range[9][j-1])  |
-                    (x_in_range[10][i-1] & y_in_range[10][j-1]) |
-                    (x_in_range[11][i-1] & y_in_range[11][j-1]) |
-                    (x_in_range[12][i-1] & y_in_range[12][j-1]) |
-                    (x_in_range[13][i-1] & y_in_range[13][j-1]) |
-                    (x_in_range[14][i-1] & y_in_range[14][j-1]) |
-                    (x_in_range[15][i-1] & y_in_range[15][j-1])
-                ) ^ rule_type;
+                assign grid[i][j] = (|(row_shape_mask[i-1] & col_shape_mask[j-1])) ^ rule_type;
             end
         end
     end
