@@ -2,10 +2,10 @@ module CheckMask(
     input  wire [16:0] data_in,
     // input  wire        rule_type,
     // the occurence is reported on the left most 1/0, left meaning towards the MSB
-    output wire [16:0] match_010,
-    output wire [16:0] match_0110,
-    output wire [16:0] match_01110,
-    output wire [16:0] match_011110
+output wire [14:0] match_010,       
+    output wire [14:0] match_0110,      
+    output wire [14:0] match_01110,     
+    output wire [14:0] match_011110     
 );
     // MSB-left bit ordering: bit[15] is leftmost, bit[0] is rightmost.
     // At position k, its left  neighbor is bit[k+1] (higher index, toward MSB).
@@ -30,20 +30,12 @@ module CheckMask(
     wire [16:0] raw_shl3 = data_in << 3; //{data_in[13:0], 3'b000};         
     wire [16:0] raw_shl4 = data_in << 4; //{data_in[12:0], 4'b0000};        
 
-    // 1. 010 / 101: isolated 1/0. At match bit k: data_mod[k+1..k-1] = 0,1,0.
-    //    Reported at bit k (the sole 1/0 of the run).
-    assign match_010 = ~shr1 & data_in & ~shl1;
-    // 2. 0110 / 1001: run of two 1/0s. At match bit k: data_mod[k+1..k-2] = 0,1,1,0.
-    //    Reported at bit k (leftmost 1/0 of the pair).
-    assign match_0110 = ~shr1 & data_in & shl1 & ~shl2;
-
-    // 3. 01110 / 10001: run of three 1/0s. At match bit k: data_mod[k+1..k-3] = 0,1,1,1,0.
-    //    Reported at bit k (leftmost 1/0 of the triple).
-    assign match_01110 = ~shr1 & data_in & shl1 & shl2 & ~shl3;
-
-    // 4. 011110 only: run of four 1s. At match bit k: data_in[k+1..k-4] = 0,1,1,1,1,0.
-    //    Reported at bit k (leftmost 1 of the quad).
-    assign match_011110 = ~raw_shr1 & data_in & raw_shl1 & raw_shl2 & raw_shl3 & ~raw_shl4;
+    // Slice [15:1] to drop the dead 0th and 16th bits
+// Apply the [15:1] slice directly to the signals instead of the evaluated expression
+    assign match_010    = ~shr1[15:1]     & data_in[15:1]  & ~shl1[15:1];
+    assign match_0110   = ~shr1[15:1]     & data_in[15:1]  & shl1[15:1]     & ~shl2[15:1];
+    assign match_01110  = ~shr1[15:1]     & data_in[15:1]  & shl1[15:1]     & shl2[15:1]     & ~shl3[15:1];
+    assign match_011110 = ~raw_shr1[15:1] & data_in[15:1]  & raw_shl1[15:1] & raw_shl2[15:1] & raw_shl3[15:1] & ~raw_shl4[15:1];
 
 endmodule
 
@@ -71,113 +63,85 @@ endmodule
 // computes overlap-based violation counts, and selects based on rvm.
 // This avoids duplicating CheckMask instances for shared rows between adjacent pairs.
 module RowModLite (
-    input [16:0] match_v1_row1,
-    input [16:0] match_v2_row1,
-    input [16:0] match_v3_row1,
-    input [16:0] match_v4_row1,
-    input [16:0] match_v1_row2,
-    input [16:0] match_v2_row2,
-    input [16:0] match_v3_row2,
-    input [16:0] match_v4_row2,
-    // input [1:0] rvm,
+    input [14:0] match_v1_row1,
+    input [14:0] match_v2_row1,
+    input [14:0] match_v3_row1,
+    input [14:0] match_v4_row1,
+    input [14:0] match_v1_row2,
+    input [14:0] match_v2_row2,
+    input [14:0] match_v3_row2,
+    input [14:0] match_v4_row2,
     input [2:0] en_violate,
-    output wire [3:0] total_nv // Changed from 'reg' to 'wire' for the continuous assign at the end
+    output wire [3:0] total_nv 
 );
     // check for occurence of the same type of match on the exact same loc on the 2 rows
-    wire [16:0] v1_overlap_raw;
-    assign v1_overlap_raw = match_v1_row1 & ~match_v1_row2; // min dist=2, 17 bits
+    wire [14:0] v1_overlap_raw;
+    assign v1_overlap_raw = match_v1_row1 & ~match_v1_row2; // 15 bits
 
-    wire [16:0] v2_xor;
+    wire [14:0] v2_xor;
     assign v2_xor = match_v2_row1 & ~match_v2_row2;
-    wire [15:0] v2_overlap_raw;
-    assign v2_overlap_raw = v2_xor[16:1];                   // min dist=3, 16 bits
+    wire [13:0] v2_overlap_raw;
+    assign v2_overlap_raw = v2_xor[14:1];                   // 14 bits (Shifted 1)
 
-    wire [16:0] v3_xor;
+    wire [14:0] v3_xor;
     assign v3_xor = match_v3_row1 & ~match_v3_row2;
-    wire [14:0] v3_overlap_raw;
-    assign v3_overlap_raw = v3_xor[16:2];                   // min dist=4, 15 bits
+    wire [12:0] v3_overlap_raw;
+    assign v3_overlap_raw = v3_xor[14:2];                   // 13 bits (Shifted 2)
 
-    wire [16:0] v4_xor;
+    wire [14:0] v4_xor;
     assign v4_xor = match_v4_row1 & ~match_v4_row2;
-    wire [13:0] v4_overlap_raw;
-    assign v4_overlap_raw = v4_xor[16:3];                   // min dist=5, 14 bits
+    wire [11:0] v4_overlap_raw;
+    assign v4_overlap_raw = v4_xor[14:3];                   // 12 bits (Shifted 3)
 
-    // Corrected bit-widths based on Ceil(Raw_Bits / Min_Dist)
-    wire [8:0] v1_overlap; // Ceil(17/2) = 9
-    wire [5:0] v2_overlap; // Ceil(16/3) = 6
-    wire [3:0] v3_overlap; // Ceil(15/4) = 4 (Corrected from [4:0])
-    wire [2:0] v4_overlap; // Ceil(14/5) = 3 (Corrected from [3:0])
+    // New optimized bit-widths based on Ceil(Raw_Bits / Min_Dist)
+    wire [7:0] v1_overlap; // Ceil(15/2) = 8
+    wire [4:0] v2_overlap; // Ceil(14/3) = 5
+    wire [3:0] v3_overlap; // Ceil(13/4) = 4 
+    wire [2:0] v4_overlap; // Ceil(12/5) = 3 
 
     reg [3:0] v1_count, v2_count;
     reg [2:0] v3_count;
     reg [1:0] v4_count;
 
-    // -------------------------------------------------------------
-    // Compression Generate Block
-    // -------------------------------------------------------------
     genvar i;
     generate
-        // 1. Compress v1 (17 bits, dist 2) -> 9 bits
-        for (i = 0; i < 9; i = i + 1) begin : gen_v1
-            if ((i + 1) * 2 > 17) begin
-                assign v1_overlap[i] = |v1_overlap_raw[16 : i*2];
-            end else begin
-                assign v1_overlap[i] = |v1_overlap_raw[(i+1)*2-1 : i*2];
-            end
+        // 1. Compress v1 (15 bits, dist 2) -> 8 bits
+        for (i = 0; i < 8; i = i + 1) begin : gen_v1
+            if ((i + 1) * 2 > 15) assign v1_overlap[i] = |v1_overlap_raw[14 : i*2];
+            else                  assign v1_overlap[i] = |v1_overlap_raw[(i+1)*2-1 : i*2];
         end
 
-        // 2. Compress v2 (16 bits, dist 3) -> 6 bits
-        for (i = 0; i < 6; i = i + 1) begin : gen_v2
-            if ((i + 1) * 3 > 16) begin
-                assign v2_overlap[i] = |v2_overlap_raw[15 : i*3];
-            end else begin
-                assign v2_overlap[i] = |v2_overlap_raw[(i+1)*3-1 : i*3];
-            end
+        // 2. Compress v2 (14 bits, dist 3) -> 5 bits
+        for (i = 0; i < 5; i = i + 1) begin : gen_v2
+            if ((i + 1) * 3 > 14) assign v2_overlap[i] = |v2_overlap_raw[13 : i*3];
+            else                  assign v2_overlap[i] = |v2_overlap_raw[(i+1)*3-1 : i*3];
         end
 
-        // 3. Compress v3 (15 bits, dist 4) -> 4 bits
+        // 3. Compress v3 (13 bits, dist 4) -> 4 bits
         for (i = 0; i < 4; i = i + 1) begin : gen_v3
-            if ((i + 1) * 4 > 15) begin
-                assign v3_overlap[i] = |v3_overlap_raw[14 : i*4];
-            end else begin
-                assign v3_overlap[i] = |v3_overlap_raw[(i+1)*4-1 : i*4];
-            end
+            if ((i + 1) * 4 > 13) assign v3_overlap[i] = |v3_overlap_raw[12 : i*4];
+            else                  assign v3_overlap[i] = |v3_overlap_raw[(i+1)*4-1 : i*4];
         end
 
-        // 4. Compress v4 (14 bits, dist 5) -> 3 bits
+        // 4. Compress v4 (12 bits, dist 5) -> 3 bits
         for (i = 0; i < 3; i = i + 1) begin : gen_v4
-            if ((i + 1) * 5 > 14) begin
-                assign v4_overlap[i] = |v4_overlap_raw[13 : i*5];
-            end else begin
-                assign v4_overlap[i] = |v4_overlap_raw[(i+1)*5-1 : i*5];
-            end
+            if ((i + 1) * 5 > 12) assign v4_overlap[i] = |v4_overlap_raw[11 : i*5];
+            else                  assign v4_overlap[i] = |v4_overlap_raw[(i+1)*5-1 : i*5];
         end
     endgenerate
 
     // count the number of 1s in compressed vectors
     always @(*) begin
-        v1_count = 0;
-        v2_count = 0;
-        v3_count = 0;
-        v4_count = 0;
+        v1_count = 0; v2_count = 0; v3_count = 0; v4_count = 0;
         
-        for (integer k = 0; k < 9; k = k + 1)
-            v1_count = v1_count + v1_overlap[k];
-            
-        for (integer k = 0; k < 6; k = k + 1)
-            v2_count = v2_count + v2_overlap[k];
-            
-        // Corrected upper limits for v3 and v4 to match their new sizes
-        for (integer k = 0; k < 4; k = k + 1)
-            v3_count = v3_count + v3_overlap[k];
-            
-        for (integer k = 0; k < 3; k = k + 1)
-            v4_count = v4_count + v4_overlap[k];
+        for (integer k = 0; k < 8; k = k + 1) v1_count = v1_count + v1_overlap[k];
+        for (integer k = 0; k < 5; k = k + 1) v2_count = v2_count + v2_overlap[k];
+        for (integer k = 0; k < 4; k = k + 1) v3_count = v3_count + v3_overlap[k];
+        for (integer k = 0; k < 3; k = k + 1) v4_count = v4_count + v4_overlap[k];
     end
 
     // accumulate the total violations for this row pair
     assign total_nv = (v1_count) + (v2_count & {4{en_violate[0]}}) + (v3_count & {4{en_violate[1]}}) + (v4_count & {4{en_violate[2]}});
-    
 endmodule
 
 module DRCA (
@@ -371,7 +335,7 @@ endgenerate
 
 // Pre-compute CheckMask for each row of grid_tr (for horizontal violations)
 // 17 instances instead of 32 (one per unique row, shared between adjacent pairs)
-wire [16:0] h_cm_v1 [0:16], h_cm_v2 [0:16], h_cm_v3 [0:16], h_cm_v4 [0:16];
+wire [14:0] h_cm_v1 [0:16], h_cm_v2 [0:16], h_cm_v3 [0:16], h_cm_v4 [0:16];
 generate
     for (i = 0; i < 17; i = i + 1) begin : h_checkmask
         CheckMask cm_h (
@@ -387,7 +351,7 @@ endgenerate
 
 // Pre-compute CheckMask for each row of grid (for vertical violations)
 // 17 instances instead of 32
-wire [16:0] v_cm_v1 [0:16], v_cm_v2 [0:16], v_cm_v3 [0:16], v_cm_v4 [0:16];
+wire [14:0] v_cm_v1 [0:16], v_cm_v2 [0:16], v_cm_v3 [0:16], v_cm_v4 [0:16];
 generate
     for (i = 0; i < 17; i = i + 1) begin : v_checkmask
         CheckMask cm_v (
