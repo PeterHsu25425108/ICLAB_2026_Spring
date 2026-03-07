@@ -1,32 +1,23 @@
 module CheckMask(
     input  wire [16:0] data_in,
-    output wire [14:0] match_010,       // Bits [15:1]
-    output wire [13:0] match_0110,      // Bits [15:2]
-    output wire [12:0] match_01110,     // Bits [15:3]
-    output wire [11:0] match_011110     // Bits [15:4]   
+    output wire [14:0] match_010,       // Evaluates valid center bits [15:1]
+    output wire [13:0] match_0110,      // Evaluates valid center bits [15:2]
+    output wire [12:0] match_01110,     // Evaluates valid center bits [15:3]
+    output wire [11:0] match_011110     // Evaluates valid center bits [15:4]
 );
-    wire [16:0] shr1 = {data_in[16], data_in[16:1]}; 
-    wire [16:0] shl1 = {data_in[15:0], data_in[0]};  
-    wire [16:0] shl2 = {data_in[14:0], {2{data_in[0]}}}; 
-    wire [16:0] shl3 = {data_in[13:0], {3{data_in[0]}}}; 
 
-    wire [16:0] raw_shr1 = data_in >> 1; 
-    wire [16:0] raw_shl1 = data_in << 1; 
-    wire [16:0] raw_shl2 = data_in << 2; 
-    wire [16:0] raw_shl3 = data_in << 3; 
-    wire [16:0] raw_shl4 = data_in << 4; 
+    // 1. 010 (15 bits): ~Left & Center & ~Right
+    assign match_010    = ~data_in[16:2] & data_in[15:1] & ~data_in[14:0];
 
-    // Intermediate full-width wires
-    wire [16:0] m1_full = ~shr1 & data_in & ~shl1;
-    wire [16:0] m2_full = ~shr1 & data_in & shl1 & ~shl2;
-    wire [16:0] m3_full = ~shr1 & data_in & shl1 & shl2 & ~shl3;
-    wire [16:0] m4_full = ~raw_shr1 & data_in & raw_shl1 & raw_shl2 & raw_shl3 & ~raw_shl4;
+    // 2. 0110 (14 bits): ~Left & Center1 & Center0 & ~Right
+    assign match_0110   = ~data_in[16:3] & data_in[15:2] & data_in[14:1] & ~data_in[13:0];
 
-    // Slice the exact valid bounds
-    assign match_010    = m1_full[15:1];
-    assign match_0110   = m2_full[15:2];
-    assign match_01110  = m3_full[15:3];
-    assign match_011110 = m4_full[15:4];
+    // 3. 01110 (13 bits): ~Left & Center2 & Center1 & Center0 & ~Right
+    assign match_01110  = ~data_in[16:4] & data_in[15:3] & data_in[14:2] & data_in[13:1] & ~data_in[12:0];
+
+    // 4. 011110 (12 bits): ~Left & Center3 & Center2 & Center1 & Center0 & ~Right
+    assign match_011110 = ~data_in[16:5] & data_in[15:4] & data_in[14:3] & data_in[13:2] & data_in[12:1] & ~data_in[11:0];
+
 endmodule
 
 module RuleValMode_Decoder (
