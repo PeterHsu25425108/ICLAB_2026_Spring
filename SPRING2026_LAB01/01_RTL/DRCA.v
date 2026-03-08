@@ -9,15 +9,17 @@ module CheckMask(
     // Shared prefix chain: each level reuses the previous to eliminate redundant AND gates.
     // suf1[k]  = data[k+1] & ~data[k]                          (right anchor)
     // pre{n}[k] = data[k+n] & pre{n-1}[k]                     (extend left)
-    wire [14:0] suf1 = data_in[15:1]  & ~data_in[14:0];
+    wire [16:0] data_inv;
+    assign data_inv = ~data_in; // Invert once to share across all levels
+    wire [14:0] suf1 = data_in[15:1]  & data_inv[14:0];//~data_in[14:0];
     wire [13:0] pre2 = data_in[15:2]  &  suf1[13:0];
     wire [12:0] pre3 = data_in[15:3]  &  pre2[12:0];
     wire [11:0] pre4 = data_in[15:4]  &  pre3[11:0];
 
-    assign match_010    = ~data_in[16:2]  & suf1;
-    assign match_0110   = ~data_in[16:3]  & pre2;
-    assign match_01110  = ~data_in[16:4]  & pre3;
-    assign match_011110 = ~data_in[16:5]  & pre4;
+    assign match_010    = data_inv[16:2] & suf1;//~data_in[16:2]  & suf1;
+    assign match_0110   = data_inv[16:3]  & pre2;
+    assign match_01110  = data_inv[16:4]  & pre3;
+    assign match_011110 = data_inv[16:5]  & pre4;
 
 endmodule
 
@@ -76,19 +78,31 @@ module RowModLite (
     input [13:0] match_v2_row1, match_v2_row2, // 14 bits
     input [12:0] match_v3_row1, match_v3_row2, // 13 bits
     input [11:0] match_v4_row1, match_v4_row2, // 12 bits
-    input [2:0] en_violate,
+    input [3:0] drc_sel, // Pass drc_sel instead of en_violate to reduce fanout
     output wire [3:0] total_nv 
 );
-    // Early Masking applied directly to the incoming staggered widths
-    // wire [14:0] v1_overlap_raw = (match_v1_row1 & ~match_v1_row2); 
-    // wire [13:0] v2_overlap_raw = (match_v2_row1 & ~match_v2_row2) & {14{en_violate[0]}};
-    // wire [12:0] v3_overlap_raw = (match_v3_row1 & ~match_v3_row2) & {13{en_violate[1]}};
-    // wire [11:0] v4_overlap_raw = (match_v4_row1 & ~match_v4_row2) & {12{en_violate[2]}};
+    // Local en_violate computation (replicated per instance to reduce fanout)
+    reg [2:0] en_violate;
+    always @(*) begin
+        case (drc_sel)
+            4'd0, 4'd1, 4'd3, 4'd4, 4'd5, 4'd7: en_violate = 3'b000;
+            4'd2, 4'd6, 4'd9, 4'd11: en_violate = 3'b001;
+            4'd8, 4'd10, 4'd13: en_violate = 3'b011;
+            4'd12: en_violate = 3'b111;
+            default: en_violate = 3'b000;
+        endcase
+    end
 
+    // Early Masking applied directly to the incoming staggered widths
     wire [14:0] v1_overlap_raw = (match_v1_row1 & ~match_v1_row2); 
     wire [13:0] v2_overlap_raw = en_violate[0] ? (match_v2_row1 & ~match_v2_row2) : 14'b0;
     wire [12:0] v3_overlap_raw = en_violate[1] ? (match_v3_row1 & ~match_v3_row2) : 13'b0;
     wire [11:0] v4_overlap_raw = en_violate[2] ? (match_v4_row1 & ~match_v4_row2) : 12'b0;
+
+    // wire [14:0] v1_overlap_raw = (match_v1_row1 & ~match_v1_row2); 
+    // wire [13:0] v2_overlap_raw = (match_v2_row1 & ~match_v2_row2);
+    // wire [12:0] v3_overlap_raw = (match_v3_row1 & ~match_v3_row2);
+    // wire [11:0] v4_overlap_raw = (match_v4_row1 & ~match_v4_row2);
 
     // Compression Bounds: Ceil(Length / Dist)
     wire [7:0] v1_overlap; // Ceil(15/2) = 8
@@ -308,15 +322,42 @@ endgenerate
 wire [14:0] x_in_range [0:15]; // x_in_range[s][k] = is_layer_2_Check[s] & (llx[s] <= k) & (urx[s] > k)
 wire [14:0] y_in_range [0:15]; // y_in_range[s][k] = (lly[s] <= k) & (ury[s] > k)
 
+// Thermometer decoder: bit j = 1 if j >= val
+function [14:0] therm_ge;
+    input [3:0] val;
+    case(val)
+        4'd0:  therm_ge = 15'h7FFF;  4'd1:  therm_ge = 15'h7FFE;
+        4'd2:  therm_ge = 15'h7FFC;  4'd3:  therm_ge = 15'h7FF8;
+        4'd4:  therm_ge = 15'h7FF0;  4'd5:  therm_ge = 15'h7FE0;
+        4'd6:  therm_ge = 15'h7FC0;  4'd7:  therm_ge = 15'h7F80;
+        4'd8:  therm_ge = 15'h7F00;  4'd9:  therm_ge = 15'h7E00;
+        4'd10: therm_ge = 15'h7C00;  4'd11: therm_ge = 15'h7800;
+        4'd12: therm_ge = 15'h7000;  4'd13: therm_ge = 15'h6000;
+        4'd14: therm_ge = 15'h4000;  4'd15: therm_ge = 15'h0000;
+    endcase
+endfunction
+
+// Thermometer decoder: bit j = 1 if j < val  
+function [14:0] therm_lt;
+    input [3:0] val;
+    case(val)
+        4'd0:  therm_lt = 15'h0000;  4'd1:  therm_lt = 15'h0001;
+        4'd2:  therm_lt = 15'h0003;  4'd3:  therm_lt = 15'h0007;
+        4'd4:  therm_lt = 15'h000F;  4'd5:  therm_lt = 15'h001F;
+        4'd6:  therm_lt = 15'h003F;  4'd7:  therm_lt = 15'h007F;
+        4'd8:  therm_lt = 15'h00FF;  4'd9:  therm_lt = 15'h01FF;
+        4'd10: therm_lt = 15'h03FF;  4'd11: therm_lt = 15'h07FF;
+        4'd12: therm_lt = 15'h0FFF;  4'd13: therm_lt = 15'h1FFF;
+        4'd14: therm_lt = 15'h3FFF;  4'd15: therm_lt = 15'h7FFF;
+    endcase
+endfunction
+
 genvar j;
 generate
     for (i = 0; i < 16; i = i + 1) begin : gen_1d_masks
-        for (j = 0; j < 15; j = j + 1) begin : gen_x_bits
-            assign x_in_range[i][j] = is_layer_2_Check[i] & (llx[i] <= j) & (urx[i] > j);
-        end
-        for (j = 0; j < 15; j = j + 1) begin : gen_y_bits
-            assign y_in_range[i][j] = (lly[i] <= j) & (ury[i] > j);
-        end
+        assign x_in_range[i] = is_layer_2_Check[i] ? 
+            (therm_ge(llx[i]) & therm_lt(urx[i])) : 15'b0;
+        assign y_in_range[i] = therm_ge(lly[i]) & therm_lt(ury[i]);
     end
 endgenerate
 
@@ -342,6 +383,7 @@ generate
 endgenerate
 
 // construct the grid (17x17 with zero-padded borders, original 15x15 content in [1:15][1:15])
+// Use drc_sel[0] directly to reduce rule_type fanout (synthesizer will replicate)
 generate
     // The outer border rows (0, 16) and columns (bit 0, bit 16) are zero-padded.
     // The original 15x15 content is placed in grid[1..15][1..15].
@@ -349,9 +391,9 @@ generate
     for (i = 0; i < 17; i = i + 1) begin : construct_grids
         for (j = 0; j < 17; j = j + 1) begin : construct_grid_bits
             if (i == 0 || i == 16 || j == 0 || j == 16) begin : zero_pad
-                assign grid[i][j] = rule_type;//1'b0;
+                assign grid[i][j] = drc_sel[0];
             end else begin : interior
-                assign grid[i][j] = (|(row_shape_mask[i-1] & col_shape_mask[j-1])) ^ rule_type;
+                assign grid[i][j] = (|(row_shape_mask[i-1] & col_shape_mask[j-1])) ^ drc_sel[0];
             end
         end
     end
@@ -427,14 +469,13 @@ reg [4:0] h_nv; // total horizontal violations
 assign h_nv_per_row[0] = 4'd0;
 
 generate
-    for (i = 1; i < 16; i = i + 1) begin : h_row_mods
+    for (i = 0; i < 16; i = i + 1) begin : h_row_mods
         RowModLite row_mod_h (
             .match_v1_row1(h_cm_v1[i]),   .match_v2_row1(h_cm_v2[i]),
             .match_v3_row1(h_cm_v3[i]),   .match_v4_row1(h_cm_v4[i]),
             .match_v1_row2(h_cm_v1[i+1]), .match_v2_row2(h_cm_v2[i+1]),
             .match_v3_row2(h_cm_v3[i+1]), .match_v4_row2(h_cm_v4[i+1]),
-            // .rvm(rvm),
-            .en_violate(en_violate),
+            .drc_sel(drc_sel),
             .total_nv(h_nv_per_row[i])
         );
     end
@@ -453,7 +494,7 @@ endgenerate
 // accumulate the total horizontal violations from each row pair
 always @(*) begin
     h_nv = 0;
-    for (integer k = 0; k < 16; k = k + 1) begin
+    for (integer k = 1; k < 16; k = k + 1) begin
         h_nv = h_nv + h_nv_per_row[k];
     end
 end
@@ -478,14 +519,13 @@ wire [3:0] v_nv_per_col [0:15]; // vertical violations per column
 assign v_nv_per_col[0] = 4'd0;
 
 generate
-    for (i = 1; i < 16; i = i + 1) begin : v_row_mods
+    for (i = 0; i < 16; i = i + 1) begin : v_row_mods
         RowModLite row_mod_v (
             .match_v1_row1(v_cm_v1[i]),   .match_v2_row1(v_cm_v2[i]),
             .match_v3_row1(v_cm_v3[i]),   .match_v4_row1(v_cm_v4[i]),
             .match_v1_row2(v_cm_v1[i+1]), .match_v2_row2(v_cm_v2[i+1]),
             .match_v3_row2(v_cm_v3[i+1]), .match_v4_row2(v_cm_v4[i+1]),
-            // .rvm(rvm),
-            .en_violate(en_violate),
+            .drc_sel(drc_sel),
             .total_nv(v_nv_per_col[i])
         );
     end
@@ -504,7 +544,7 @@ endgenerate
 // accumulate the total vertical violations from each column pair
 always @(*) begin
     v_nv = 0;
-    for (integer k = 0; k < 16; k = k + 1) begin
+    for (integer k = 1; k < 16; k = k + 1) begin
         v_nv = v_nv + v_nv_per_col[k];
     end
 end
@@ -523,7 +563,18 @@ end
 //     .out_sum(v_nv)
 // );
 
+// wire [159:0] INST_input;
+// // concat h_nv_per_row and v_nv_per_col into one bus for the final adder tree
+// generate
+//     for (i = 0; i < 16; i = i + 1) begin : gen_final_input
+//         assign INST_input[i*5+4:i*5] = {1'b0, h_nv_per_row[i]};
+//         assign INST_input[80 + i*5 +4:80 + i*5] = {1'b0, v_nv_per_col[i]};
+//     end
+// endgenerate
 
+// DW02_sum #(32, 5)
+//     ADD1 (.INPUT(INST_input), 
+//         .SUM(drc_out));
 assign drc_out = h_nv + v_nv; // total violations = horizontal violations + vertical violations
 
 endmodule
