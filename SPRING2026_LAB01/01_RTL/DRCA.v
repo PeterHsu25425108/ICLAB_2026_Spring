@@ -322,42 +322,54 @@ endgenerate
 wire [14:0] x_in_range [0:15]; // x_in_range[s][k] = is_layer_2_Check[s] & (llx[s] <= k) & (urx[s] > k)
 wire [14:0] y_in_range [0:15]; // y_in_range[s][k] = (lly[s] <= k) & (ury[s] > k)
 
-// Thermometer decoder: bit j = 1 if j >= val
-function [14:0] therm_ge;
-    input [3:0] val;
-    case(val)
-        4'd0:  therm_ge = 15'h7FFF;  4'd1:  therm_ge = 15'h7FFE;
-        4'd2:  therm_ge = 15'h7FFC;  4'd3:  therm_ge = 15'h7FF8;
-        4'd4:  therm_ge = 15'h7FF0;  4'd5:  therm_ge = 15'h7FE0;
-        4'd6:  therm_ge = 15'h7FC0;  4'd7:  therm_ge = 15'h7F80;
-        4'd8:  therm_ge = 15'h7F00;  4'd9:  therm_ge = 15'h7E00;
-        4'd10: therm_ge = 15'h7C00;  4'd11: therm_ge = 15'h7800;
-        4'd12: therm_ge = 15'h7000;  4'd13: therm_ge = 15'h6000;
-        4'd14: therm_ge = 15'h4000;  4'd15: therm_ge = 15'h0000;
-    endcase
-endfunction
+// // Thermometer decoder: bit j = 1 if j >= val
+// function [14:0] therm_ge;
+//     input [3:0] val;
+//     case(val)
+//         4'd0:  therm_ge = 15'h7FFF;  4'd1:  therm_ge = 15'h7FFE;
+//         4'd2:  therm_ge = 15'h7FFC;  4'd3:  therm_ge = 15'h7FF8;
+//         4'd4:  therm_ge = 15'h7FF0;  4'd5:  therm_ge = 15'h7FE0;
+//         4'd6:  therm_ge = 15'h7FC0;  4'd7:  therm_ge = 15'h7F80;
+//         4'd8:  therm_ge = 15'h7F00;  4'd9:  therm_ge = 15'h7E00;
+//         4'd10: therm_ge = 15'h7C00;  4'd11: therm_ge = 15'h7800;
+//         4'd12: therm_ge = 15'h7000;  4'd13: therm_ge = 15'h6000;
+//         4'd14: therm_ge = 15'h4000;  4'd15: therm_ge = 15'h0000;
+//     endcase
+// endfunction
 
-// Thermometer decoder: bit j = 1 if j < val  
-function [14:0] therm_lt;
-    input [3:0] val;
-    case(val)
-        4'd0:  therm_lt = 15'h0000;  4'd1:  therm_lt = 15'h0001;
-        4'd2:  therm_lt = 15'h0003;  4'd3:  therm_lt = 15'h0007;
-        4'd4:  therm_lt = 15'h000F;  4'd5:  therm_lt = 15'h001F;
-        4'd6:  therm_lt = 15'h003F;  4'd7:  therm_lt = 15'h007F;
-        4'd8:  therm_lt = 15'h00FF;  4'd9:  therm_lt = 15'h01FF;
-        4'd10: therm_lt = 15'h03FF;  4'd11: therm_lt = 15'h07FF;
-        4'd12: therm_lt = 15'h0FFF;  4'd13: therm_lt = 15'h1FFF;
-        4'd14: therm_lt = 15'h3FFF;  4'd15: therm_lt = 15'h7FFF;
-    endcase
-endfunction
+// // Thermometer decoder: bit j = 1 if j < val  
+// function [14:0] therm_lt;
+//     input [3:0] val;
+//     case(val)
+//         4'd0:  therm_lt = 15'h0000;  4'd1:  therm_lt = 15'h0001;
+//         4'd2:  therm_lt = 15'h0003;  4'd3:  therm_lt = 15'h0007;
+//         4'd4:  therm_lt = 15'h000F;  4'd5:  therm_lt = 15'h001F;
+//         4'd6:  therm_lt = 15'h003F;  4'd7:  therm_lt = 15'h007F;
+//         4'd8:  therm_lt = 15'h00FF;  4'd9:  therm_lt = 15'h01FF;
+//         4'd10: therm_lt = 15'h03FF;  4'd11: therm_lt = 15'h07FF;
+//         4'd12: therm_lt = 15'h0FFF;  4'd13: therm_lt = 15'h1FFF;
+//         4'd14: therm_lt = 15'h3FFF;  4'd15: therm_lt = 15'h7FFF;
+//     endcase
+// endfunction
+
+// genvar j;
+// generate
+//     for (i = 0; i < 16; i = i + 1) begin : gen_1d_masks
+//         assign x_in_range[i] = is_layer_2_Check[i] ? 
+//             (therm_ge(llx[i]) & therm_lt(urx[i])) : 15'b0;
+//         assign y_in_range[i] = therm_ge(lly[i]) & therm_lt(ury[i]);
+//     end
+// endgenerate
 
 genvar j;
 generate
     for (i = 0; i < 16; i = i + 1) begin : gen_1d_masks
-        assign x_in_range[i] = is_layer_2_Check[i] ? 
-            (therm_ge(llx[i]) & therm_lt(urx[i])) : 15'b0;
-        assign y_in_range[i] = therm_ge(lly[i]) & therm_lt(ury[i]);
+        for (j = 0; j < 15; j = j + 1) begin : gen_x_bits
+            assign x_in_range[i][j] = is_layer_2_Check[i] & (llx[i] <= j) & (urx[i] > j);
+        end
+        for (j = 0; j < 15; j = j + 1) begin : gen_y_bits
+            assign y_in_range[i][j] = (lly[i] <= j) & (ury[i] > j);
+        end
     end
 endgenerate
 
