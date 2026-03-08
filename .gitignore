@@ -1,6 +1,7 @@
 # exclude all files, but not the parent dir
 *
 !*/
+!*.py
 # except these
 !.gitignore
 !SPRING2026_LAB*/**
