@@ -2,6 +2,7 @@
 *
 !*/
 !*.py
+!*.md
 # except these
 !.gitignore
 !SPRING2026_LAB*/**

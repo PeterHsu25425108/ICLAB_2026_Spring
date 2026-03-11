@@ -198,7 +198,7 @@ def main():
     parser.add_argument("--step", type=float, default=0.5)
     parser.add_argument("--latency_cycles", type=int, default=None)
     parser.add_argument("--tolerance", type=int, default=5)
-    parser.add_argument("--use_bs", type=bool, default=True, help="Use binary search to find min passing clock first (only for downward search)")
+    parser.add_argument("--use_bs", type=bool, default=False, help="Use binary search to find min passing clock first (only for downward search)")
     parser.add_argument("--search_order", choices=["downward", "upward"], default="downward", help="Order of linear search: 'downward' first or 'upward' first")
     parser.add_argument("--timeout", type=int, default=None, help="Stop exploring if total execution time exceeds this many seconds")
     args = parser.parse_args()
