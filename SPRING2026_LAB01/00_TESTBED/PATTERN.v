@@ -1,4 +1,4 @@
-`define CYCLE_TIME 10.0
+`define CYCLE_TIME 9.84
 
 module PATTERN (
     output reg [3:0]  drc_sel,
