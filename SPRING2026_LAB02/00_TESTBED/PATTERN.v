@@ -22,7 +22,7 @@
 `endif
 
 `ifdef GATE
-    `define CYCLE_TIME 15.0
+    `define CYCLE_TIME 20.0
 `endif
 
 module PATTERN(
@@ -323,6 +323,7 @@ begin
         $display("---------------------------------------------------------------------------------------------");
         $finish;
     end
+	#(CYCLE);
     release clk;
 end 
 endtask
