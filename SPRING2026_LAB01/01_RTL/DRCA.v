@@ -80,7 +80,7 @@ module RowModLite #(parameter IS_EDGE = 0) (
     input [12:0] match_v3_row1, match_v3_row2, // 13 bits
     input [11:0] match_v4_row1, match_v4_row2, // 12 bits
     input [3:0] drc_sel, // Pass drc_sel instead of en_violate to reduce fanout
-    output wire [3:0] total_nv 
+    output reg [3:0] total_nv 
 );
     // Local en_violate computation (replicated per instance to reduce fanout)
     reg [2:0] en_violate;
@@ -95,10 +95,12 @@ module RowModLite #(parameter IS_EDGE = 0) (
     end
 
     // Early Masking applied directly to the incoming staggered widths
-    wire [14:0] v1_overlap_raw = (match_v1_row1 & ~match_v1_row2); 
-    wire [13:0] v2_overlap_raw = en_violate[0] ? (match_v2_row1 & ~match_v2_row2) : 14'b0;
-    wire [12:0] v3_overlap_raw = en_violate[1] ? (match_v3_row1 & ~match_v3_row2) : 13'b0;
-    wire [11:0] v4_overlap_raw = en_violate[2] ? (match_v4_row1 & ~match_v4_row2) : 12'b0;
+    wire [14:0] v1_overlap = (match_v1_row1 & ~match_v1_row2); 
+    wire [13:0] v2_overlap = en_violate[0] ? (match_v2_row1 & ~match_v2_row2) : 14'b0;
+    wire [12:0] v3_overlap = en_violate[1] ? (match_v3_row1 & ~match_v3_row2) : 13'b0;
+    wire [11:0] v4_overlap = en_violate[2] ? (match_v4_row1 & ~match_v4_row2) : 12'b0;
+
+    wire [14:0] all_overlap_raw = v1_overlap | {v2_overlap, 1'b0} | {v3_overlap, 2'b0} | {v4_overlap, 3'b0};
 
     // wire [14:0] v1_overlap_raw = (match_v1_row1 & ~match_v1_row2); 
     // wire [13:0] v2_overlap_raw = (match_v2_row1 & ~match_v2_row2);
@@ -106,45 +108,57 @@ module RowModLite #(parameter IS_EDGE = 0) (
     // wire [11:0] v4_overlap_raw = (match_v4_row1 & ~match_v4_row2);
 
     // Compression Bounds: Ceil(Length / Dist)
-    wire [7:0] v1_overlap; // Ceil(15/2) = 8
-    wire [4:0] v2_overlap; // Ceil(14/3) = 5
-    wire [3:0] v3_overlap; // Ceil(13/4) = 4 
-    wire [2:0] v4_overlap; // Ceil(12/5) = 3 
+    // wire [7:0] v1_overlap; // Ceil(15/2) = 8
+    // wire [4:0] v2_overlap; // Ceil(14/3) = 5
+    // wire [3:0] v3_overlap; // Ceil(13/4) = 4 
+    // wire [2:0] v4_overlap; // Ceil(12/5) = 3 
 
     reg [3:0] v1_count;          // max 8, needs 4 bits
     reg [2:0] v2_count;          // max 5, fits in 3 bits
     reg [2:0] v3_count;
     reg [1:0] v4_count;
 
+    wire [14:0] all_overlap;
+
     genvar i;
     generate
         for (i = 0; i < 8; i = i + 1) begin : gen_v1
-            if ((i + 1) * 2 > 15) assign v1_overlap[i] = |v1_overlap_raw[14 : i*2];
-            else                  assign v1_overlap[i] = |v1_overlap_raw[(i+1)*2-1 : i*2];
+            if ((i + 1) * 2 > 15) assign all_overlap[i] = |all_overlap_raw[14 : i*2];
+            else                  assign all_overlap[i] = |all_overlap_raw[(i+1)*2-1 : i*2];
         end
-        for (i = 0; i < 5; i = i + 1) begin : gen_v2
-            if ((i + 1) * 3 > 14) assign v2_overlap[i] = |v2_overlap_raw[13 : i*3];
-            else                  assign v2_overlap[i] = |v2_overlap_raw[(i+1)*3-1 : i*3];
-        end
-        for (i = 0; i < 4; i = i + 1) begin : gen_v3
-            if ((i + 1) * 4 > 13) assign v3_overlap[i] = |v3_overlap_raw[12 : i*4];
-            else                  assign v3_overlap[i] = |v3_overlap_raw[(i+1)*4-1 : i*4];
-        end
-        for (i = 0; i < 3; i = i + 1) begin : gen_v4
-            if ((i + 1) * 5 > 12) assign v4_overlap[i] = |v4_overlap_raw[11 : i*5];
-            else                  assign v4_overlap[i] = |v4_overlap_raw[(i+1)*5-1 : i*5];
-        end
+
+        // for (i = 0; i < 8; i = i + 1) begin : gen_v1
+        //     if ((i + 1) * 2 > 15) assign v1_overlap[i] = |v1_overlap_raw[14 : i*2];
+        //     else                  assign v1_overlap[i] = |v1_overlap_raw[(i+1)*2-1 : i*2];
+        // end
+        // for (i = 0; i < 5; i = i + 1) begin : gen_v2
+        //     if ((i + 1) * 3 > 14) assign v2_overlap[i] = |v2_overlap_raw[13 : i*3];
+        //     else                  assign v2_overlap[i] = |v2_overlap_raw[(i+1)*3-1 : i*3];
+        // end
+        // for (i = 0; i < 4; i = i + 1) begin : gen_v3
+        //     if ((i + 1) * 4 > 13) assign v3_overlap[i] = |v3_overlap_raw[12 : i*4];
+        //     else                  assign v3_overlap[i] = |v3_overlap_raw[(i+1)*4-1 : i*4];
+        // end
+        // for (i = 0; i < 3; i = i + 1) begin : gen_v4
+        //     if ((i + 1) * 5 > 12) assign v4_overlap[i] = |v4_overlap_raw[11 : i*5];
+        //     else                  assign v4_overlap[i] = |v4_overlap_raw[(i+1)*5-1 : i*5];
+        // end
     endgenerate
 
-    always @(*) begin
-        v1_count = 0; v2_count = 0; v3_count = 0; v4_count = 0;
-        for (integer k = 0; k < 8; k = k + 1) v1_count = v1_count + v1_overlap[k];
-        for (integer k = 0; k < 5; k = k + 1) v2_count = v2_count + v2_overlap[k];
-        for (integer k = 0; k < 4; k = k + 1) v3_count = v3_count + v3_overlap[k];
-        for (integer k = 0; k < 3; k = k + 1) v4_count = v4_count + v4_overlap[k];
+    always @(*) begin : all_overlap_adder
+        total_nv = 0;
+        for (integer k = 0; k < 8; k = k + 1) total_nv = total_nv + all_overlap[k];
     end
 
-    assign total_nv = v1_count + v2_count + v3_count + v4_count;
+    // always @(*) begin
+    //     v1_count = 0; v2_count = 0; v3_count = 0; v4_count = 0;
+    //     for (integer k = 0; k < 8; k = k + 1) v1_count = v1_count + v1_overlap[k];
+    //     for (integer k = 0; k < 5; k = k + 1) v2_count = v2_count + v2_overlap[k];
+    //     for (integer k = 0; k < 4; k = k + 1) v3_count = v3_count + v3_overlap[k];
+    //     for (integer k = 0; k < 3; k = k + 1) v4_count = v4_count + v4_overlap[k];
+    // end
+
+    // assign total_nv = v1_count + v2_count + v3_count + v4_count;
 
 endmodule
 
