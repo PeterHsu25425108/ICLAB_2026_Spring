@@ -103,6 +103,40 @@ assign out = (B > in_data) ? 0 : in_data - B;
 
 endmodule
 
+// map pixel coordinate to valid 5x5 window bounds near image edges
+module Coor2WinBounds (
+    input  [3:0] coord,
+    output reg [3:0] pix_lb,
+    output reg [3:0] pix_ub
+);
+
+always @(*) begin
+    case(coord)
+        4'd0: begin
+            pix_lb = 2;
+            pix_ub = 4;
+        end
+        4'd1: begin
+            pix_lb = 1;
+            pix_ub = 4;
+        end
+        4'd14: begin
+            pix_lb = 0;
+            pix_ub = 3;
+        end
+        4'd15: begin
+            pix_lb = 0;
+            pix_ub = 2;
+        end
+        default: begin
+            pix_lb = 0;
+            pix_ub = 4;
+        end
+    endcase
+end
+
+endmodule
+
 module ISP(
     //Input Port
     clk,
@@ -139,7 +173,7 @@ output reg [11:0] b_out;
 //   Design
 //==============================
 // state
-reg [1:0] state, nxt_state;
+// reg [1:0] state, nxt_state;
 
 // gain buffers: stores the four corner vals of the gain mesh
 // R:3 Gr:2 Gb:1 B:0
@@ -157,8 +191,8 @@ assign y_pix = count[3:0]; // count % 16
 wire [8:0] ix, iy;
 wire [7:0] dx, dy;
 
-// counter
-Counter #(.N(8), .latency(`TARGET_LATENCY)) counter (.clk(clk), .rst_n(rst_n), .state(state), .count(count));
+// counter: MAX count is 255
+Counter #(.N(8), .latency(`TARGET_LATENCY)) counter (.clk(clk), .rst_n(rst_n), /*.state(state),*/ .count(count));
 
 // gain buffer storage
 always @(posedge clk or negedge rst_n) begin : gain_buffer_storage
@@ -172,7 +206,7 @@ always @(posedge clk or negedge rst_n) begin : gain_buffer_storage
         end
     end
     else begin
-        if(state == `GAIN) begin
+        if(/*state == `GAIN || state == `IDLE && */param_valid) begin
             // color ch
             for (integer k=0;k<4;k=k+1)begin
                 // row
@@ -180,7 +214,7 @@ always @(posedge clk or negedge rst_n) begin : gain_buffer_storage
                     // col
                     for(integer j=0;j<6;j=j+1) begin
                         // the Bottom right cell
-                        if(i == 5 && j == 5) gain_buf[k][i][j] <= (k==0) ? in : gain_buf[k-1][0][0];
+                        if(i == 5 && j == 5) gain_buf[k][i][j] <= (k==0) ? param_gain : gain_buf[k-1][0][0];
                         // shifting on the same row
                         // i = 0, 1, 2, 3, 4
                         // j = 0, 1, 2, 3
@@ -207,26 +241,26 @@ always @(posedge clk or negedge rst_n) begin : gain_buffer_storage
 end
 
 // state transition logic
-always @(posedge clk or negedge rst_n) begin : state_transition
-    if(!rst_n) begin
-        state <= `IDLE;
-    end
-    else begin
-        state <= nxt_state;
-    end
-end
+// always @(posedge clk or negedge rst_n) begin : state_transition
+//     if(!rst_n) begin
+//         state <= `IDLE;
+//     end
+//     else begin
+//         state <= nxt_state;
+//     end
+// end
 
 
-// nxt_state logic
-always@(*) begin : nxt_state_comb
-   case(state)
-    `IDLE: nxt_state = param_valid ? `GAIN : `IDLE;
-    `GAIN: nxt_state = param_valid ? `GAIN : `IMG;
-    `IMG: nxt_state = in_valid ? `IMG : `OUT;
-    `OUT: nxt_state = (count < `TARGET_LATENCY - 1) ? `OUT : `IDLE;
-    default: nxt_state = 2'bx;
-   endcase 
-end
+// // nxt_state logic
+// always@(*) begin : nxt_state_comb
+//    case(state)
+//     `IDLE: nxt_state = param_valid ? `GAIN : `IDLE;
+//     `GAIN: nxt_state = param_valid ? `GAIN : `IMG;
+//     `IMG: nxt_state = in_valid ? `IMG : `OUT;
+//     `OUT: nxt_state = (count < `TARGET_LATENCY - 1) ? `OUT : `IDLE;
+//     default: nxt_state = 2'bx;
+//    endcase 
+// end
 
 // ===================
 // stage 1: BLC
@@ -480,9 +514,65 @@ end
 
 // the nets we are assigning the window values to, so we can use them for the DPC computation
 reg [11:0] DPC_WIN5X5[4:0][4:0];
-// TODO: Figure out DPC window value logic so we can fix the center of the 5x5 window on pixel_buf[WIN_CENTER_IDX]
+// the range in where we should assingn pixel_buf value to in DPC_WIN5X5
+wire [3:0] winx_pix_lb, winy_pix_ub, winx_pix_ub, winy_pix_lb;
+
+Coor2WinBounds win_bound_x (
+    .coord(x_pix4),
+    .pix_lb(winx_pix_lb),
+    .pix_ub(winx_pix_ub)
+);
+
+Coor2WinBounds win_bound_y (
+    .coord(y_pix4),
+    .pix_lb(winy_pix_lb),
+    .pix_ub(winy_pix_ub)
+);
+
+// DPC window value logic so we can fix the center of the 5x5 window on pixel_buf[WIN_CENTER_IDX]
+always @(*) begin : DPC_window_assign_logic
+    // assign the pixel values in the valid region
+    for (integer i=0;i<5;i=i+1) begin : pixel_valid_assign
+        for(integer j=0;j<5;j=j+1) begin
+            if(i >= winy_pix_lb && i <= winy_pix_ub && j >= winx_pix_lb && j <= winx_pix_ub) begin
+                // Note: DPC_WIN5X5[y][x], i -> y, j -> x
+                DPC_WIN5X5[i][j] = pixel_buf[`WIN_CENTER_IDX + (j-2) - (i-2)*16];
+            end
+            else begin
+                DPC_WIN5X5[i][j] = 0; // default value, will be overwritten in the padding step
+            end
+        end
+    end
+
+    // Step 1: horizontal padding
+    // Within the valid y range, clone the vlaues from the valid region to their mirrored counterparts
+    // e.g. if winx_pix_lb = 1, winx_pix_ub = 4, then we clone the values in col 2 to col 0
+    for (integer i=0;i<5;i=i+1) begin : horizontal_padding
+        for(integer j=winy_pix_lb;j<=winy_pix_ub;j=j+1) begin
+            if(j < winx_pix_lb) begin
+                DPC_WIN5X5[i][j] = DPC_WIN5X5[i][winx_pix_lb + (winx_pix_lb - j)];
+            end
+            else if(j > winx_pix_ub) begin
+                DPC_WIN5X5[i][j] = DPC_WIN5X5[i][winx_pix_ub - (j - winx_pix_ub)];
+            end
+        end
+    end
+
+    // Step 2: Vertical padding
+    for (integer j=0;j<5;j=j+1) begin : vertical_padding
+        for(integer i=winy_pix_lb;i<=winy_pix_ub;i=i+1) begin
+            if(i < winy_pix_lb) begin
+                DPC_WIN5X5[i][j] = DPC_WIN5X5[winy_pix_lb + (winy_pix_lb - i)][j];
+            end
+            else if(i > winy_pix_ub) begin
+                DPC_WIN5X5[i][j] = DPC_WIN5X5[winy_pix_ub - (i - winy_pix_ub)][j];
+            end
+        end
+    end
+end
 
 // Window values obtained, now perform DPC computations
+
 // find the medians on the 4 directions
 
 // Sum of SAD scores on 4 dirs
@@ -500,9 +590,23 @@ reg [11:0] DPC_WIN5X5[4:0][4:0];
 
 // CCM
 
+
 // out_valid handling
-always@(*) begin : out_valid_logic
-    out_valid = (state == `OUT) ? 1 : 0;
+// always@(*) begin : out_valid_logic
+//     out_valid = (state == `OUT) ? 1 : 0;
+// end
+
+always @(negedge clk or negedge rst_n) begin : out_reg
+    if(!rst_n) begin
+        r_out <=0;
+        g_out <= 0;
+        b_out <= 0;
+    end
+    else begin
+        r_out <=0;
+        g_out <= 0;
+        b_out <= 0;
+    end
 end
 
 endmodule
