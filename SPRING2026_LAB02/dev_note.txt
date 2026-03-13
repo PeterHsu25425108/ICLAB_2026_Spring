@@ -1,2 +1,3 @@
-1. Need to come up with a way to buy more time for g*i*i, g*i*d computation and make sure they meet the right P(x,y) value at the second stage.
-2. Need to figure out how to get the correct (x,y) coor for Demos computation, and I also need to confirm which part of Demos needs spatial info and which doesn't.
+1. I need to confirm which part of Demos needs spatial info and which doesn't.
+2. confirm the indexing rule of gain_buf and pixel_buf and its correspondence with the input order and their coordinates
+3. figure out DPC window value logic so we can fix the center of the 5x5 window on pixel_buf[WIN_CENTER_IDX]
