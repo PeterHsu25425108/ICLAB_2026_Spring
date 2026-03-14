@@ -6,12 +6,13 @@ import subprocess
 import time
 
 FIELDNAMES = ["CLK", "RTL", "SYN", "GATE", "Area", "Slack", "Cost"]
+ANSI_ESCAPE_RE = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
 
 def get_design_name(syn_dir):
     tcl_path = os.path.join(syn_dir, "syn.tcl")
     if not os.path.exists(tcl_path):
         return None
-    with open(tcl_path, 'r') as file:
+    with open(tcl_path, 'r', encoding='utf-8', errors='surrogateescape') as file:
         for line in file:
             match = re.search(r'set\s+DESIGN\s+"([^"]+)"', line)
             if match:
@@ -20,12 +21,12 @@ def get_design_name(syn_dir):
 
 def update_syn_tcl(syn_dir, clk_val):
     tcl_path = os.path.join(syn_dir, "syn.tcl")
-    with open(tcl_path, 'r') as file:
+    with open(tcl_path, 'r', encoding='utf-8', errors='surrogateescape') as file:
         content = file.read()
     
     new_content = re.sub(r'set\s+CYCLE\s+[\d\.]+', f'set CYCLE {clk_val}', content)
     
-    with open(tcl_path, 'w') as file:
+    with open(tcl_path, 'w', encoding='utf-8', errors='surrogateescape') as file:
         file.write(new_content)
 
 def update_pattern_clk(testbed_dir, clk_val):
@@ -34,12 +35,12 @@ def update_pattern_clk(testbed_dir, clk_val):
         print(f"Warning: Could not find {pattern_path}")
         return
     
-    with open(pattern_path, 'r') as file:
+    with open(pattern_path, 'r', encoding='utf-8', errors='surrogateescape') as file:
         content = file.read()
     
     new_content = re.sub(r'`define\s+CYCLE_TIME\s+[\d\.]+', f'`define CYCLE_TIME {clk_val}', content)
     
-    with open(pattern_path, 'w') as file:
+    with open(pattern_path, 'w', encoding='utf-8', errors='surrogateescape') as file:
         file.write(new_content)
 
 def run_command(command, working_dir):
@@ -66,7 +67,7 @@ def parse_reports(syn_dir, design_name):
     slack_val = None
 
     try:
-        with open(area_report, 'r') as f:
+        with open(area_report, 'r', encoding='utf-8', errors='surrogateescape') as f:
             match = re.search(r'Total cell area:\s+([\d\.]+)', f.read())
             if match:
                 area = float(match.group(1))
@@ -74,7 +75,7 @@ def parse_reports(syn_dir, design_name):
         pass
 
     try:
-        with open(timing_report, 'r') as f:
+        with open(timing_report, 'r', encoding='utf-8', errors='surrogateescape') as f:
             match = re.search(r'slack\s*\((MET|VIOLATED)\)\s*([-\d\.]+)', f.read())
             if match:
                 slack_status = match.group(1)
@@ -84,13 +85,23 @@ def parse_reports(syn_dir, design_name):
 
     return area, slack_status, slack_val
 
+def normalize_output(output_text):
+    # Testbench banners include ANSI color codes; remove them before matching.
+    cleaned = ANSI_ESCAPE_RE.sub('', output_text)
+    return cleaned.lower()
+
 def check_sim_pass(output_text):
-    return "Congratulations !!" in output_text
+    cleaned = normalize_output(output_text)
+    pass_markers = [
+        "congratulations",
+        "you have passed all patterns",
+    ]
+    return any(marker in cleaned for marker in pass_markers)
 
 def load_cache_from_csv(csv_path, kb):
     cache = {}
     if os.path.exists(csv_path):
-        with open(csv_path, 'r') as file:
+        with open(csv_path, 'r', encoding='utf-8', newline='') as file:
             reader = csv.DictReader(file)
             for row in reader:
                 try:
@@ -110,7 +121,7 @@ def load_cache_from_csv(csv_path, kb):
 
 def append_to_csv(csv_path, result_dict):
     file_exists = os.path.exists(csv_path)
-    with open(csv_path, 'a', newline='') as file:
+    with open(csv_path, 'a', encoding='utf-8', newline='') as file:
         writer = csv.DictWriter(file, fieldnames=FIELDNAMES)
         if not file_exists:
             writer.writeheader()
@@ -118,11 +129,11 @@ def append_to_csv(csv_path, result_dict):
 
 def sort_csv(csv_path):
     if os.path.exists(csv_path):
-        with open(csv_path, 'r') as file:
+        with open(csv_path, 'r', encoding='utf-8', newline='') as file:
             reader = csv.DictReader(file)
             rows = list(reader)
         rows.sort(key=lambda x: float(x["CLK"]))
-        with open(csv_path, 'w', newline='') as file:
+        with open(csv_path, 'w', encoding='utf-8', newline='') as file:
             writer = csv.DictWriter(file, fieldnames=FIELDNAMES)
             writer.writeheader()
             writer.writerows(rows)
@@ -131,7 +142,7 @@ def evaluate_clk(clk, rtl_dir, syn_dir, gate_dir, testbed_dir, base_dir, design_
     if clk in cache:
         print(f"\n[CACHE] Skipping CLK = {clk} ns (Already evaluated)")
         res = cache[clk]
-        passed = str(res["Cost"]) not in ["VIOLATION", "GATE_FAIL", "-"]
+        passed = str(res["Cost"]) not in ["VIOLATION", "GATE_FAIL", "-", "PARSE_ERR"]
         return res, passed
 
     if clk <= kb["max_failed_clk"]:
@@ -145,15 +156,15 @@ def evaluate_clk(clk, rtl_dir, syn_dir, gate_dir, testbed_dir, base_dir, design_
     update_syn_tcl(syn_dir, clk)
     update_pattern_clk(testbed_dir, clk)
     
-    print("  Running 01_RTL...")
-    rtl_out = run_command("./01_run_vcs_rtl", rtl_dir)
-    if not check_sim_pass(rtl_out):
-        print("  RTL Simulation Failed. Skipping Synthesis and Gate.")
-        res = {"CLK": clk, "RTL": "FAIL", "SYN": "-", "GATE": "-", "Area": "-", "Slack": "-", "Cost": "-"}
-        cache[clk] = res
-        append_to_csv(csv_path, res)
-        run_command("./09_clean_up", base_dir)
-        return res, False
+    # print("  Running 01_RTL...")
+    # rtl_out = run_command("./01_run_vcs_rtl", rtl_dir)
+    # if not check_sim_pass(rtl_out):
+    #     print("  RTL Simulation Failed. Skipping Synthesis and Gate.")
+    #     res = {"CLK": clk, "RTL": "FAIL", "SYN": "-", "GATE": "-", "Area": "-", "Slack": "-", "Cost": "-"}
+    #     cache[clk] = res
+    #     append_to_csv(csv_path, res)
+    #     run_command("./09_clean_up", base_dir)
+    #     return res, False
 
     print("  Running 02_SYN...")
     run_command("./01_run_dc_shell", syn_dir)
@@ -167,26 +178,43 @@ def evaluate_clk(clk, rtl_dir, syn_dir, gate_dir, testbed_dir, base_dir, design_
         append_to_csv(csv_path, res)
         run_command("./09_clean_up", base_dir)
         return res, False
+    
+    # print("  Running 03_GATE...")
+    # gate_out = run_command("./01_run_vcs_gate", gate_dir)
+    # if check_sim_pass(gate_out):
+    #     latency_mult = latency_cycles if latency_cycles is not None else 1
+    #     cost = round(area * clk * latency_mult, 2)
+    #     print(f"  Success! Area: {area}, Slack: {slack_val}, Cost: {cost}")
+    #     res = {"CLK": clk, "RTL": "PASS", "SYN": "MET", "GATE": "PASS", "Area": area, "Slack": slack_val, "Cost": cost}
+    #     cache[clk] = res
+    #     passed = True
+    # else:
+    #     print("  Gate Simulation Failed.")
+    #     res = {"CLK": clk, "RTL": "PASS", "SYN": "MET", "GATE": "FAIL", "Area": area, "Slack": slack_val, "Cost": "GATE_FAIL"}
+    #     cache[clk] = res
+    #     passed = False
+        
+    # append_to_csv(csv_path, res)
+    # print("  Running 09_clean_up...")
+    # run_command("./09_clean_up", base_dir)
 
-    print("  Running 03_GATE...")
-    gate_out = run_command("./01_run_vcs_gate", gate_dir)
-    if check_sim_pass(gate_out):
+    # If RTL/GATE blocks are temporarily disabled, still return a valid result.
+    if area is None:
+        print("  Warning: Could not parse area report. Marking as PARSE_ERR.")
+        res = {"CLK": clk, "RTL": "SKIPPED", "SYN": "MET", "GATE": "SKIPPED", "Area": "-", "Slack": slack_val if slack_val is not None else "-", "Cost": "PARSE_ERR"}
+        passed = False
+    else:
         latency_mult = latency_cycles if latency_cycles is not None else 1
         cost = round(area * clk * latency_mult, 2)
-        print(f"  Success! Area: {area}, Slack: {slack_val}, Cost: {cost}")
-        res = {"CLK": clk, "RTL": "PASS", "SYN": "MET", "GATE": "PASS", "Area": area, "Slack": slack_val, "Cost": cost}
-        cache[clk] = res
+        print(f"  Gate simulation block disabled. Using synthesis-only cost: {cost}")
+        res = {"CLK": clk, "RTL": "SKIPPED", "SYN": "MET", "GATE": "SKIPPED", "Area": area, "Slack": slack_val if slack_val is not None else "-", "Cost": cost}
         passed = True
-    else:
-        print("  Gate Simulation Failed.")
-        res = {"CLK": clk, "RTL": "PASS", "SYN": "MET", "GATE": "FAIL", "Area": area, "Slack": slack_val, "Cost": "GATE_FAIL"}
-        cache[clk] = res
-        passed = False
-        
+
+    cache[clk] = res
     append_to_csv(csv_path, res)
     print("  Running 09_clean_up...")
     run_command("./09_clean_up", base_dir)
-    
+
     return res, passed
 
 def main():

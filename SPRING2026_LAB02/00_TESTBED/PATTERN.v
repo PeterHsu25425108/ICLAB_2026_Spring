@@ -18,11 +18,11 @@
 //############################################################################
 
 `ifdef RTL
-    `define CYCLE_TIME 20.0
+    `define CYCLE_TIME 13.1
 `endif
 
 `ifdef GATE
-    `define CYCLE_TIME 20.0
+    `define CYCLE_TIME 13.1
 `endif
 
 module PATTERN(
