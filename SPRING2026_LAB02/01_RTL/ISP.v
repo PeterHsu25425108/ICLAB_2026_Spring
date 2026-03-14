@@ -4,21 +4,25 @@
 `define IMG 2'd2
 `define OUT 2'd3
 
+// =========================================================
 // Pipeline configuration
-`define PRE_STAGES       3  
-`define POST_STAGES      2  
+// =========================================================
+`define PRE_STAGES       3  // Only blc1, blc2, and P3
+`define POST_STAGES      2  // demos_buf[0] 鎖存 (1) + out_reg 鎖存 (1)
 
-// Total cycles of delay required to overlap out_valid with the last in_valid
-`define TARGET_LATENCY     255 
+`define TARGET_LATENCY   256
 
-// The index of the center pixel in the shift register
-`define WIN_CENTER_IDX      (`TARGET_LATENCY - `PRE_STAGES - `POST_STAGES-1) // 249
+// Demosaicing 3x3 視窗中心需要的延遲 (1 row + 1 pixel = 17)
+`define DEMOS_CENTER_IDX 17
+`define DEMOS_REG_CNT    35  // 至少需要 2 rows + 3 pixels 以涵蓋 3x3 視窗
 
-// Total size of the shift register array (WIN_TOP_LEFT + 1 for 0-based indexing)
-`define DPC_REG_CNT    (`WIN_CENTER_IDX + 35) // 284
+// DPC 5x5 視窗中心需要的延遲，扣除前後級與 Demosaic 的延遲
+`define DPC_CENTER_IDX   (`TARGET_LATENCY - `PRE_STAGES - `POST_STAGES - `DEMOS_CENTER_IDX - 1) // 233
+`define DPC_REG_CNT      (`DPC_CENTER_IDX + 35) // 268
 
-// The exact delay tap for the valid signal to align with WIN_CENTER_IDX
-`define VALID_TAP_IDX       (`TARGET_LATENCY - `POST_STAGES) // 253
+// Flow control tap 點 (決定何時觸發座標計數)
+`define DPC_VALID_TAP_IDX   (`PRE_STAGES + `DPC_CENTER_IDX) // 3 + 233 = 236
+`define DEMOS_VALID_TAP_IDX (`DPC_VALID_TAP_IDX + 1 + `DEMOS_CENTER_IDX) // 236 + 1 + 17 = 254
 
 
 // A parameterized counter of arbitary number of bits
@@ -209,19 +213,23 @@ module DemosMod(
 
 // shared adders to compute interpolations
 wire [11:0] br_inter_hv, br_inter_diag, g_inter_h, g_inter_v;
-assign br_inter_hv = (N+S+E+W) >> 2;
-assign br_inter_diag = (NW+NE+SW+SE) >> 2;
-assign g_inter_h = (E + W) >> 1;
-assign g_inter_v = (N + S) >> 1;
+// assign br_inter_hv = (N+S+E+W) >> 2;
+// assign br_inter_diag = (NW+NE+SW+SE) >> 2;
+// assign g_inter_h = (E + W) >> 1;
+// assign g_inter_v = (N + S) >> 1;
+assign br_inter_hv = ({2'b0, N} + S + E + W) >> 2;
+assign br_inter_diag = ({2'b0, NW} + NE + SW + SE) >> 2;
+assign g_inter_h = ({1'b0, E} + W) >> 1;
+assign g_inter_v = ({1'b0, N} + S) >> 1;
 
 // R & B loc share the same logic
-wire x_even, y_even;
-assign x_even = x[0];
-assign y_even = y[0];
+wire x_odd, y_odd;
+assign x_odd = x[0];
+assign y_odd = y[0];
 
 // send the interpolation outputs to the correct channel
 always @(*) begin : Demos_interpolation_assign
-    casez({y_even, x_even})
+    casez({y_odd, x_odd})
         2'b00:begin// R loc
             Rout = C;
             Bout = br_inter_diag;
@@ -317,6 +325,20 @@ Counter #(.N(8), .latency(`TARGET_LATENCY)) counter (
 );
 
 
+// delay in_valid for `TARGET_LATENCY cycles
+// so that we can use it to track the valid pixel all the way down to the output
+// dpc_win_x and dpc_win_y counters in the DPC stage will be triggered by out_valid_chain[`VALID_TAP_IDX], 
+// which is the delayed valid signal that aligns with the center pixel of the 5x5 DPC window
+reg [`TARGET_LATENCY-1:0] out_valid_chain;
+
+always @(posedge clk or negedge rst_n) begin
+    if(!rst_n) begin
+        out_valid_chain <= 0;
+    end else begin
+        out_valid_chain <= {out_valid_chain[`TARGET_LATENCY-2:0], in_valid};
+    end
+end
+
 // gain buffer storage
 always @(posedge clk or negedge rst_n) begin : gain_buffer_storage
     if(!rst_n) begin
@@ -362,28 +384,6 @@ always @(posedge clk or negedge rst_n) begin : gain_buffer_storage
         end
     end
 end
-
-// // state transition logic
-// always @(posedge clk or negedge rst_n) begin : state_transition
-//     if(!rst_n) begin
-//         state <= `IDLE;
-//     end
-//     else begin
-//         state <= nxt_state;
-//     end
-// end
-
-
-// // nxt_state logic
-// always@(*) begin : nxt_state_comb
-//    case(state)
-//     `IDLE: nxt_state = param_valid ? `GAIN : `IDLE;
-//     `GAIN: nxt_state = param_valid ? `GAIN : `IMG;
-//     `IMG: nxt_state = in_valid ? `IMG : `OUT;
-//     `OUT: nxt_state = (count < `TARGET_LATENCY - 1) ? `OUT : `IDLE;
-//     default: nxt_state = 2'bx;
-//    endcase 
-// end
 
 // ===================
 // stage 1: BLC
@@ -471,17 +471,17 @@ always @(*) begin : gain_select_logic
     g11 = gain_buf[color_ch][y0+1][x0+1];
 end
 
-reg [3:0] x_pix2, y_pix2;
-always @(posedge clk or negedge rst_n) begin : X_and_Y_stage2
-    if(!rst_n) begin
-        x_pix2 <= 0;
-        y_pix2 <= 0;
-    end
-    else begin
-        x_pix2 <= x_pix1;
-        y_pix2 <= y_pix1;
-    end
-end
+// reg [3:0] x_pix2, y_pix2;
+// always @(posedge clk or negedge rst_n) begin : X_and_Y_stage2
+//     if(!rst_n) begin
+//         x_pix2 <= 0;
+//         y_pix2 <= 0;
+//     end
+//     else begin
+//         x_pix2 <= x_pix1;
+//         y_pix2 <= y_pix1;
+//     end
+// end
 
 reg [11:0] g00_reg, g01_reg, g10_reg, g11_reg;
 always @(posedge clk or negedge rst_n) begin : gain_stage2
@@ -559,19 +559,6 @@ always @(posedge clk or negedge rst_n) begin : G_xy_stage3
     end
 end
 
-// send the pixel coordinate to the 3rd stage
-reg [3:0] x_pix3, y_pix3;
-always @(posedge clk or negedge rst_n) begin : X_and_Y_stage3
-    if(!rst_n) begin
-        x_pix3 <= 0;
-        y_pix3 <= 0;
-    end
-    else begin
-        x_pix3 <= x_pix2;
-        y_pix3 <= y_pix2;
-    end
-end
-
 // =========================================================
 // stage 4
 // =========================================================
@@ -581,50 +568,37 @@ assign PG_term = (P_xy_reg3 * G_xy_reg3 + 24'd512) >> 10;
 wire [11:0] Pprime_xy;
 assign Pprime_xy = (PG_term > 14'd4095) ? 12'd4095 : PG_term[11:0];
 
-// reg Pixel_val4;
-// always @(posedge clk or negedge rst_n) begin : Pixel_val_stage4
-//     if(!rst_n) begin
-//         Pixel_val4 <= 0;
-//     end
-//     else begin
-//         Pixel_val4 <= Pprime_xy;
-//     end
-// end
+// Local coordinate counter for the DPC window
+wire dpc_win_trigger = out_valid_chain[`DPC_VALID_TAP_IDX];
+reg [3:0] dpc_win_x, dpc_win_y;
 
-// reg [3:0] x_pix4, y_pix4;
-// always @(posedge clk or negedge rst_n) begin : X_and_Y_stage4
-//     if(!rst_n) begin
-//         x_pix4 <= 0;
-//         y_pix4 <= 0;
-//     end
-//     else begin
-//         x_pix4 <= x_pix3;
-//         y_pix4 <= y_pix3;
-//     end
-// end
-
-// Track valid data down the pipeline
-reg [`VALID_TAP_IDX:0] valid_chain;
-always @(posedge clk or negedge rst_n) begin : valid_tracking
+always @(posedge clk or negedge rst_n) begin : dpc_coord_counter
     if(!rst_n) begin
-        valid_chain <= 0;
-    end else begin
-        valid_chain <= {valid_chain[`VALID_TAP_IDX-1:0], in_valid};
+        dpc_win_x <= 0;
+        dpc_win_y <= 0;
+    end else if(dpc_win_trigger) begin 
+        if(dpc_win_x == 15) begin
+            dpc_win_x <= 0;
+            dpc_win_y <= dpc_win_y + 1;
+        end else begin
+            dpc_win_x <= dpc_win_x + 1;
+        end
     end
 end
 
-// Local coordinate counter for the DPC window
-reg [3:0] win_x, win_y;
-always @(posedge clk or negedge rst_n) begin : win_coord_counter
+wire demos_win_trigger = out_valid_chain[`DEMOS_VALID_TAP_IDX];
+reg [3:0] demos_win_x, demos_win_y;
+
+always @(posedge clk or negedge rst_n) begin : demos_coord_counter
     if(!rst_n) begin
-        win_x <= 0;
-        win_y <= 0;
-    end else if(valid_chain[`VALID_TAP_IDX]) begin // Triggered dynamically
-        if(win_x == 15) begin
-            win_x <= 0;
-            win_y <= win_y + 1;
+        demos_win_x <= 0;
+        demos_win_y <= 0;
+    end else if(demos_win_trigger) begin 
+        if(demos_win_x == 15) begin
+            demos_win_x <= 0;
+            demos_win_y <= demos_win_y + 1;
         end else begin
-            win_x <= win_x + 1;
+            demos_win_x <= demos_win_x + 1;
         end
     end
 end
@@ -639,8 +613,8 @@ always @(posedge clk or negedge rst_n) begin : X_and_Y_stage5
         y_pix5 <= 0;
     end
     else begin
-        x_pix5 <= win_x;
-        y_pix5 <= win_y;
+        x_pix5 <= dpc_win_x;
+        y_pix5 <= dpc_win_y;
     end
 end
 
@@ -660,19 +634,22 @@ always @(posedge clk or negedge rst_n) begin : DPC_shift_reg
     end
 end
 
+// for debugging
+wire [11:0] CENTER_VAL = pixel_buf[`DPC_CENTER_IDX];
+
 // the nets we are assigning the window values to, so we can use them for the DPC computation
 reg [11:0] DPC_WIN5X5[4:0][4:0];
 // the range in where we should assingn pixel_buf value to in DPC_WIN5X5
 wire [3:0] winx_pix_lb, winy_pix_ub, winx_pix_ub, winy_pix_lb;
 
 Coor2WinBounds win_bound_x (
-    .coord(win_x), // Changed from x_pix4
+    .coord(dpc_win_x), // Changed from x_pix4
     .pix_lb(winx_pix_lb),
     .pix_ub(winx_pix_ub)
 );
 
 Coor2WinBounds win_bound_y (
-    .coord(win_y), // Changed from y_pix4
+    .coord(dpc_win_y), // Changed from y_pix4
     .pix_lb(winy_pix_lb),
     .pix_ub(winy_pix_ub)
 );
@@ -690,7 +667,7 @@ always @(*) begin : DPC_window_assign_logic
         for(integer j=0;j<5;j=j+1) begin
             if(i >= winy_pix_lb && i <= winy_pix_ub && j >= winx_pix_lb && j <= winx_pix_ub) begin
                 // Note: DPC_WIN5X5[y][x], i -> y, j -> x
-                DPC_WIN5X5[i][j] = pixel_buf[`WIN_CENTER_IDX - (j-2) - (i-2)*16];
+                DPC_WIN5X5[i][j] = pixel_buf[`DPC_CENTER_IDX - (j-2) - (i-2)*16] & {12{dpc_win_trigger}};
             end
         end
     end
@@ -698,22 +675,20 @@ always @(*) begin : DPC_window_assign_logic
     // Step 1: horizontal padding
     // Within the valid y range, clone the vlaues from the valid region to their mirrored counterparts
     // e.g. if winx_pix_lb = 1, winx_pix_ub = 4, then we clone the values in col 2 to col 0
-    for (integer i=0;i<5;i=i+1) begin : horizontal_padding
-        for(integer j=0;j<5;j=j+1) begin
-            if(i >= winy_pix_lb && i <= winy_pix_ub) begin
-                if(j < winx_pix_lb) begin
-                    DPC_WIN5X5[i][j] = DPC_WIN5X5[i][winx_pix_lb + (winx_pix_lb - j)];
-                end
-                else if(j > winx_pix_ub) begin
-                    DPC_WIN5X5[i][j] = DPC_WIN5X5[i][winx_pix_ub - (j - winx_pix_ub)];
-                end
+    for(integer i=0;i<5;i=i+1) begin : horizontal_padding
+        for(integer j=0;j<5;j=j+1) begin // CHANGED: Scan all 5 columns
+            if(j < winx_pix_lb) begin
+                DPC_WIN5X5[i][j] = DPC_WIN5X5[i][winx_pix_lb + (winx_pix_lb - j)];
+            end
+            else if(j > winx_pix_ub) begin
+                DPC_WIN5X5[i][j] = DPC_WIN5X5[i][winx_pix_ub - (j - winx_pix_ub)];
             end
         end
     end
 
     // Step 2: Vertical padding
     for (integer j=0;j<5;j=j+1) begin : vertical_padding
-        for(integer i=0;i<5;i=i+1) begin
+        for(integer i=0;i<5;i=i+1) begin // CHANGED: Scan all 5 rows
             if(i < winy_pix_lb) begin
                 DPC_WIN5X5[i][j] = DPC_WIN5X5[winy_pix_lb + (winy_pix_lb - i)][j];
             end
@@ -732,22 +707,27 @@ end
 wire [11:0] sort_h_0, sort_h_1, sort_h_2, sort_h_3;
 Sorter4 sort_h(.in0(DPC_WIN5X5[2][0]), .in1(DPC_WIN5X5[2][1]), .in2(DPC_WIN5X5[2][3]), .in3(DPC_WIN5X5[2][4]),
                 .out0(sort_h_0), .out1(sort_h_1), .out2(sort_h_2), .out3(sort_h_3));
-wire [11:0] med_h = (sort_h_1 + sort_h_2) >> 1;
+// wire [11:0] med_h = (sort_h_1 + sort_h_2) >> 1;
 
 wire [11:0] sort_v_0, sort_v_1, sort_v_2, sort_v_3;
 Sorter4 sort_v(.in0(DPC_WIN5X5[0][2]), .in1(DPC_WIN5X5[1][2]), .in2(DPC_WIN5X5[3][2]), .in3(DPC_WIN5X5[4][2]),
                 .out0(sort_v_0), .out1(sort_v_1), .out2(sort_v_2), .out3(sort_v_3));
-wire [11:0] med_v = (sort_v_1 + sort_v_2) >> 1;
+// wire [11:0] med_v = (sort_v_1 + sort_v_2) >> 1;
 
 wire [11:0] sort_d1_0, sort_d1_1, sort_d1_2, sort_d1_3;
 Sorter4 sort_d1(.in0(DPC_WIN5X5[0][0]), .in1(DPC_WIN5X5[1][1]), .in2(DPC_WIN5X5[3][3]), .in3(DPC_WIN5X5[4][4]),
                 .out0(sort_d1_0), .out1(sort_d1_1), .out2(sort_d1_2), .out3(sort_d1_3));
-wire [11:0] med_d1 = (sort_d1_1 + sort_d1_2) >> 1;
+// wire [11:0] med_d1 = (sort_d1_1 + sort_d1_2) >> 1;
 
 wire [11:0] sort_d2_0, sort_d2_1, sort_d2_2, sort_d2_3;
 Sorter4 sort_d2(.in0(DPC_WIN5X5[0][4]), .in1(DPC_WIN5X5[1][3]), .in2(DPC_WIN5X5[3][1]), .in3(DPC_WIN5X5[4][0]),
                 .out0(sort_d2_0), .out1(sort_d2_1), .out2(sort_d2_2), .out3(sort_d2_3));
-wire [11:0] med_d2 = (sort_d2_1 + sort_d2_2) >> 1;
+// wire [11:0] med_d2 = (sort_d2_1 + sort_d2_2) >> 1;
+
+wire [11:0] med_h = ({1'b0, sort_h_1} + sort_h_2) >> 1;
+wire [11:0] med_v = ({1'b0, sort_v_1} + sort_v_2) >> 1;
+wire [11:0] med_d1 = ({1'b0, sort_d1_1} + sort_d1_2) >> 1;
+wire [11:0] med_d2 = ({1'b0, sort_d2_1} + sort_d2_2) >> 1;
 
 // =========================================================
 // 2. Sum of SAD scores on 4 dirs
@@ -807,45 +787,94 @@ assign dpc_corrected_pixel = (diff_p_target > 12'd320) ? final_target : center_p
 // =========================================================
 // 5. Reg output sent to the 6th stage, and also save the 3x3 window values for the demosaic stage to synchronize with the DPC output
 // =========================================================
-reg [11:0] dpc_reg;
-reg [11:0] demos_win [0:7]; // NW, N, NE, W, E, SW, S, SE
 
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-        dpc_reg <= 0;
-        for (integer i = 0; i < 8; i = i + 1) demos_win[i] <= 0;
+
+// =========================================================
+// stage 6: Demosaicing
+// =========================================================
+
+// 1. Demosaicing Shift Register
+reg [11:0] demos_buf[`DEMOS_REG_CNT-1:0];
+always @(posedge clk or negedge rst_n) begin : DEMOS_shift_reg
+    if(!rst_n) begin
+        for(integer i = 0; i< `DEMOS_REG_CNT; i=i+1) demos_buf[i] <= 0;
     end else begin
-        dpc_reg <= dpc_corrected_pixel;
-        // Save the 3x3 surrounding neighbors to synchronize with the DPC output
-        demos_win[0] <= DPC_WIN5X5[1][1]; // NW
-        demos_win[1] <= DPC_WIN5X5[1][2]; // N
-        demos_win[2] <= DPC_WIN5X5[1][3]; // NE
-        demos_win[3] <= DPC_WIN5X5[2][1]; // W
-        demos_win[4] <= DPC_WIN5X5[2][3]; // E
-        demos_win[5] <= DPC_WIN5X5[3][1]; // SW
-        demos_win[6] <= DPC_WIN5X5[3][2]; // S
-        demos_win[7] <= DPC_WIN5X5[3][3]; // SE
+        // 第一個 reg 接收 DPC 校正後的輸出
+        demos_buf[0] <= dpc_corrected_pixel;
+        for(integer i = 1; i< `DEMOS_REG_CNT; i=i+1) begin
+            demos_buf[i] <= demos_buf[i-1];
+        end
     end
 end
 
-// =========================================================
-// stage 6
-// =========================================================
+// 2. 決定 3x3 視窗的有效邊界 (Reflect Padding)
+reg [1:0] demos_pix_lb_x, demos_pix_ub_x;
+reg [1:0] demos_pix_lb_y, demos_pix_ub_y;
+
+always @(*) begin
+    // X boundary
+    if      (demos_win_x == 0)  begin demos_pix_lb_x = 1; demos_pix_ub_x = 2; end
+    else if (demos_win_x == 15) begin demos_pix_lb_x = 0; demos_pix_ub_x = 1; end
+    else                        begin demos_pix_lb_x = 0; demos_pix_ub_x = 2; end
+
+    // Y boundary
+    if      (demos_win_y == 0)  begin demos_pix_lb_y = 1; demos_pix_ub_y = 2; end
+    else if (demos_win_y == 15) begin demos_pix_lb_y = 0; demos_pix_ub_y = 1; end
+    else                        begin demos_pix_lb_y = 0; demos_pix_ub_y = 2; end
+end
+
+// 3. 提取 3x3 視窗與鏡像填充
+reg [11:0] DEMOS_WIN3X3[2:0][2:0];
+always @(*) begin
+    for(integer i=0; i<3; i=i+1)
+        for(integer j=0; j<3; j=j+1)
+            DEMOS_WIN3X3[i][j] = 0;
+
+    // a. 填入有效區域 
+    for(integer i=0; i<3; i=i+1) begin
+        for(integer j=0; j<3; j=j+1) begin
+            if(i >= demos_pix_lb_y && i <= demos_pix_ub_y && 
+               j >= demos_pix_lb_x && j <= demos_pix_ub_x) begin
+                DEMOS_WIN3X3[i][j] = demos_buf[`DEMOS_CENTER_IDX - (j-1) - (i-1)*16] & {12{demos_win_trigger}};
+            end
+        end
+    end
+
+    // b. 水平鏡像填充 (Horizontal Padding)
+    for(integer i=0; i<3; i=i+1) begin
+        for(integer j=0; j<3; j=j+1) begin
+            if(j < demos_pix_lb_x)
+                DEMOS_WIN3X3[i][j] = DEMOS_WIN3X3[i][demos_pix_lb_x + (demos_pix_lb_x - j)];
+            else if(j > demos_pix_ub_x)
+                DEMOS_WIN3X3[i][j] = DEMOS_WIN3X3[i][demos_pix_ub_x - (j - demos_pix_ub_x)];
+        end
+    end
+
+    // c. 垂直鏡像填充 (Vertical Padding)
+    for(integer j=0; j<3; j=j+1) begin
+        for(integer i=0; i<3; i=i+1) begin
+            if(i < demos_pix_lb_y)
+                DEMOS_WIN3X3[i][j] = DEMOS_WIN3X3[demos_pix_lb_y + (demos_pix_lb_y - i)][j];
+            else if(i > demos_pix_ub_y)
+                DEMOS_WIN3X3[i][j] = DEMOS_WIN3X3[demos_pix_ub_y - (i - demos_pix_ub_y)][j];
+        end
+    end
+end
 
 // Demos
 wire [11:0] Rout5, Gout5, Bout5;
 DemosMod demod(
-    .NW(demos_win[0]),
-    .N(demos_win[1]),
-    .NE(demos_win[2]),
-    .W(demos_win[3]),
-    .E(demos_win[4]),
-    .SW(demos_win[5]),
-    .S(demos_win[6]),
-    .SE(demos_win[7]),
-    .C(dpc_reg),
-    .x(x_pix5),
-    .y(y_pix5),
+    .NW(DEMOS_WIN3X3[0][0]),
+    .N (DEMOS_WIN3X3[0][1]),
+    .NE(DEMOS_WIN3X3[0][2]),
+    .W (DEMOS_WIN3X3[1][0]),
+    .C (DEMOS_WIN3X3[1][1]), // 這是已經經過 DPC 校正的中心像素
+    .E (DEMOS_WIN3X3[1][2]),
+    .SW(DEMOS_WIN3X3[2][0]),
+    .S (DEMOS_WIN3X3[2][1]),
+    .SE(DEMOS_WIN3X3[2][2]),
+    .x (demos_win_x), // 使用 Demosaic 專屬座標
+    .y (demos_win_y), // 使用 Demosaic 專屬座標
     .Rout(Rout5),
     .Gout(Gout5),
     .Bout(Bout5)
@@ -895,17 +924,6 @@ wire [11:0] R_clip = (R_shift < 0) ? 12'd0 : (R_shift > 4095) ? 12'd4095 : R_shi
 wire [11:0] G_clip = (G_shift < 0) ? 12'd0 : (G_shift > 4095) ? 12'd4095 : G_shift[11:0];
 wire [11:0] B_clip = (B_shift < 0) ? 12'd0 : (B_shift > 4095) ? 12'd4095 : B_shift[11:0];
 
-// 255-cycle delay chain for out_valid
-reg [`TARGET_LATENCY-1:0] out_valid_chain;
-
-always @(posedge clk or negedge rst_n) begin
-    if(!rst_n) begin
-        out_valid_chain <= 0;
-    end else begin
-        out_valid_chain <= {out_valid_chain[`TARGET_LATENCY-2:0], in_valid};
-    end
-end
-
 // Trigger out_valid exactly when the data arrives
 always @(*) begin
     out_valid = out_valid_chain[`TARGET_LATENCY-1]; 
@@ -917,17 +935,17 @@ always @(posedge clk or negedge rst_n) begin : out_reg
         g_out <= 0;
         b_out <= 0;
     end
-    else if (out_valid_chain[`TARGET_LATENCY-2]) begin // Evaluates 1 cycle before out_valid goes high
+    else begin //if (out_valid_chain[`TARGET_LATENCY-2]) begin // Evaluates 1 cycle before out_valid goes high
         r_out <= R_clip;
         g_out <= G_clip;
         b_out <= B_clip;
     end
-    else begin
-        // Forces outputs to strictly 0 when out_valid is low
-        r_out <= 0;
-        g_out <= 0;
-        b_out <= 0;
-    end
+    // else begin
+    //     // Forces outputs to strictly 0 when out_valid is low
+    //     r_out <= 0;
+    //     g_out <= 0;
+    //     b_out <= 0;
+    // end
 end
 
 endmodule
