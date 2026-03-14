@@ -22,28 +22,34 @@
 module Counter #(parameter N = 4, parameter latency = 5) (
     input clk,
     input rst_n,
-    input [1:0] state, // the counter can be reset once reaching certain UB depending on the current state
+    // input [1:0] state, // the counter can be reset once reaching certain UB depending on the current state
+    input in_valid,
+    input param_valid,
+    output reg out_valid,
     output reg [N-1:0] count
 );
+wire active;
+reg [N-1:0] nxt_count;
+reg nxt_out_valid;
 
-reg [N-1:0] nxt_val;
-
-always @(*) begin
-    casez(state)
-        `IDLE: nxt_val = 0;
-        `GAIN: nxt_val = (count < 143) ? count + 1 : 0;
-        `IMG:  nxt_val = (count < 255) ? count + 1: 0;
-        `OUT: nxt_val = (count < latency-1) ? count + 1: 0;
-        default: nxt_val = {N{1'bx}};
-    endcase
+always @(*) begin : nxt_count_logic
+    nxt_count = active ? (count + 1) : 0;
 end
+
+always @(*) begin : nxt_out_valid_logic
+    nxt_out_valid = active & (&count ^ ~in_valid);
+end
+
+assign active = in_valid | out_valid;
 
 always @(posedge clk or negedge rst_n) begin : counter_transistion
     if(!rst_n) begin
        count <= 0;
+       out_valid <= 0;
     end
     else begin
-        count <= nxt_val;
+        count <= nxt_count;
+        out_valid <= nxt_out_valid;
     end
 end
 
@@ -84,13 +90,14 @@ module BLC(
     // input [7:0] count, // determine the polarity of row & col based on the count
     input x_odd,
     input y_odd,
+    input in_valid,
     output [11:0] out
 );
 
 reg [6:0] B;
 
 always @(*) begin
-    casez({x_odd, y_odd})
+    casez({y_odd, x_odd})
     2'b00: B = 7'd64;
     2'b01: B = 7'd48;
     2'b10: B = 7'd52;
@@ -99,7 +106,7 @@ always @(*) begin
     endcase 
 end
 
-assign out = (B > in_data) ? 0 : in_data - B;
+assign out = in_valid ? ((B > in_data) ? 0 : in_data - B) : 0;
 
 endmodule
 
@@ -137,6 +144,109 @@ end
 
 endmodule
 
+// a 12 bit CAS
+module CAS12(
+    input [11:0] a,
+    input [11:0] b,
+    output [11:0] bigVal,
+    output [11:0] smallVal
+);
+wire a_big = (a > b) ? 1'b1 : 1'b0;
+assign bigVal = a_big ? a : b;
+assign smallVal = a_big ? b : a;
+
+endmodule
+
+// a 12 bit 4 element sorter
+module Sorter4(
+    input [11:0] in0,
+    input [11:0] in1,
+    input [11:0] in2,
+    input [11:0] in3,
+    output [11:0] out0, // smallest
+    output [11:0] out1,
+    output [11:0] out2,
+    output [11:0] out3  // biggest
+);
+
+    wire [11:0] cas01_big, cas01_small;
+    CAS12 cas01(.a(in0), .b(in1), .bigVal(cas01_big), .smallVal(cas01_small));
+    wire [11:0] cas23_big, cas23_small;
+    CAS12 cas23(.a(in2), .b(in3), .bigVal(cas23_big), .smallVal(cas23_small));
+    wire [11:0] cas02_big, cas02_small;
+    CAS12 cas02(.a(cas01_small), .b(cas23_small), .bigVal(cas02_big), .smallVal(cas02_small));
+    wire [11:0] cas13_big, cas13_small;
+    CAS12 cas13(.a(cas01_big), .b(cas23_big), .bigVal(cas13_big), .smallVal(cas13_small));
+    wire [11:0] cas12_big, cas12_small;
+    CAS12 cas12(.a(cas02_big), .b(cas13_small), .bigVal(cas12_big), .smallVal(cas12_small));
+    assign out0 = cas02_small;
+    assign out1 = cas12_small;
+    assign out2 = cas12_big;
+    assign out3 = cas13_big;
+endmodule
+
+module DemosMod(
+    input [11:0] NW,
+    input [11:0] NE,
+    input [11:0] SW,
+    input [11:0] SE,
+    input [11:0] N,
+    input [11:0] S,
+    input [11:0] W,
+    input [11:0] E,
+    input [11:0] C, // center
+    input [3:0] x,
+    input [3:0] y,
+    output reg [11:0] Rout,
+    output reg [11:0] Gout,
+    output reg [11:0] Bout
+);
+
+// shared adders to compute interpolations
+wire [11:0] br_inter_hv, br_inter_diag, g_inter_h, g_inter_v;
+assign br_inter_hv = (N+S+E+W) >> 2;
+assign br_inter_diag = (NW+NE+SW+SE) >> 2;
+assign g_inter_h = (E + W) >> 1;
+assign g_inter_v = (N + S) >> 1;
+
+// R & B loc share the same logic
+wire x_even, y_even;
+assign x_even = x[0];
+assign y_even = y[0];
+
+// send the interpolation outputs to the correct channel
+always @(*) begin : Demos_interpolation_assign
+    casez({y_even, x_even})
+        2'b00:begin// R loc
+            Rout = C;
+            Bout = br_inter_diag;
+            Gout = br_inter_hv;
+        end
+        2'b01:begin // G on R row
+            Rout = g_inter_h;
+            Bout = g_inter_v;
+            Gout = C;
+        end
+        2'b10:begin // G on B row
+            Rout = g_inter_v;
+            Bout = g_inter_h;
+            Gout = C;
+        end
+        2'b11:begin // B loc
+            Rout = br_inter_diag;
+            Bout = C;
+            Gout = br_inter_hv;
+        end
+        default: begin
+            Rout = 12'bx;
+            Bout = 12'bx;
+            Gout = 12'bx;
+        end
+    endcase 
+end
+
+endmodule
+
 module ISP(
     //Input Port
     clk,
@@ -164,7 +274,7 @@ input [11:0] in;
 input param_valid;
 input [11:0] param_gain;
 
-output reg out_valid;
+output out_valid;
 output reg [11:0] r_out;
 output reg [11:0] g_out;
 output reg [11:0] b_out;
@@ -192,7 +302,15 @@ wire [8:0] ix, iy;
 wire [7:0] dx, dy;
 
 // counter: MAX count is 255
-Counter #(.N(8), .latency(`TARGET_LATENCY)) counter (.clk(clk), .rst_n(rst_n), /*.state(state),*/ .count(count));
+Counter #(.N(8), .latency(`TARGET_LATENCY)) counter (
+    .clk(clk),
+    .rst_n(rst_n),
+    .in_valid(in_valid),
+    .param_valid(param_valid),
+    .out_valid(out_valid),
+    .count(count)
+);
+
 
 // gain buffer storage
 always @(posedge clk or negedge rst_n) begin : gain_buffer_storage
@@ -214,7 +332,7 @@ always @(posedge clk or negedge rst_n) begin : gain_buffer_storage
                     // col
                     for(integer j=0;j<6;j=j+1) begin
                         // the Bottom right cell
-                        if(i == 5 && j == 5) gain_buf[k][i][j] <= (k==0) ? param_gain : gain_buf[k-1][0][0];
+                        if(i == 5 && j == 5) gain_buf[k][i][j] <= (k==0) ? (param_valid ? param_gain : 0) : gain_buf[k-1][0][0];
                         // shifting on the same row
                         // i = 0, 1, 2, 3, 4
                         // j = 0, 1, 2, 3
@@ -240,7 +358,7 @@ always @(posedge clk or negedge rst_n) begin : gain_buffer_storage
     end
 end
 
-// state transition logic
+// // state transition logic
 // always @(posedge clk or negedge rst_n) begin : state_transition
 //     if(!rst_n) begin
 //         state <= `IDLE;
@@ -268,7 +386,7 @@ end
 
 // BLC corected input
 wire [11:0] BLC_out;
-BLC blc(.in_data(in), .out(BLC_out), .x_odd(x_pix[0]), .y_odd(y_pix[0]));
+BLC blc(.in_data(in), .out(BLC_out), .x_odd(x_pix[0]), .y_odd(y_pix[0]), .in_valid(in_valid));
 
 reg [11:0] blc_reg1;
 always @(posedge clk or negedge rst_n) begin : BLC_stage1
@@ -334,7 +452,6 @@ always @(*) begin : gain_select_logic
     endcase
 
     // Calculate the color ch of the pixel from x_pix1, y_pix1
-    color_ch = {x_pix1[0], y_pix1[0]};
     casez({y_pix1[0], x_pix1[0]})
             2'b00: color_ch = 2'd3; // R
             2'b01: color_ch = 2'd2; // Gr
@@ -573,23 +690,186 @@ end
 
 // Window values obtained, now perform DPC computations
 
-// find the medians on the 4 directions
+// =========================================================
+// 1. Find the medians on the 4 directions
+// =========================================================
+wire [11:0] sort_h_0, sort_h_1, sort_h_2, sort_h_3;
+Sorter4 sort_h(.in0(DPC_WIN5X5[2][0]), .in1(DPC_WIN5X5[2][1]), .in2(DPC_WIN5X5[2][3]), .in3(DPC_WIN5X5[2][4]),
+                .out0(sort_h_0), .out1(sort_h_1), .out2(sort_h_2), .out3(sort_h_3));
+wire [11:0] med_h = (sort_h_1 + sort_h_2) >> 1;
 
-// Sum of SAD scores on 4 dirs
+wire [11:0] sort_v_0, sort_v_1, sort_v_2, sort_v_3;
+Sorter4 sort_v(.in0(DPC_WIN5X5[0][2]), .in1(DPC_WIN5X5[1][2]), .in2(DPC_WIN5X5[3][2]), .in3(DPC_WIN5X5[4][2]),
+                .out0(sort_v_0), .out1(sort_v_1), .out2(sort_v_2), .out3(sort_v_3));
+wire [11:0] med_v = (sort_v_1 + sort_v_2) >> 1;
 
-// select the median of the dir with min SAD as the target
-// tie-breaking: if multiple dir has the min median, priority: H -> V -> D1(UL to BR) -> D2(UR to BL)
+wire [11:0] sort_d1_0, sort_d1_1, sort_d1_2, sort_d1_3;
+Sorter4 sort_d1(.in0(DPC_WIN5X5[0][0]), .in1(DPC_WIN5X5[1][1]), .in2(DPC_WIN5X5[3][3]), .in3(DPC_WIN5X5[4][4]),
+                .out0(sort_d1_0), .out1(sort_d1_1), .out2(sort_d1_2), .out3(sort_d1_3));
+wire [11:0] med_d1 = (sort_d1_1 + sort_d1_2) >> 1;
 
-// replace the center pixel with the target if |P-target| > 320
+wire [11:0] sort_d2_0, sort_d2_1, sort_d2_2, sort_d2_3;
+Sorter4 sort_d2(.in0(DPC_WIN5X5[0][4]), .in1(DPC_WIN5X5[1][3]), .in2(DPC_WIN5X5[3][1]), .in3(DPC_WIN5X5[4][0]),
+                .out0(sort_d2_0), .out1(sort_d2_1), .out2(sort_d2_2), .out3(sort_d2_3));
+wire [11:0] med_d2 = (sort_d2_1 + sort_d2_2) >> 1;
+
+// =========================================================
+// 2. Sum of SAD scores on 4 dirs
+// =========================================================
+wire [11:0] diff_h0 = (DPC_WIN5X5[2][0] > med_h) ? DPC_WIN5X5[2][0] - med_h : med_h - DPC_WIN5X5[2][0];
+wire [11:0] diff_h1 = (DPC_WIN5X5[2][1] > med_h) ? DPC_WIN5X5[2][1] - med_h : med_h - DPC_WIN5X5[2][1];
+wire [11:0] diff_h2 = (DPC_WIN5X5[2][3] > med_h) ? DPC_WIN5X5[2][3] - med_h : med_h - DPC_WIN5X5[2][3];
+wire [11:0] diff_h3 = (DPC_WIN5X5[2][4] > med_h) ? DPC_WIN5X5[2][4] - med_h : med_h - DPC_WIN5X5[2][4];
+wire [13:0] sad_h = diff_h0 + diff_h1 + diff_h2 + diff_h3;
+
+wire [11:0] diff_v0 = (DPC_WIN5X5[0][2] > med_v) ? DPC_WIN5X5[0][2] - med_v : med_v - DPC_WIN5X5[0][2];
+wire [11:0] diff_v1 = (DPC_WIN5X5[1][2] > med_v) ? DPC_WIN5X5[1][2] - med_v : med_v - DPC_WIN5X5[1][2];
+wire [11:0] diff_v2 = (DPC_WIN5X5[3][2] > med_v) ? DPC_WIN5X5[3][2] - med_v : med_v - DPC_WIN5X5[3][2];
+wire [11:0] diff_v3 = (DPC_WIN5X5[4][2] > med_v) ? DPC_WIN5X5[4][2] - med_v : med_v - DPC_WIN5X5[4][2];
+wire [13:0] sad_v = diff_v0 + diff_v1 + diff_v2 + diff_v3;
+
+wire [11:0] diff_d10 = (DPC_WIN5X5[0][0] > med_d1) ? DPC_WIN5X5[0][0] - med_d1 : med_d1 - DPC_WIN5X5[0][0];
+wire [11:0] diff_d11 = (DPC_WIN5X5[1][1] > med_d1) ? DPC_WIN5X5[1][1] - med_d1 : med_d1 - DPC_WIN5X5[1][1];
+wire [11:0] diff_d12 = (DPC_WIN5X5[3][3] > med_d1) ? DPC_WIN5X5[3][3] - med_d1 : med_d1 - DPC_WIN5X5[3][3];
+wire [11:0] diff_d13 = (DPC_WIN5X5[4][4] > med_d1) ? DPC_WIN5X5[4][4] - med_d1 : med_d1 - DPC_WIN5X5[4][4];
+wire [13:0] sad_d1 = diff_d10 + diff_d11 + diff_d12 + diff_d13;
+
+wire [11:0] diff_d20 = (DPC_WIN5X5[0][4] > med_d2) ? DPC_WIN5X5[0][4] - med_d2 : med_d2 - DPC_WIN5X5[0][4];
+wire [11:0] diff_d21 = (DPC_WIN5X5[1][3] > med_d2) ? DPC_WIN5X5[1][3] - med_d2 : med_d2 - DPC_WIN5X5[1][3];
+wire [11:0] diff_d22 = (DPC_WIN5X5[3][1] > med_d2) ? DPC_WIN5X5[3][1] - med_d2 : med_d2 - DPC_WIN5X5[3][1];
+wire [11:0] diff_d23 = (DPC_WIN5X5[4][0] > med_d2) ? DPC_WIN5X5[4][0] - med_d2 : med_d2 - DPC_WIN5X5[4][0];
+wire [13:0] sad_d2 = diff_d20 + diff_d21 + diff_d22 + diff_d23;
+
+// =========================================================
+// 3. Select the median of the dir with min SAD as the target
+// tie-breaking: H -> V -> D1 -> D2
+// =========================================================
+wire [13:0] min_sad_hv;
+wire [11:0] target_hv;
+assign min_sad_hv = (sad_h <= sad_v) ? sad_h : sad_v;
+assign target_hv  = (sad_h <= sad_v) ? med_h : med_v;
+
+wire [13:0] min_sad_d1d2;
+wire [11:0] target_d1d2;
+assign min_sad_d1d2 = (sad_d1 <= sad_d2) ? sad_d1 : sad_d2;
+assign target_d1d2  = (sad_d1 <= sad_d2) ? med_d1 : med_d2;
+
+wire [13:0] final_min_sad;
+wire [11:0] final_target;
+assign final_min_sad = (min_sad_hv <= min_sad_d1d2) ? min_sad_hv : min_sad_d1d2;
+assign final_target  = (min_sad_hv <= min_sad_d1d2) ? target_hv  : target_d1d2;
+
+// =========================================================
+// 4. Replace the center pixel with the target if |P-target| > 320
+// =========================================================
+wire [11:0] center_p = DPC_WIN5X5[2][2];
+wire [11:0] diff_p_target = (center_p > final_target) ? (center_p - final_target) : (final_target - center_p);
+
+wire [11:0] dpc_corrected_pixel;
+assign dpc_corrected_pixel = (diff_p_target > 12'd320) ? final_target : center_p;
+
+// =========================================================
+// 5. Reg output sent to the 6th stage, and also save the 3x3 window values for the demosaic stage to synchronize with the DPC output
+// =========================================================
+reg [11:0] dpc_reg;
+reg [11:0] demos_win [0:7]; // NW, N, NE, W, E, SW, S, SE
+
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        dpc_reg <= 0;
+        for (integer i = 0; i < 8; i = i + 1) demos_win[i] <= 0;
+    end else begin
+        dpc_reg <= dpc_corrected_pixel;
+        // Save the 3x3 surrounding neighbors to synchronize with the DPC output
+        demos_win[0] <= DPC_WIN5X5[1][1]; // NW
+        demos_win[1] <= DPC_WIN5X5[1][2]; // N
+        demos_win[2] <= DPC_WIN5X5[1][3]; // NE
+        demos_win[3] <= DPC_WIN5X5[2][1]; // W
+        demos_win[4] <= DPC_WIN5X5[2][3]; // E
+        demos_win[5] <= DPC_WIN5X5[3][1]; // SW
+        demos_win[6] <= DPC_WIN5X5[3][2]; // S
+        demos_win[7] <= DPC_WIN5X5[3][3]; // SE
+    end
+end
+
+// coordinate of the pixel
+always @(posedge clk or negedge rst_n) begin
+    if(!rst_n) begin
+        x_pix5 <= 0;
+        y_pix5 <= 0;
+    end
+    else begin
+        x_pix5 <= x_pix4;
+        y_pix5 <= y_pix4;
+    end
+end
 
 // =========================================================
 // stage 6
 // =========================================================
 
 // Demos
+wire [11:0] Rout5, Gout5, Bout5;
+DemosMod demod(
+    .NW(demos_win[0]),
+    .N(demos_win[1]),
+    .NE(demos_win[2]),
+    .W(demos_win[3]),
+    .E(demos_win[4]),
+    .SW(demos_win[5]),
+    .S(demos_win[6]),
+    .SE(demos_win[7]),
+    .C(dpc_reg),
+    .x(x_pix5),
+    .y(y_pix5),
+    .Rout(Rout5),
+    .Gout(Gout5),
+    .Bout(Bout5)
+);
 
-// CCM
+// CCM (Not modularized to foster flexibility in pipelining)
 
+// Extend to 13-bit signed to ensure correct signed multiplication
+wire signed [12:0] R_signed = {1'b0, Rout5};
+wire signed [12:0] G_signed = {1'b0, Gout5};
+wire signed [12:0] B_signed = {1'b0, Bout5};
+
+// ---------------------------------------------------------
+// CCM Multiplication Block
+// ---------------------------------------------------------
+// Calculate the 1100 multiples (Requires 24 bits)
+wire signed [23:0] R_mul_1100 = R_signed * 1100;
+wire signed [23:0] G_mul_1100 = G_signed * 1100;
+wire signed [23:0] B_mul_1100 = B_signed * 1100;
+
+// Calculate the 50 multiples (Requires 24 bits to match the addition tree)
+wire signed [23:0] R_mul_50 = R_signed * 50;
+wire signed [23:0] G_mul_50 = G_signed * 50;
+wire signed [23:0] B_mul_50 = B_signed * 50;
+
+// ---------------------------------------------------------
+// CCM Addition Block
+// ---------------------------------------------------------
+reg signed [23:0] Rmm, Gmm, Bmm;
+
+always @(*) begin
+    Rmm =  R_mul_1100 - G_mul_50   - B_mul_50   + 512;
+    Gmm = -R_mul_50   + G_mul_1100 - B_mul_50   + 512;
+    Bmm = -R_mul_50   - G_mul_50   + B_mul_1100 + 512;
+end
+
+// ---------------------------------------------------------
+// Shift and Saturation Clip
+// ---------------------------------------------------------
+// Arithmetic right shift by 10
+wire signed [13:0] R_shift = Rmm >>> 10;
+wire signed [13:0] G_shift = Gmm >>> 10;
+wire signed [13:0] B_shift = Bmm >>> 10;
+
+// Clamp values below 0 to 0, and values above 4095 to 4095
+wire [11:0] R_clip = (R_shift < 0) ? 12'd0 : (R_shift > 4095) ? 12'd4095 : R_shift[11:0];
+wire [11:0] G_clip = (G_shift < 0) ? 12'd0 : (G_shift > 4095) ? 12'd4095 : G_shift[11:0];
+wire [11:0] B_clip = (B_shift < 0) ? 12'd0 : (B_shift > 4095) ? 12'd4095 : B_shift[11:0];
 
 // out_valid handling
 // always@(*) begin : out_valid_logic
@@ -603,9 +883,9 @@ always @(negedge clk or negedge rst_n) begin : out_reg
         b_out <= 0;
     end
     else begin
-        r_out <=0;
-        g_out <= 0;
-        b_out <= 0;
+        r_out <= R_clip;
+        g_out <= G_clip;
+        b_out <= B_clip;
     end
 end
 
