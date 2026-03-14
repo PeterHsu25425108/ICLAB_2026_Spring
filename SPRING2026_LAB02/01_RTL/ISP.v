@@ -15,7 +15,10 @@
 `define WIN_CENTER_IDX      (`TARGET_LATENCY - `PRE_STAGES - `POST_STAGES-1) // 249
 
 // Total size of the shift register array (WIN_TOP_LEFT + 1 for 0-based indexing)
-`define DPC_REG_CNT    (`WIN_CENTER_IDX + 35) // 285
+`define DPC_REG_CNT    (`WIN_CENTER_IDX + 35) // 284
+
+// The exact delay tap for the valid signal to align with WIN_CENTER_IDX
+`define VALID_TAP_IDX       (`TARGET_LATENCY - `POST_STAGES) // 253
 
 
 // A parameterized counter of arbitary number of bits
@@ -25,31 +28,33 @@ module Counter #(parameter N = 4, parameter latency = 5) (
     // input [1:0] state, // the counter can be reset once reaching certain UB depending on the current state
     input in_valid,
     input param_valid,
-    output reg out_valid,
+    // output reg out_valid,
     output reg [N-1:0] count
 );
-wire active;
+// wire active;
 reg [N-1:0] nxt_count;
-reg nxt_out_valid;
+// reg nxt_out_valid;
 
-always @(*) begin : nxt_count_logic
-    nxt_count = active ? (count + 1) : 0;
-end
+// always @(*) begin : nxt_count_logic
+//     nxt_count = active ? (count + 1) : 0;
+// end
 
-always @(*) begin : nxt_out_valid_logic
-    nxt_out_valid = active & (&count ^ ~in_valid);
-end
+// always @(*) begin : nxt_out_valid_logic
+//     nxt_out_valid = active & (&count ^ ~in_valid);
+// end
 
-assign active = in_valid | out_valid;
+// assign active = in_valid | out_valid;
 
 always @(posedge clk or negedge rst_n) begin : counter_transistion
     if(!rst_n) begin
        count <= 0;
-       out_valid <= 0;
+    //    out_valid <= 0;
+    end
+    else if (in_valid) begin
+        count <= count + 1;
     end
     else begin
-        count <= nxt_count;
-        out_valid <= nxt_out_valid;
+        count <= 0; // Automatically resets for the next frame
     end
 end
 
@@ -274,7 +279,7 @@ input [11:0] in;
 input param_valid;
 input [11:0] param_gain;
 
-output out_valid;
+output reg out_valid;
 output reg [11:0] r_out;
 output reg [11:0] g_out;
 output reg [11:0] b_out;
@@ -295,8 +300,8 @@ wire [7:0] count;
 // the coordinate of the pixel being processed on the 16x16 input image
 // NOTE: LSC is one stage behind behind the primary input
 wire [3:0] x_pix, y_pix;
-assign x_pix = count >> 4; // count / 16
-assign y_pix = count[3:0]; // count % 16
+assign y_pix = count >> 4; // count / 16
+assign x_pix = count[3:0]; // count % 16
 // ix, iy, dx, dy for gain interpolation
 wire [8:0] ix, iy;
 wire [7:0] dx, dy;
@@ -307,7 +312,7 @@ Counter #(.N(8), .latency(`TARGET_LATENCY)) counter (
     .rst_n(rst_n),
     .in_valid(in_valid),
     .param_valid(param_valid),
-    .out_valid(out_valid),
+    // .out_valid(out_valid),
     .count(count)
 );
 
@@ -530,11 +535,11 @@ end
 // multiply the gains to get G(x, y)
 // gain: [1024, 2048]
 wire [11:0] G_xy;
-assign G_xy =  (g00_reg * ixiy2 + g10 * ixdy2 + g01 * dxiy2 + g11 * dxdy2 + 32'd32768) >> 16;
+assign G_xy =  (g00_reg * ixiy2 + g10_reg * ixdy2 + g01_reg * dxiy2 + g11_reg * dxdy2 + 32'd32768) >> 16;
 
 // send P(x, y) to the 3rd stage FFs
 reg [11:0] P_xy_reg3;
-always @(negedge clk or negedge rst_n) begin : P_xy_stage3
+always @(posedge clk or negedge rst_n) begin : P_xy_stage3
     if(!rst_n) begin
         P_xy_reg3 <= 0;
     end
@@ -545,7 +550,7 @@ end
 
 // send G(x, y) to the 3rd stage FFs
 reg [11:0] G_xy_reg3;
-always @(negedge clk or negedge rst_n) begin : G_xy_stage3
+always @(posedge clk or negedge rst_n) begin : G_xy_stage3
     if(!rst_n) begin
         G_xy_reg3 <= 0;
     end
@@ -556,7 +561,7 @@ end
 
 // send the pixel coordinate to the 3rd stage
 reg [3:0] x_pix3, y_pix3;
-always @(negedge clk or negedge rst_n) begin : X_and_Y_stage3
+always @(posedge clk or negedge rst_n) begin : X_and_Y_stage3
     if(!rst_n) begin
         x_pix3 <= 0;
         y_pix3 <= 0;
@@ -571,30 +576,56 @@ end
 // stage 4
 // =========================================================
 wire [13:0] PG_term;
-assign PG_term = (P_xy_reg3 * G_xy_reg3 + 22'd512) >> 10;
+assign PG_term = (P_xy_reg3 * G_xy_reg3 + 24'd512) >> 10;
 
 wire [11:0] Pprime_xy;
 assign Pprime_xy = (PG_term > 14'd4095) ? 12'd4095 : PG_term[11:0];
 
-reg Pixel_val4;
-always @(posedge clk or negedge rst_n) begin : Pixel_val_stage4
+// reg Pixel_val4;
+// always @(posedge clk or negedge rst_n) begin : Pixel_val_stage4
+//     if(!rst_n) begin
+//         Pixel_val4 <= 0;
+//     end
+//     else begin
+//         Pixel_val4 <= Pprime_xy;
+//     end
+// end
+
+// reg [3:0] x_pix4, y_pix4;
+// always @(posedge clk or negedge rst_n) begin : X_and_Y_stage4
+//     if(!rst_n) begin
+//         x_pix4 <= 0;
+//         y_pix4 <= 0;
+//     end
+//     else begin
+//         x_pix4 <= x_pix3;
+//         y_pix4 <= y_pix3;
+//     end
+// end
+
+// Track valid data down the pipeline
+reg [`VALID_TAP_IDX:0] valid_chain;
+always @(posedge clk or negedge rst_n) begin : valid_tracking
     if(!rst_n) begin
-        Pixel_val4 <= 0;
-    end
-    else begin
-        Pixel_val4 <= Pprime_xy;
+        valid_chain <= 0;
+    end else begin
+        valid_chain <= {valid_chain[`VALID_TAP_IDX-1:0], in_valid};
     end
 end
 
-reg [3:0] x_pix4, y_pix4;
-always @(negedge clk or negedge rst_n) begin : X_and_Y_stage4
+// Local coordinate counter for the DPC window
+reg [3:0] win_x, win_y;
+always @(posedge clk or negedge rst_n) begin : win_coord_counter
     if(!rst_n) begin
-        x_pix4 <= 0;
-        y_pix4 <= 0;
-    end
-    else begin
-        x_pix4 <= x_pix3;
-        y_pix4 <= y_pix3;
+        win_x <= 0;
+        win_y <= 0;
+    end else if(valid_chain[`VALID_TAP_IDX]) begin // Triggered dynamically
+        if(win_x == 15) begin
+            win_x <= 0;
+            win_y <= win_y + 1;
+        end else begin
+            win_x <= win_x + 1;
+        end
     end
 end
 
@@ -602,26 +633,26 @@ end
 // stage 5: DPC
 // =========================================================
 reg [3:0] x_pix5, y_pix5;
-always @(negedge clk or negedge rst_n) begin : X_and_Y_stage5
+always @(posedge clk or negedge rst_n) begin : X_and_Y_stage5
     if(!rst_n) begin
         x_pix5 <= 0;
         y_pix5 <= 0;
     end
     else begin
-        x_pix5 <= x_pix4;
-        y_pix5 <= y_pix4;
+        x_pix5 <= win_x;
+        y_pix5 <= win_y;
     end
 end
 
 // DPC shift regs, act as the 4th pipeline reg layer(s)
 reg [11:0] pixel_buf[`DPC_REG_CNT-1:0];
-always @(negedge clk or negedge rst_n) begin : DPC_shift_reg
+always @(posedge clk or negedge rst_n) begin : DPC_shift_reg
     if(!rst_n) begin
         for(integer i = 0; i< `DPC_REG_CNT;i=i+1) pixel_buf[i] <= 0;
     end
     else begin
         // the first reg takes the pixel output from the prev stage
-        pixel_buf[0] <= Pixel_val4;
+        pixel_buf[0] <= Pprime_xy;
         // the others shift one step forward
         for(integer i = 1; i< `DPC_REG_CNT;i=i+1) begin
             pixel_buf[i] <= pixel_buf[i-1];
@@ -635,28 +666,31 @@ reg [11:0] DPC_WIN5X5[4:0][4:0];
 wire [3:0] winx_pix_lb, winy_pix_ub, winx_pix_ub, winy_pix_lb;
 
 Coor2WinBounds win_bound_x (
-    .coord(x_pix4),
+    .coord(win_x), // Changed from x_pix4
     .pix_lb(winx_pix_lb),
     .pix_ub(winx_pix_ub)
 );
 
 Coor2WinBounds win_bound_y (
-    .coord(y_pix4),
+    .coord(win_y), // Changed from y_pix4
     .pix_lb(winy_pix_lb),
     .pix_ub(winy_pix_ub)
 );
 
 // DPC window value logic so we can fix the center of the 5x5 window on pixel_buf[WIN_CENTER_IDX]
 always @(*) begin : DPC_window_assign_logic
+    for (integer i=0;i<5;i=i+1) begin : pixel_valid_assign
+        for(integer j=0;j<5;j=j+1) begin
+            DPC_WIN5X5[i][j] = 0; // default value, will be overwritten in the padding step
+        end
+    end
+
     // assign the pixel values in the valid region
     for (integer i=0;i<5;i=i+1) begin : pixel_valid_assign
         for(integer j=0;j<5;j=j+1) begin
             if(i >= winy_pix_lb && i <= winy_pix_ub && j >= winx_pix_lb && j <= winx_pix_ub) begin
                 // Note: DPC_WIN5X5[y][x], i -> y, j -> x
-                DPC_WIN5X5[i][j] = pixel_buf[`WIN_CENTER_IDX + (j-2) - (i-2)*16];
-            end
-            else begin
-                DPC_WIN5X5[i][j] = 0; // default value, will be overwritten in the padding step
+                DPC_WIN5X5[i][j] = pixel_buf[`WIN_CENTER_IDX - (j-2) - (i-2)*16];
             end
         end
     end
@@ -665,19 +699,21 @@ always @(*) begin : DPC_window_assign_logic
     // Within the valid y range, clone the vlaues from the valid region to their mirrored counterparts
     // e.g. if winx_pix_lb = 1, winx_pix_ub = 4, then we clone the values in col 2 to col 0
     for (integer i=0;i<5;i=i+1) begin : horizontal_padding
-        for(integer j=winy_pix_lb;j<=winy_pix_ub;j=j+1) begin
-            if(j < winx_pix_lb) begin
-                DPC_WIN5X5[i][j] = DPC_WIN5X5[i][winx_pix_lb + (winx_pix_lb - j)];
-            end
-            else if(j > winx_pix_ub) begin
-                DPC_WIN5X5[i][j] = DPC_WIN5X5[i][winx_pix_ub - (j - winx_pix_ub)];
+        for(integer j=0;j<5;j=j+1) begin
+            if(i >= winy_pix_lb && i <= winy_pix_ub) begin
+                if(j < winx_pix_lb) begin
+                    DPC_WIN5X5[i][j] = DPC_WIN5X5[i][winx_pix_lb + (winx_pix_lb - j)];
+                end
+                else if(j > winx_pix_ub) begin
+                    DPC_WIN5X5[i][j] = DPC_WIN5X5[i][winx_pix_ub - (j - winx_pix_ub)];
+                end
             end
         end
     end
 
     // Step 2: Vertical padding
     for (integer j=0;j<5;j=j+1) begin : vertical_padding
-        for(integer i=winy_pix_lb;i<=winy_pix_ub;i=i+1) begin
+        for(integer i=0;i<5;i=i+1) begin
             if(i < winy_pix_lb) begin
                 DPC_WIN5X5[i][j] = DPC_WIN5X5[winy_pix_lb + (winy_pix_lb - i)][j];
             end
@@ -792,18 +828,6 @@ always @(posedge clk or negedge rst_n) begin
     end
 end
 
-// coordinate of the pixel
-always @(posedge clk or negedge rst_n) begin
-    if(!rst_n) begin
-        x_pix5 <= 0;
-        y_pix5 <= 0;
-    end
-    else begin
-        x_pix5 <= x_pix4;
-        y_pix5 <= y_pix4;
-    end
-end
-
 // =========================================================
 // stage 6
 // =========================================================
@@ -871,21 +895,38 @@ wire [11:0] R_clip = (R_shift < 0) ? 12'd0 : (R_shift > 4095) ? 12'd4095 : R_shi
 wire [11:0] G_clip = (G_shift < 0) ? 12'd0 : (G_shift > 4095) ? 12'd4095 : G_shift[11:0];
 wire [11:0] B_clip = (B_shift < 0) ? 12'd0 : (B_shift > 4095) ? 12'd4095 : B_shift[11:0];
 
-// out_valid handling
-// always@(*) begin : out_valid_logic
-//     out_valid = (state == `OUT) ? 1 : 0;
-// end
+// 255-cycle delay chain for out_valid
+reg [`TARGET_LATENCY-1:0] out_valid_chain;
 
-always @(negedge clk or negedge rst_n) begin : out_reg
+always @(posedge clk or negedge rst_n) begin
     if(!rst_n) begin
-        r_out <=0;
+        out_valid_chain <= 0;
+    end else begin
+        out_valid_chain <= {out_valid_chain[`TARGET_LATENCY-2:0], in_valid};
+    end
+end
+
+// Trigger out_valid exactly when the data arrives
+always @(*) begin
+    out_valid = out_valid_chain[`TARGET_LATENCY-1]; 
+end
+
+always @(posedge clk or negedge rst_n) begin : out_reg
+    if(!rst_n) begin
+        r_out <= 0;
         g_out <= 0;
         b_out <= 0;
     end
-    else begin
+    else if (out_valid_chain[`TARGET_LATENCY-2]) begin // Evaluates 1 cycle before out_valid goes high
         r_out <= R_clip;
         g_out <= G_clip;
         b_out <= B_clip;
+    end
+    else begin
+        // Forces outputs to strictly 0 when out_valid is low
+        r_out <= 0;
+        g_out <= 0;
+        b_out <= 0;
     end
 end
 
