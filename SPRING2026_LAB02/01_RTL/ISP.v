@@ -4,7 +4,7 @@
 // 嚴格定義的實體 Reg 級數 (不含 Shift Reg 寫入)
 `define PRE_STAGES       3  // blc1, blc2, P3
 `define MID_STAGES       3  // dpc_reg5, dpc_reg6, dpc_reg7
-`define POST_STAGES      1  // out_reg
+`define POST_STAGES      2  // out_reg
 
 `define TARGET_LATENCY   256
 
@@ -959,18 +959,61 @@ wire signed [12:0] R_signed = {1'b0, Rout5};
 wire signed [12:0] G_signed = {1'b0, Gout5};
 wire signed [12:0] B_signed = {1'b0, Bout5};
 
-// ---------------------------------------------------------
-// CCM Multiplication Block
-// ---------------------------------------------------------
-// Calculate the 1100 multiples (Requires 24 bits)
-wire signed [23:0] R_mul_1100 = R_signed * 1100;
-wire signed [23:0] G_mul_1100 = G_signed * 1100;
-wire signed [23:0] B_mul_1100 = B_signed * 1100;
+// =========================================================
+// Stage 8 Regs (POST_STAGE 1): Pipelined Multiplier (Shift & 1st Add)
+// =========================================================
+// 1100 = 1024 + 64 + 8 + 4
+// 50   = 32 + 16 + 2
 
-// Calculate the 50 multiples (Requires 24 bits to match the addition tree)
-wire signed [23:0] R_mul_50 = R_signed * 50;
-wire signed [23:0] G_mul_50 = G_signed * 50;
-wire signed [23:0] B_mul_50 = B_signed * 50;
+reg signed [23:0] r_1100_p1_reg9, r_1100_p2_reg9;
+reg signed [23:0] g_1100_p1_reg9, g_1100_p2_reg9;
+reg signed [23:0] b_1100_p1_reg9, b_1100_p2_reg9;
+
+reg signed [23:0] r_50_p1_reg9, r_50_p2_reg9;
+reg signed [23:0] g_50_p1_reg9, g_50_p2_reg9;
+reg signed [23:0] b_50_p1_reg9, b_50_p2_reg9;
+
+always @(posedge clk or negedge rst_n) begin : CCM_Mult_Pipeline_Stage
+    if (!rst_n) begin
+        r_1100_p1_reg9 <= 0; r_1100_p2_reg9 <= 0;
+        g_1100_p1_reg9 <= 0; g_1100_p2_reg9 <= 0;
+        b_1100_p1_reg9 <= 0; b_1100_p2_reg9 <= 0;
+        
+        r_50_p1_reg9 <= 0; r_50_p2_reg9 <= 0;
+        g_50_p1_reg9 <= 0; g_50_p2_reg9 <= 0;
+        b_50_p1_reg9 <= 0; b_50_p2_reg9 <= 0;
+    end else begin
+        // --- R Channel Shifts & 1st Add ---
+        r_1100_p1_reg9 <= (R_signed <<< 10) + (R_signed <<< 6);
+        r_1100_p2_reg9 <= (R_signed <<< 3)  + (R_signed <<< 2);
+        r_50_p1_reg9   <= (R_signed <<< 5)  + (R_signed <<< 4);
+        r_50_p2_reg9   <= (R_signed <<< 1);
+        
+        // --- G Channel Shifts & 1st Add ---
+        g_1100_p1_reg9 <= (G_signed <<< 10) + (G_signed <<< 6);
+        g_1100_p2_reg9 <= (G_signed <<< 3)  + (G_signed <<< 2);
+        g_50_p1_reg9   <= (G_signed <<< 5)  + (G_signed <<< 4);
+        g_50_p2_reg9   <= (G_signed <<< 1);
+        
+        // --- B Channel Shifts & 1st Add ---
+        b_1100_p1_reg9 <= (B_signed <<< 10) + (B_signed <<< 6);
+        b_1100_p2_reg9 <= (B_signed <<< 3)  + (B_signed <<< 2);
+        b_50_p1_reg9   <= (B_signed <<< 5)  + (B_signed <<< 4);
+        b_50_p2_reg9   <= (B_signed <<< 1);
+    end
+end
+
+// =========================================================
+// Stage 9 Comb: 完成乘法相加與 CCM 矩陣運算
+// =========================================================
+// 將兩組暫存器相加，完成乘法的最後一步
+wire signed [23:0] R_mul_1100 = r_1100_p1_reg9 + r_1100_p2_reg9;
+wire signed [23:0] G_mul_1100 = g_1100_p1_reg9 + g_1100_p2_reg9;
+wire signed [23:0] B_mul_1100 = b_1100_p1_reg9 + b_1100_p2_reg9;
+
+wire signed [23:0] R_mul_50 = r_50_p1_reg9 + r_50_p2_reg9;
+wire signed [23:0] G_mul_50 = g_50_p1_reg9 + g_50_p2_reg9;
+wire signed [23:0] B_mul_50 = b_50_p1_reg9 + b_50_p2_reg9;
 
 // ---------------------------------------------------------
 // CCM Addition Block
