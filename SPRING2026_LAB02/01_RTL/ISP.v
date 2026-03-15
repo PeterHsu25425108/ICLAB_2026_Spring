@@ -268,6 +268,26 @@ end
 
 endmodule
 
+// A 12-bit 4-element Median Finder (Optimized for Area: 4 Comparators only)
+module MedianOf4 (
+    input  [11:0] in0, in1, in2, in3,
+    output [11:0] out_med
+);
+    // 第一層：分組比較 (2 個比較器)
+    wire [11:0] max1 = (in0 > in1) ? in0 : in1;
+    wire [11:0] min1 = (in0 > in1) ? in1 : in0;
+    
+    wire [11:0] max2 = (in2 > in3) ? in2 : in3;
+    wire [11:0] min2 = (in2 > in3) ? in3 : in2;
+    
+    // 第二層：找出中間的兩個數 (2 個比較器)
+    wire [11:0] mid_high = (max1 < max2) ? max1 : max2; // 兩個大數挑小的
+    wire [11:0] mid_low  = (min1 > min2) ? min1 : min2; // 兩個小數挑大的
+    
+    // 第三層：直接輸出平均值
+    assign out_med = ({1'b0, mid_high} + mid_low) >> 1;
+endmodule
+
 module ISP(
     //Input Port
     clk,
@@ -735,26 +755,12 @@ end
 // ---------------------------------------------------------
 // 1. Find the medians on the 4 directions (Stage 6 Comb)
 // ---------------------------------------------------------
-wire [11:0] sort_h_1, sort_h_2;
-Sorter4 sort_h(.in0(h_reg5_0), .in1(h_reg5_1), .in2(h_reg5_2), .in3(h_reg5_3),
-               .out1(sort_h_1), .out2(sort_h_2));
+wire [11:0] med_h, med_v, med_d1, med_d2;
 
-wire [11:0] sort_v_1, sort_v_2;
-Sorter4 sort_v(.in0(v_reg5_0), .in1(v_reg5_1), .in2(v_reg5_2), .in3(v_reg5_3),
-               .out1(sort_v_1), .out2(sort_v_2));
-
-wire [11:0] sort_d1_1, sort_d1_2;
-Sorter4 sort_d1(.in0(d1_reg5_0), .in1(d1_reg5_1), .in2(d1_reg5_2), .in3(d1_reg5_3),
-                .out1(sort_d1_1), .out2(sort_d1_2));
-
-wire [11:0] sort_d2_1, sort_d2_2;
-Sorter4 sort_d2(.in0(d2_reg5_0), .in1(d2_reg5_1), .in2(d2_reg5_2), .in3(d2_reg5_3),
-                .out1(sort_d2_1), .out2(sort_d2_2));
-
-wire [11:0] med_h  = ({1'b0, sort_h_1} + sort_h_2) >> 1;
-wire [11:0] med_v  = ({1'b0, sort_v_1} + sort_v_2) >> 1;
-wire [11:0] med_d1 = ({1'b0, sort_d1_1} + sort_d1_2) >> 1;
-wire [11:0] med_d2 = ({1'b0, sort_d2_1} + sort_d2_2) >> 1;
+MedianOf4 med_inst_h (.in0(h_reg5_0), .in1(h_reg5_1), .in2(h_reg5_2), .in3(h_reg5_3), .out_med(med_h));
+MedianOf4 med_inst_v (.in0(v_reg5_0), .in1(v_reg5_1), .in2(v_reg5_2), .in3(v_reg5_3), .out_med(med_v));
+MedianOf4 med_inst_d1(.in0(d1_reg5_0), .in1(d1_reg5_1), .in2(d1_reg5_2), .in3(d1_reg5_3), .out_med(med_d1));
+MedianOf4 med_inst_d2(.in0(d2_reg5_0), .in1(d2_reg5_1), .in2(d2_reg5_2), .in3(d2_reg5_3), .out_med(med_d2));
 
 // =========================================================
 // Stage 7 Regs (MID_STAGE 2): Pipeline Medians 和 16 個方向點

@@ -35,39 +35,39 @@ Loading db file '/usr/cad/synopsys/synthesis/2022.03/libraries/syn/standard.sldb
   Loading link library 'slow'
   Loading link library 'gtech'
 Running PRESTO HDLC
-Warning:  ../01_RTL/ISP.v:676: signed to unsigned conversion occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:676: signed to unsigned conversion occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:689: signed to unsigned conversion occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:692: signed to unsigned conversion occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:701: signed to unsigned conversion occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:704: signed to unsigned conversion occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:902: signed to unsigned conversion occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:902: signed to unsigned conversion occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:913: signed to unsigned conversion occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:915: signed to unsigned conversion occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:923: signed to unsigned conversion occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:925: signed to unsigned conversion occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:952: unsigned to signed assignment occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:953: unsigned to signed assignment occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:954: unsigned to signed assignment occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:989: signed to unsigned part selection occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:990: signed to unsigned part selection occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:991: signed to unsigned part selection occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:449: DEFAULT branch of CASE statement cannot be reached. (ELAB-311)
-Warning:  ../01_RTL/ISP.v:458: DEFAULT branch of CASE statement cannot be reached. (ELAB-311)
+Warning:  ../01_RTL/ISP.v:696: signed to unsigned conversion occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:696: signed to unsigned conversion occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:709: signed to unsigned conversion occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:712: signed to unsigned conversion occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:721: signed to unsigned conversion occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:724: signed to unsigned conversion occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:908: signed to unsigned conversion occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:908: signed to unsigned conversion occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:919: signed to unsigned conversion occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:921: signed to unsigned conversion occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:929: signed to unsigned conversion occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:931: signed to unsigned conversion occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:958: unsigned to signed assignment occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:959: unsigned to signed assignment occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:960: unsigned to signed assignment occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:995: signed to unsigned part selection occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:996: signed to unsigned part selection occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:997: signed to unsigned part selection occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:469: DEFAULT branch of CASE statement cannot be reached. (ELAB-311)
+Warning:  ../01_RTL/ISP.v:478: DEFAULT branch of CASE statement cannot be reached. (ELAB-311)
 
-Statistics for case statements in always block at line 448 in file
+Statistics for case statements in always block at line 468 in file
         '../01_RTL/ISP.v'
 ===============================================
 |           Line           |  full/ parallel  |
 ===============================================
-|           449            |    auto/auto     |
-|           458            |    auto/auto     |
-|           468            |    auto/auto     |
+|           469            |    auto/auto     |
+|           478            |    auto/auto     |
+|           488            |    auto/auto     |
 ===============================================
 
 Inferred memory devices in process
-        in routine ISP line 342 in file
+        in routine ISP line 362 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -76,7 +76,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine ISP line 351 in file
+        in routine ISP line 371 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -85,7 +85,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine ISP line 405 in file
+        in routine ISP line 425 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -94,7 +94,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine ISP line 416 in file
+        in routine ISP line 436 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -104,7 +104,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine ISP line 495 in file
+        in routine ISP line 515 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -116,7 +116,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine ISP line 511 in file
+        in routine ISP line 531 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -125,7 +125,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine ISP line 524 in file
+        in routine ISP line 544 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -137,7 +137,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine ISP line 550 in file
+        in routine ISP line 570 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -146,7 +146,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine ISP line 561 in file
+        in routine ISP line 581 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -155,7 +155,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine ISP line 583 in file
+        in routine ISP line 603 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -165,7 +165,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine ISP line 600 in file
+        in routine ISP line 620 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -175,7 +175,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine ISP line 631 in file
+        in routine ISP line 651 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -184,7 +184,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine ISP line 719 in file
+        in routine ISP line 739 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -209,7 +209,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine ISP line 769 in file
+        in routine ISP line 775 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -238,7 +238,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine ISP line 824 in file
+        in routine ISP line 830 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -255,7 +255,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine ISP line 864 in file
+        in routine ISP line 870 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -264,7 +264,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine ISP line 999 in file
+        in routine ISP line 1005 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -277,9 +277,9 @@ Statistics for MUX_OPs
 ======================================================
 | block name/line  | Inputs | Outputs | # sel inputs |
 ======================================================
-|     ISP/476      |   4    |   432   |      2       |
+|     ISP/496      |   4    |   432   |      2       |
 ======================================================
-Warning:  ../01_RTL/ISP.v:618: Netlist for always block is empty. (ELAB-985)
+Warning:  ../01_RTL/ISP.v:638: Netlist for always block is empty. (ELAB-985)
 Presto compilation completed successfully. (ISP)
 Elaborated 1 design.
 Current design is now 'ISP'.
@@ -327,8 +327,8 @@ Statistics for case statements in always block at line 131 in file
 |           132            |    auto/auto     |
 ===============================================
 Presto compilation completed successfully. (Coor2WinBounds)
-Information: Building the design 'Sorter4'. (HDL-193)
-Presto compilation completed successfully. (Sorter4)
+Information: Building the design 'MedianOf4'. (HDL-193)
+Presto compilation completed successfully. (MedianOf4)
 Information: Building the design 'DemosMod'. (HDL-193)
 Warning:  ../01_RTL/ISP.v:240: DEFAULT branch of CASE statement cannot be reached. (ELAB-311)
 
@@ -340,8 +340,6 @@ Statistics for case statements in always block at line 239 in file
 |           240            |    auto/auto     |
 ===============================================
 Presto compilation completed successfully. (DemosMod)
-Information: Building the design 'CAS12'. (HDL-193)
-Presto compilation completed successfully. (CAS12)
 1
 # (B-2) read_sverilog
 #read_sverilog $DESIGN\.v
@@ -354,7 +352,7 @@ link
   Linking design 'ISP'
   Using the following designs and libraries:
   --------------------------------------------------------------------------
-  * (8 designs)               /RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB02/02_SYN/ISP.db, etc
+  * (7 designs)               /RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB02/02_SYN/ISP.db, etc
   slow (library)              /RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/umc018/Synthesis/slow.db
   dw_foundation.sldb (library) /usr/cad/synopsys/synthesis/cur/libraries/syn/dw_foundation.sldb
 
@@ -425,7 +423,7 @@ Warning: Design 'ISP' contains 6 high-fanout nets. A fanout number of 1000 will 
 Report : clock_skew
 Design : ISP
 Version: T-2022.03
-Date   : Sun Mar 15 23:40:02 2026
+Date   : Mon Mar 16 00:07:34 2026
 ****************************************
 
                  Rise      Fall  Min Rise  Min fall        Uncertainty
@@ -484,15 +482,15 @@ Information: Evaluating DesignWare library utilization. (UISN-27)
 | Design Information                                      | Value                                  |
 ====================================================================================================
 | Number of Scenarios                                     | 0                                      |
-| Leaf Cell Count                                         | 11838                                  |
-| Number of User Hierarchies                              | 23                                     |
+| Leaf Cell Count                                         | 11794                                  |
+| Number of User Hierarchies                              | 11                                     |
 | Sequential Cell Count                                   | 6385                                   |
 | Macro Count                                             | 0                                      |
 | Number of Power Domains                                 | 0                                      |
 | Number of Path Groups                                   | 2                                      |
 | Number of VT class                                      | 0                                      |
 | Number of Clocks                                        | 1                                      |
-| Number of Dont Touch cells                              | 1380                                   |
+| Number of Dont Touch cells                              | 1372                                   |
 | Number of Dont Touch nets                               | 2                                      |
 | Number of size only cells                               | 0                                      |
 | Design with UPF Data                                    | false                                  |
@@ -507,8 +505,7 @@ Information: There are 234 potential problems in your design. Please run 'check_
 
 Information: Uniquified 2 instances of design 'LSC_weight_calc'. (OPT-1056)
 Information: Uniquified 2 instances of design 'Coor2WinBounds'. (OPT-1056)
-Information: Uniquified 4 instances of design 'Sorter4'. (OPT-1056)
-Information: Uniquified 12 instances of design 'CAS12'. (OPT-1056)
+Information: Uniquified 4 instances of design 'MedianOf4'. (OPT-1056)
   Simplifying Design 'ISP'
 
 Loaded alib file './alib-52/slow.db.alib'
@@ -517,26 +514,14 @@ Information: Ungrouping hierarchy counter before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy blc before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy LUT_x before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy win_bound_x before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sort_h before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy med_inst_h before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy demod before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy LUT_y before Pass 1 (OPT-776)
 Information: Ungrouping hierarchy win_bound_y before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sort_d2 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sort_d1 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sort_v before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sort_h/cas01 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sort_d2/cas12 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sort_d2/cas23 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sort_d2/cas01 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sort_d1/cas12 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sort_d1/cas23 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sort_d1/cas01 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sort_v/cas12 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sort_v/cas23 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sort_v/cas01 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sort_h/cas12 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sort_h/cas23 before Pass 1 (OPT-776)
-Information: Ungrouping 23 of 24 hierarchies before Pass 1 (OPT-775)
+Information: Ungrouping hierarchy med_inst_d2 before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy med_inst_d1 before Pass 1 (OPT-776)
+Information: Ungrouping hierarchy med_inst_v before Pass 1 (OPT-776)
+Information: Ungrouping 11 of 12 hierarchies before Pass 1 (OPT-775)
 Information: State dependent leakage is now switched from on to off.
 
   Beginning Pass 1 Mapping
@@ -571,6 +556,9 @@ Information: In design 'ISP', the register 'center_p_reg5_reg[9]' is removed bec
   Mapping Optimization (Phase 5)
   Mapping Optimization (Phase 6)
   Mapping Optimization (Phase 7)
+  Mapping Optimization (Phase 8)
+  Mapping Optimization (Phase 9)
+  Mapping Optimization (Phase 10)
 Information: In design 'ISP', the register 'pixel_buf_reg[232][11]' is removed because it is merged to 'center_p_reg6_reg[11]'. (OPT-1215)
 Information: In design 'ISP', the register 'pixel_buf_reg[232][10]' is removed because it is merged to 'center_p_reg6_reg[10]'. (OPT-1215)
 Information: In design 'ISP', the register 'pixel_buf_reg[232][9]' is removed because it is merged to 'center_p_reg6_reg[9]'. (OPT-1215)
@@ -588,8 +576,8 @@ Information: In design 'ISP', the register 'pixel_buf_reg[232][3]' is removed be
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE   MIN DELAY 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER      COST    
   --------- --------- --------- --------- --------- ------------------------- --------- -----------
-    0:01:00 1329209.5      1.39      99.8       0.0                           190769056.0000      0.00  
-    0:01:01 1320836.9      2.03     122.5       0.0                           189689504.0000      0.00  
+    0:00:56 1316133.4      1.31      80.5       0.0                           189072576.0000      0.00  
+    0:00:57 1307009.1      1.77     106.9       0.0                           187882496.0000      0.00  
 
   Beginning Constant Register Removal
   -----------------------------------
@@ -605,8 +593,8 @@ Information: In design 'ISP', the register 'center_p_reg7_reg[2]' is removed bec
 Information: In design 'ISP', the register 'center_p_reg7_reg[1]' is removed because it is merged to 'pixel_buf_reg[233][1]'. (OPT-1215)
 Information: In design 'ISP', the register 'center_p_reg7_reg[0]' is removed because it is merged to 'pixel_buf_reg[233][0]'. (OPT-1215)
 Information: In design 'ISP', the register 'center_p_reg7_reg[3]' is removed because it is merged to 'pixel_buf_reg[233][3]'. (OPT-1215)
-    0:01:02 1319536.3      2.03     119.5       0.0                           189447056.0000      0.00  
-    0:01:02 1319333.4      2.03     123.8       0.0                           189421344.0000      0.00  
+    0:00:58 1306067.7      1.77     106.5       0.0                           187713072.0000      0.00  
+    0:00:58 1305462.3      2.06     114.0       0.0                           187613120.0000      0.00  
 
   Beginning Global Optimizations
   ------------------------------
@@ -643,54 +631,53 @@ Information: In design 'ISP', the register 'center_p_reg7_reg[3]' is removed bec
   Global Optimization (Phase 29)
   Global Optimization (Phase 30)
   Global Optimization (Phase 31)
-  Mapping 'ISP_DP_OP_4939J1_128_9910_1'
+  Mapping 'ISP_DP_OP_4927J1_128_9910_1'
 
   Beginning Isolate Ports
   -----------------------
 
   Beginning Delay Optimization
   ----------------------------
-    0:01:10  790229.6      2.52     129.5      24.5                           66145324.0000      0.00  
-    0:01:14  800953.9      0.84      62.9      24.5                           68381720.0000      0.00  
-    0:01:14  800953.9      0.84      62.9      24.5                           68381720.0000      0.00  
-    0:01:14  800205.4      0.84      63.3      24.5                           68318176.0000      0.00  
-    0:01:18  796945.6      0.87      62.9      24.5                           67964128.0000      0.00  
-    0:01:18  794131.4      1.92      87.0      26.2                           67659560.0000      0.00  
+    0:01:06  790911.5      2.10     102.4      25.6                           66420044.0000      0.00  
+    0:01:10  801146.8      0.70      42.8      25.6                           68496712.0000      0.00  
+    0:01:10  801146.8      0.70      42.8      25.6                           68496712.0000      0.00  
+    0:01:11  800361.8      0.70      43.6      25.6                           68345832.0000      0.00  
+    0:01:14  797474.5      0.93      49.2      25.6                           68051528.0000      0.00  
+    0:01:15  795348.9      1.49      66.5      25.6                           67825984.0000      0.00  
 
   Beginning WLM Backend Optimization
   --------------------------------------
-Information: In design 'ISP', the register 'ixdy2_reg[0]' is removed because it is merged to 'dxiy2_reg[0]'. (OPT-1215)
-Information: In design 'ISP', the register 'ixiy2_reg[0]' is removed because it is merged to 'dxiy2_reg[0]'. (OPT-1215)
-Information: In design 'ISP', the register 'dxdy2_reg[0]' is removed because it is merged to 'dxiy2_reg[0]'. (OPT-1215)
+Information: In design 'ISP', the register 'dxiy2_reg[0]' is removed because it is merged to 'ixdy2_reg[0]'. (OPT-1215)
+Information: In design 'ISP', the register 'ixiy2_reg[0]' is removed because it is merged to 'ixdy2_reg[0]'. (OPT-1215)
+Information: In design 'ISP', the register 'dxdy2_reg[0]' is removed because it is merged to 'ixdy2_reg[0]'. (OPT-1215)
 Information: In design 'ISP', the register 'ixdy2_reg[1]' is removed because it is merged to 'dxiy2_reg[1]'. (OPT-1215)
 Information: In design 'ISP', the register 'ixiy2_reg[2]' is removed because it is merged to 'ixiy2_reg[1]'. (OPT-1215)
 Information: In design 'ISP', the register 'dxdy2_reg[1]' is removed because it is merged to 'ixiy2_reg[1]'. (OPT-1215)
-    0:01:27  785659.1      1.84      91.5       3.9                           66440680.0000      0.00  
-    0:01:28  780729.4      1.61      83.4       1.2                           65956480.0000      0.00  
-    0:01:28  780559.7      0.89      61.8       0.0                           65955528.0000      0.00  
-    0:01:28  780559.7      0.89      61.8       0.0                           65955528.0000      0.00  
-    0:01:30  780606.3      0.89      56.8       0.0                           63597928.0000      0.00  
-    0:01:30  780606.3      0.89      56.8       0.0                           63597928.0000      0.00  
-    0:01:36  787721.5      0.73      51.6       0.0                           64831036.0000      0.00  
-    0:01:36  787721.5      0.73      51.6       0.0                           64831036.0000      0.00  
-    0:01:36  787734.8      0.73      51.6       0.0                           64831804.0000      0.00  
-    0:01:36  787734.8      0.73      51.6       0.0                           64831804.0000      0.00  
-    0:01:37  788040.8      0.73      51.3       0.0                           64889176.0000      0.00  
-    0:01:37  788040.8      0.73      51.3       0.0                           64889176.0000      0.00  
-    0:01:41  792212.1      0.53      33.8       0.0                           65792268.0000      0.00  
-    0:01:41  792212.1      0.53      33.8       0.0                           65792268.0000      0.00  
-    0:01:44  794630.4      0.51      33.1       0.0                           66196888.0000      0.00  
-    0:01:44  794630.4      0.51      33.1       0.0                           66196888.0000      0.00  
-    0:01:47  795402.1      0.46      30.1       0.0                           66365324.0000      0.00  
-    0:01:47  795402.1      0.46      30.1       0.0                           66365324.0000      0.00  
-    0:01:48  796040.8      0.45      30.1       0.0                           66473388.0000      0.00  
-    0:01:48  796040.8      0.45      30.1       0.0                           66473388.0000      0.00  
-    0:01:50  796593.0      0.44      28.9       0.0                           66570624.0000      0.00  
-    0:01:50  796593.0      0.44      28.9       0.0                           66570624.0000      0.00  
-    0:01:50  796632.9      0.44      28.9       0.0                           66575204.0000      0.00  
-    0:01:51  796609.6      0.39      27.5       0.0 g_out_reg[8]/D            66542944.0000      0.00  
-    0:01:51  796686.1      0.38      27.0       0.0                           66550212.0000      0.00  
-    0:01:53  796732.7      0.38      26.9       0.0                           66552292.0000      0.00  
+    0:01:24  784924.0      1.36      65.6       1.1                           66247804.0000      0.00  
+    0:01:24  780632.9      1.32      62.5       1.1                           65820508.0000      0.00  
+    0:01:25  780859.1      0.71      37.9       1.1                           65890276.0000      0.00  
+    0:01:25  780859.1      0.71      37.9       1.1                           65890276.0000      0.00  
+    0:01:27  780100.7      0.71      36.3       0.0                           63591424.0000      0.00  
+    0:01:27  780100.7      0.71      36.3       0.0                           63591424.0000      0.00  
+    0:01:38  797128.5      0.49      29.1       0.0                           66649112.0000      0.00  
+    0:01:38  797128.5      0.49      29.1       0.0                           66649112.0000      0.00  
+    0:01:38  797388.0      0.48      27.5       0.0                           66702332.0000      0.00  
+    0:01:38  797388.0      0.48      27.5       0.0                           66702332.0000      0.00  
+    0:01:48  807204.2      0.42      23.8       0.0                           68436920.0000      0.00  
+    0:01:48  807204.2      0.42      23.8       0.0                           68436920.0000      0.00  
+    0:01:50  809675.7      0.24      13.4       0.0                           69005680.0000      0.00  
+    0:01:50  809675.7      0.24      13.4       0.0                           69005680.0000      0.00  
+    0:01:54  812267.0      0.23      12.4       0.0                           69483720.0000      0.00  
+    0:01:54  812267.0      0.23      12.4       0.0                           69483720.0000      0.00  
+    0:01:57  814036.6      0.16       7.6       0.0                           69822712.0000      0.00  
+    0:01:57  814036.6      0.16       7.6       0.0                           69822712.0000      0.00  
+    0:01:58  814232.9      0.15       7.5       0.0                           69863832.0000      0.00  
+    0:01:58  814232.9      0.15       7.5       0.0                           69863832.0000      0.00  
+    0:01:59  814572.2      0.14       7.0       0.0                           69934408.0000      0.00  
+    0:01:59  814572.2      0.14       7.0       0.0                           69934408.0000      0.00  
+    0:02:00  814715.2      0.14       7.0       0.0                           69952344.0000      0.00  
+    0:02:01  814439.1      0.09       4.5       0.0                           69879312.0000      0.00  
+    0:02:04  819378.8      0.09       3.8       0.0                           70665824.0000      0.00  
 
 
   Beginning Leakage Power Optimization  (max_leakage_power 0)
@@ -700,7 +687,7 @@ Information: In design 'ISP', the register 'dxdy2_reg[1]' is removed because it 
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE   MIN DELAY 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER      COST    
   --------- --------- --------- --------- --------- ------------------------- --------- -----------
-    0:01:53  796732.7      0.38      26.9       0.0                           66552292.0000      0.00  
+    0:02:04  819378.8      0.09       3.8       0.0                           70665824.0000      0.00  
   Global Optimization (Phase 32)
   Global Optimization (Phase 33)
   Global Optimization (Phase 34)
@@ -717,60 +704,47 @@ Information: In design 'ISP', the register 'dxdy2_reg[1]' is removed because it 
   Global Optimization (Phase 45)
   Global Optimization (Phase 46)
   Global Optimization (Phase 47)
-    0:02:08  791803.0      0.37      36.6       0.0 b_out_reg[11]/D           64985712.0000      0.00  
-    0:02:09  791812.9      0.35      35.7       0.0                           64990352.0000      0.00  
-    0:02:10  793383.0      0.36      35.7       0.0                           65286208.0000      0.00  
-    0:02:10  793383.0      0.36      35.7       0.0                           65286208.0000      0.00  
-    0:02:11  790765.1      0.36      28.6       0.0                           64871388.0000      0.00  
-    0:02:11  790765.1      0.36      28.6       0.0                           64871388.0000      0.00  
-    0:02:12  790765.1      0.36      28.6       0.0                           64871388.0000      0.00  
-    0:02:12  790765.1      0.36      28.6       0.0                           64871388.0000      0.00  
-    0:02:12  790765.1      0.36      28.6       0.0                           64871388.0000      0.00  
-    0:02:12  790765.1      0.36      28.6       0.0                           64871388.0000      0.00  
-    0:02:12  790765.1      0.36      28.6       0.0                           64871388.0000      0.00  
-    0:02:12  790765.1      0.36      28.6       0.0                           64871388.0000      0.00  
-    0:02:16  793642.5      0.29      22.9      11.8                           65410784.0000      0.00  
-    0:02:16  793642.5      0.29      22.9      11.8                           65410784.0000      0.00  
-    0:02:17  793629.2      0.29      22.7      11.8                           65397884.0000      0.00  
-    0:02:17  793629.2      0.29      22.7      11.8                           65397884.0000      0.00  
-    0:02:17  793695.7      0.29      22.7      11.8                           65413428.0000      0.00  
-    0:02:17  793695.7      0.29      22.7      11.8                           65413428.0000      0.00  
-    0:02:18  793695.7      0.29      22.7      11.8                           65413428.0000      0.00  
-    0:02:18  793695.7      0.29      22.7      11.8                           65413428.0000      0.00  
-    0:02:18  793695.7      0.29      22.7      11.8                           65413428.0000      0.00  
-    0:02:18  793695.7      0.29      22.7      11.8                           65413428.0000      0.00  
-    0:02:18  793695.7      0.29      22.7      11.8                           65413428.0000      0.00  
+    0:02:20  802597.1      0.07       2.7       0.0 g_out_reg[11]/D           66343868.0000      0.00  
+    0:02:20  802793.4      0.05       2.1       0.0                           66372212.0000      0.00  
+    0:02:24  805773.8      0.07       2.3       0.0                           66916448.0000      0.00  
+    0:02:24  805773.8      0.07       2.3       0.0                           66916448.0000      0.00  
+    0:02:25  797274.9      0.06       2.4       0.0                           65241052.0000      0.00  
+    0:02:25  797274.9      0.06       2.4       0.0                           65241052.0000      0.00  
+    0:02:27  797414.6      0.06       2.2       0.0                           65263432.0000      0.00  
+    0:02:27  797414.6      0.06       2.2       0.0                           65263432.0000      0.00  
+    0:02:27  797507.7      0.06       2.0       0.0                           65279656.0000      0.00  
+    0:02:27  797507.7      0.06       2.0       0.0                           65279656.0000      0.00  
+    0:02:29  798921.5      0.07       2.6       0.0                           65549864.0000      0.00  
+    0:02:29  798921.5      0.07       2.6       0.0                           65549864.0000      0.00  
+    0:02:32  800361.8      0.01       0.1       0.7                           65890916.0000      0.00  
+    0:02:32  800361.8      0.01       0.1       0.7                           65890916.0000      0.00  
+    0:02:34  800897.3      0.01       0.1       0.7                           65982432.0000      0.00  
+    0:02:34  800897.3      0.01       0.1       0.7                           65982432.0000      0.00  
+    0:02:34  800907.3      0.01       0.0       1.7                           65984536.0000      0.00  
+    0:02:34  800907.3      0.01       0.0       1.7                           65984536.0000      0.00  
+    0:02:35  800907.3      0.01       0.0       1.7                           65984536.0000      0.00  
+    0:02:35  800907.3      0.01       0.0       1.7                           65984536.0000      0.00  
+    0:02:35  800907.3      0.01       0.0       1.7                           65984536.0000      0.00  
+    0:02:35  800907.3      0.01       0.0       1.7                           65984536.0000      0.00  
+    0:02:35  800907.3      0.01       0.0       1.7                           65984536.0000      0.00  
 
                                   TOTAL                                                            
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE   MIN DELAY 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER      COST    
   --------- --------- --------- --------- --------- ------------------------- --------- -----------
-    0:02:19  793685.7      0.29      22.7      11.8                           65416016.0000      0.00  
-    0:02:21  787169.3      0.29      25.9      11.8                           64240752.0000      0.00  
-    0:02:22  786953.1      0.28      25.7      11.8                           64213356.0000      0.00  
-    0:02:22  786953.1      0.28      25.7      11.8                           64213356.0000      0.00  
-    0:02:23  787598.4      0.29      25.5      11.8                           64020780.0000      0.00  
-    0:02:29  787049.5      0.29      35.2      10.7                           63900900.0000      0.00  
-    0:02:30  787342.3      0.28      34.9       0.0 b_out_reg[8]/D            63874732.0000      0.00  
-    0:02:31  787684.9      0.27      34.4       1.0 b_out_reg[9]/D            63919104.0000      0.00  
-    0:02:31  787857.8      0.26      34.1       1.0 b_out_reg[8]/D            63951628.0000      0.00  
-    0:02:32  788390.1      0.25      32.8      15.7 g_out_reg[3]/D            64050872.0000      0.00  
-    0:02:32  789082.0      0.24      30.3      45.7 b_out_reg[6]/D            64160108.0000      0.00  
-    0:02:33  789072.0      0.24      30.2      45.7 g_out_reg[7]/D            64144284.0000      0.00  
-    0:02:33  789228.3      0.23      30.0      10.5 net63096                  64176328.0000      0.00  
-    0:02:34  789228.3      0.23      30.0       0.0                           64177892.0000      0.00  
-    0:02:36  791057.8      0.23      25.3      12.9                           64539792.0000      0.00  
-    0:02:36  791057.8      0.23      25.3      12.9                           64539792.0000      0.00  
-    0:02:36  791057.8      0.23      25.3      12.9                           64539792.0000      0.00  
-    0:02:36  791057.8      0.23      25.3      12.9                           64539792.0000      0.00  
-    0:02:36  791057.8      0.23      25.3      12.9                           64539792.0000      0.00  
-    0:02:36  791057.8      0.23      25.3      12.9                           64539792.0000      0.00  
-    0:02:36  791057.8      0.23      25.3      12.9                           64539792.0000      0.00  
-    0:02:36  791057.8      0.23      25.3      12.9                           64539792.0000      0.00  
-    0:02:36  791477.0      0.23      24.7      12.9                           64634664.0000      0.00  
-    0:02:36  791477.0      0.23      24.7      12.9                           64634664.0000      0.00  
-    0:02:36  791477.0      0.23      24.7      12.9                           64634664.0000      0.00  
-    0:02:39  787452.0      0.23      19.8       0.0                           64249600.0000      0.00  
+    0:02:36  800890.7      0.01       0.1       1.7                           65985952.0000      0.00  
+    0:02:39  793386.3      0.02       0.1       1.7                           64640628.0000      0.00  
+    0:02:39  793319.8      0.00       0.0       1.7                           64624240.0000      0.00  
+    0:02:39  793319.8      0.00       0.0       1.7                           64624240.0000      0.00  
+    0:02:40  790382.6      0.00       0.0       1.7                           63888492.0000      0.00  
+    0:02:47  789434.6      0.00       0.0       0.1                           63686044.0000      0.00  
+    0:02:47  789417.9      0.00       0.0       0.0                           63597848.0000      0.00  
+    0:02:47  789417.9      0.00       0.0       0.0                           63597848.0000      0.00  
+    0:02:47  789417.9      0.00       0.0       0.0                           63597848.0000      0.00  
+    0:02:47  789417.9      0.00       0.0       0.0                           63597848.0000      0.00  
+    0:02:47  789417.9      0.00       0.0       0.0                           63597848.0000      0.00  
+    0:02:47  789417.9      0.00       0.0       0.0                           63597848.0000      0.00  
+    0:02:48  786610.4      0.00       0.0       0.0                           63297468.0000      0.00  
 Loading db file '/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/umc018/Synthesis/slow.db'
 
 
@@ -846,7 +820,7 @@ report_area
 Report : area
 Design : ISP
 Version: T-2022.03
-Date   : Sun Mar 15 23:42:47 2026
+Date   : Mon Mar 16 00:10:28 2026
 ****************************************
 
 Library(s) Used:
@@ -854,21 +828,21 @@ Library(s) Used:
     slow (File: /RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/umc018/Synthesis/slow.db)
 
 Number of ports:                           65
-Number of nets:                         23911
-Number of cells:                        22708
-Number of combinational cells:          16361
+Number of nets:                         24259
+Number of cells:                        23076
+Number of combinational cells:          16727
 Number of sequential cells:              6343
 Number of macros/black boxes:               0
-Number of buf/inv:                       3961
-Number of references:                     142
+Number of buf/inv:                       3824
+Number of references:                     133
 
-Combinational area:             338288.232776
-Buf/Inv area:                    41992.474969
-Noncombinational area:          449163.795593
+Combinational area:             340470.351059
+Buf/Inv area:                    39890.190129
+Noncombinational area:          446140.098137
 Macro/Black Box area:                0.000000
 Net Interconnect area:      undefined  (No wire load specified)
 
-Total cell area:                787452.028369
+Total cell area:                786610.449196
 Total area:                 undefined
 1
 report_timing 
@@ -880,7 +854,7 @@ Report : timing
         -max_paths 1
 Design : ISP
 Version: T-2022.03
-Date   : Sun Mar 15 23:42:47 2026
+Date   : Mon Mar 16 00:10:28 2026
 ****************************************
 
  # A fanout number of 1000 was used for high fanout net computations.
@@ -888,75 +862,76 @@ Date   : Sun Mar 15 23:42:47 2026
 Operating Conditions: slow   Library: slow
 Wire Load Model Mode: top
 
-  Startpoint: demos_win_y_reg_3_
+  Startpoint: demos_win_x_reg_3_
               (rising edge-triggered flip-flop clocked by clk)
-  Endpoint: g_out_reg_7_
+  Endpoint: r_out_reg_7_
             (rising edge-triggered flip-flop clocked by clk)
   Path Group: clk
   Path Type: max
 
-  Point                                                   Incr       Path
-  --------------------------------------------------------------------------
-  clock clk (rise edge)                                   0.00       0.00
-  clock network delay (ideal)                             0.00       0.00
-  demos_win_y_reg_3_/CK (DFFRHQX4)                        0.00 #     0.00 r
-  demos_win_y_reg_3_/Q (DFFRHQX4)                         0.38       0.38 r
-  U13927/Y (NOR2X4)                                       0.10       0.47 f
-  U13929/Y (NAND2X4)                                      0.12       0.59 r
-  U13900/Y (NAND2X4)                                      0.09       0.68 f
-  U13847/Y (CLKINVX8)                                     0.09       0.77 r
-  U11145/Y (NAND2X4)                                      0.14       0.91 f
-  U8926/Y (NOR2X1)                                        0.25       1.16 r
-  U13449/Y (AOI2BB1X4)                                    0.11       1.27 f
-  U11216/Y (NAND2X4)                                      0.12       1.39 r
-  U11215/Y (NAND2X1)                                      0.12       1.51 f
-  U13624/Y (NAND2X2)                                      0.13       1.64 r
-  U13627/Y (XNOR3X2)                                      0.36       2.01 f
-  U13554/Y (OAI2BB1X4)                                    0.21       2.21 f
-  U13552/Y (NOR2X4)                                       0.17       2.38 r
-  U11379/Y (OAI21X4)                                      0.14       2.52 f
-  U11018/Y (AOI21X4)                                      0.25       2.77 r
-  U11435/Y (NAND2X4)                                      0.12       2.88 f
-  U13842/Y (XOR2X4)                                       0.28       3.17 r
-  U13694/S (ADDFHX4)                                      0.42       3.58 r
-  U11015/Y (NAND2X4)                                      0.07       3.65 f
-  U11061/Y (AOI2BB1X4)                                    0.25       3.90 f
-  U13726/Y (OAI2BB1X4)                                    0.13       4.03 r
-  U11432/Y (NAND4X2)                                      0.11       4.14 f
-  U14962/Y (NAND4X2)                                      0.12       4.26 r
-  U9428/Y (NAND2X1)                                       0.14       4.40 f
-  U11243/Y (OAI2BB1X4)                                    0.12       4.53 r
-  DP_OP_4939J1_128_9910_U835/S (CMPR42X2)                 0.86       5.39 f
-  U13619/Y (NAND2X1)                                      0.14       5.53 r
-  U13618/Y (OAI21X2)                                      0.13       5.66 f
-  U13537/Y (AOI21X4)                                      0.14       5.80 r
-  U13623/Y (NAND2X4)                                      0.13       5.93 f
-  U13622/Y (AOI21X2)                                      0.18       6.11 r
-  U9292/Y (XNOR2X2)                                       0.20       6.31 f
-  U10989/Y (OAI2BB1X2)                                    0.16       6.48 f
-  g_out_reg_7_/D (DFFRX4)                                 0.00       6.48 f
-  data arrival time                                                  6.48
+  Point                                    Incr       Path
+  -----------------------------------------------------------
+  clock clk (rise edge)                    0.00       0.00
+  clock network delay (ideal)              0.00       0.00
+  demos_win_x_reg_3_/CK (DFFRHQX4)         0.00 #     0.00 r
+  demos_win_x_reg_3_/Q (DFFRHQX4)          0.36       0.36 r
+  U10449/Y (NAND2X4)                       0.10       0.45 f
+  U10448/Y (NOR2X4)                        0.14       0.60 r
+  U8531/Y (BUFX16)                         0.19       0.78 r
+  U8732/Y (INVX4)                          0.10       0.88 f
+  U10397/Y (NAND3BXL)                      0.18       1.06 r
+  U10005/Y (NAND3X2)                       0.17       1.23 f
+  U14440/Y (OAI21X2)                       0.19       1.42 r
+  U14294/Y (NAND2X2)                       0.12       1.53 f
+  U10492/Y (XNOR3X2)                       0.36       1.89 f
+  U14446/Y (OAI2BB1X4)                     0.22       2.11 f
+  U14683/Y (NAND2X4)                       0.11       2.22 r
+  U8960/Y (INVX2)                          0.05       2.27 f
+  U9972/Y (NOR2X2)                         0.20       2.47 r
+  U10063/Y (XOR2X4)                        0.32       2.79 r
+  U10683/Y (INVX2)                         0.09       2.88 f
+  U9264/Y (NAND2X2)                        0.10       2.98 r
+  U9255/Y (INVX3)                          0.07       3.05 f
+  U8774/CO (ADDFHX2)                       0.31       3.36 f
+  U9243/CO (ADDFHX2)                       0.25       3.61 f
+  U17606/CO (ADDFHX1)                      0.35       3.96 f
+  U14648/CO (ADDFHX1)                      0.39       4.35 f
+  U14513/S (ADDFHX4)                       0.40       4.74 f
+  U14289/Y (NAND2X1)                       0.09       4.84 r
+  U10382/Y (NAND3X1)                       0.11       4.95 f
+  U9159/Y (OAI2BB1X2)                      0.15       5.09 r
+  U10381/Y (OAI21X4)                       0.09       5.18 f
+  U10383/Y (NAND2X2)                       0.13       5.31 r
+  U14256/Y (NAND2X4)                       0.10       5.41 f
+  U14254/Y (NAND3X4)                       0.10       5.51 r
+  U14407/Y (NAND3X4)                       0.13       5.64 f
+  U14405/Y (AOI21X1)                       0.18       5.83 r
+  U17618/Y (XOR2X1)                        0.25       6.07 f
+  U17623/Y (NAND2X1)                       0.09       6.16 r
+  U14724/Y (NAND2X1)                       0.07       6.23 f
+  r_out_reg_7_/D (DFFRHQXL)                0.00       6.23 f
+  data arrival time                                   6.23
 
-  clock clk (rise edge)                                   6.60       6.60
-  clock network delay (ideal)                             0.00       6.60
-  clock uncertainty                                      -0.10       6.50
-  g_out_reg_7_/CK (DFFRX4)                                0.00       6.50 r
-  library setup time                                     -0.25       6.25
-  data required time                                                 6.25
-  --------------------------------------------------------------------------
-  data required time                                                 6.25
-  data arrival time                                                 -6.48
-  --------------------------------------------------------------------------
-  slack (VIOLATED)                                                  -0.23
+  clock clk (rise edge)                    6.60       6.60
+  clock network delay (ideal)              0.00       6.60
+  clock uncertainty                       -0.10       6.50
+  r_out_reg_7_/CK (DFFRHQXL)               0.00       6.50 r
+  library setup time                      -0.27       6.23
+  data required time                                  6.23
+  -----------------------------------------------------------
+  data required time                                  6.23
+  data arrival time                                  -6.23
+  -----------------------------------------------------------
+  slack (MET)                                         0.00
 
 
 1
 exit
 
-Memory usage for this session 343 Mbytes.
-Memory usage for this session including child processes 559 Mbytes.
-CPU usage for this session 318 seconds ( 0.09 hours ).
-Elapsed time for this session 174 seconds ( 0.05 hours ).
+Memory usage for this session 332 Mbytes.
+Memory usage for this session including child processes 557 Mbytes.
+CPU usage for this session 368 seconds ( 0.10 hours ).
+Elapsed time for this session 182 seconds ( 0.05 hours ).
 
 Thank you...
 
