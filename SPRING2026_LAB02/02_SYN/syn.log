@@ -9,12 +9,12 @@ Initializing gui preferences from file  /RAID2/COURSE/2026_Spring/iclab/iclab067
 #======================================================
 set DESIGN "ISP"
 ISP
-set CYCLE 6.6
-6.6
+set CYCLE 5.2
+5.2
 set INPUT_DLY [expr 0.5*$CYCLE]
-3.3
+2.6
 set OUTPUT_DLY [expr 0.5*$CYCLE]
-3.3
+2.6
 #======================================================
 # (B) Read RTL Code
 #======================================================
@@ -50,9 +50,9 @@ Warning:  ../01_RTL/ISP.v:931: signed to unsigned conversion occurs. (VER-318)
 Warning:  ../01_RTL/ISP.v:958: unsigned to signed assignment occurs. (VER-318)
 Warning:  ../01_RTL/ISP.v:959: unsigned to signed assignment occurs. (VER-318)
 Warning:  ../01_RTL/ISP.v:960: unsigned to signed assignment occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:995: signed to unsigned part selection occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:996: signed to unsigned part selection occurs. (VER-318)
-Warning:  ../01_RTL/ISP.v:997: signed to unsigned part selection occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:1038: signed to unsigned part selection occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:1039: signed to unsigned part selection occurs. (VER-318)
+Warning:  ../01_RTL/ISP.v:1040: signed to unsigned part selection occurs. (VER-318)
 Warning:  ../01_RTL/ISP.v:469: DEFAULT branch of CASE statement cannot be reached. (ELAB-311)
 Warning:  ../01_RTL/ISP.v:478: DEFAULT branch of CASE statement cannot be reached. (ELAB-311)
 
@@ -180,7 +180,7 @@ Inferred memory devices in process
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
 ===============================================================================
-|    pixel_buf_reg    | Flip-flop | 3180  |  Y  | N  | Y  | N  | N  | N  | N  |
+|    pixel_buf_reg    | Flip-flop | 3168  |  Y  | N  | Y  | N  | N  | N  | N  |
 ===============================================================================
 
 Inferred memory devices in process
@@ -264,7 +264,27 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine ISP line 1005 in file
+        in routine ISP line 976 in file
+                '../01_RTL/ISP.v'.
+===============================================================================
+|    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
+===============================================================================
+|  b_50_p2_reg9_reg   | Flip-flop |  24   |  Y  | N  | Y  | N  | N  | N  | N  |
+| r_1100_p1_reg9_reg  | Flip-flop |  24   |  Y  | N  | Y  | N  | N  | N  | N  |
+| r_1100_p2_reg9_reg  | Flip-flop |  24   |  Y  | N  | Y  | N  | N  | N  | N  |
+| g_1100_p1_reg9_reg  | Flip-flop |  24   |  Y  | N  | Y  | N  | N  | N  | N  |
+| g_1100_p2_reg9_reg  | Flip-flop |  24   |  Y  | N  | Y  | N  | N  | N  | N  |
+| b_1100_p1_reg9_reg  | Flip-flop |  24   |  Y  | N  | Y  | N  | N  | N  | N  |
+| b_1100_p2_reg9_reg  | Flip-flop |  24   |  Y  | N  | Y  | N  | N  | N  | N  |
+|  r_50_p1_reg9_reg   | Flip-flop |  24   |  Y  | N  | Y  | N  | N  | N  | N  |
+|  r_50_p2_reg9_reg   | Flip-flop |  24   |  Y  | N  | Y  | N  | N  | N  | N  |
+|  g_50_p1_reg9_reg   | Flip-flop |  24   |  Y  | N  | Y  | N  | N  | N  | N  |
+|  g_50_p2_reg9_reg   | Flip-flop |  24   |  Y  | N  | Y  | N  | N  | N  | N  |
+|  b_50_p1_reg9_reg   | Flip-flop |  24   |  Y  | N  | Y  | N  | N  | N  | N  |
+===============================================================================
+
+Inferred memory devices in process
+        in routine ISP line 1048 in file
                 '../01_RTL/ISP.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -423,7 +443,7 @@ Warning: Design 'ISP' contains 6 high-fanout nets. A fanout number of 1000 will 
 Report : clock_skew
 Design : ISP
 Version: T-2022.03
-Date   : Mon Mar 16 00:07:34 2026
+Date   : Mon Mar 16 00:44:23 2026
 ****************************************
 
                  Rise      Fall  Min Rise  Min fall        Uncertainty
@@ -445,6 +465,56 @@ Information: Checking loops...
 Information: Checking no_input_delay...
 
 Information: Checking unconstrained_endpoints...
+
+Warning: The following end-points are not constrained for maximum delay.
+
+End point
+---------------
+b_50_p1_reg9_reg[18]/next_state
+b_50_p1_reg9_reg[19]/next_state
+b_50_p1_reg9_reg[20]/next_state
+b_50_p1_reg9_reg[21]/next_state
+b_50_p1_reg9_reg[22]/next_state
+b_50_p1_reg9_reg[23]/next_state
+b_1100_p1_reg9_reg[23]/next_state
+b_1100_p2_reg9_reg[16]/next_state
+b_1100_p2_reg9_reg[17]/next_state
+b_1100_p2_reg9_reg[18]/next_state
+b_1100_p2_reg9_reg[19]/next_state
+b_1100_p2_reg9_reg[20]/next_state
+b_1100_p2_reg9_reg[21]/next_state
+b_1100_p2_reg9_reg[22]/next_state
+b_1100_p2_reg9_reg[23]/next_state
+g_50_p1_reg9_reg[18]/next_state
+g_50_p1_reg9_reg[19]/next_state
+g_50_p1_reg9_reg[20]/next_state
+g_50_p1_reg9_reg[21]/next_state
+g_50_p1_reg9_reg[22]/next_state
+g_50_p1_reg9_reg[23]/next_state
+g_1100_p1_reg9_reg[23]/next_state
+g_1100_p2_reg9_reg[16]/next_state
+g_1100_p2_reg9_reg[17]/next_state
+g_1100_p2_reg9_reg[18]/next_state
+g_1100_p2_reg9_reg[19]/next_state
+g_1100_p2_reg9_reg[20]/next_state
+g_1100_p2_reg9_reg[21]/next_state
+g_1100_p2_reg9_reg[22]/next_state
+g_1100_p2_reg9_reg[23]/next_state
+r_50_p1_reg9_reg[18]/next_state
+r_50_p1_reg9_reg[19]/next_state
+r_50_p1_reg9_reg[20]/next_state
+r_50_p1_reg9_reg[21]/next_state
+r_50_p1_reg9_reg[22]/next_state
+r_50_p1_reg9_reg[23]/next_state
+r_1100_p1_reg9_reg[23]/next_state
+r_1100_p2_reg9_reg[16]/next_state
+r_1100_p2_reg9_reg[17]/next_state
+r_1100_p2_reg9_reg[18]/next_state
+r_1100_p2_reg9_reg[19]/next_state
+r_1100_p2_reg9_reg[20]/next_state
+r_1100_p2_reg9_reg[21]/next_state
+r_1100_p2_reg9_reg[22]/next_state
+r_1100_p2_reg9_reg[23]/next_state
 
 Information: Checking pulse_clock_cell_type...
 
@@ -482,15 +552,15 @@ Information: Evaluating DesignWare library utilization. (UISN-27)
 | Design Information                                      | Value                                  |
 ====================================================================================================
 | Number of Scenarios                                     | 0                                      |
-| Leaf Cell Count                                         | 11794                                  |
+| Leaf Cell Count                                         | 12082                                  |
 | Number of User Hierarchies                              | 11                                     |
-| Sequential Cell Count                                   | 6385                                   |
+| Sequential Cell Count                                   | 6661                                   |
 | Macro Count                                             | 0                                      |
 | Number of Power Domains                                 | 0                                      |
 | Number of Path Groups                                   | 2                                      |
 | Number of VT class                                      | 0                                      |
 | Number of Clocks                                        | 1                                      |
-| Number of Dont Touch cells                              | 1372                                   |
+| Number of Dont Touch cells                              | 1373                                   |
 | Number of Dont Touch nets                               | 2                                      |
 | Number of size only cells                               | 0                                      |
 | Design with UPF Data                                    | false                                  |
@@ -501,7 +571,7 @@ Information: Evaluating DesignWare library utilization. (UISN-27)
 ====================================================================================================
 Information: Sequential output inversion is enabled.  SVF file must be used for formal verification. (OPT-1208)
 
-Information: There are 234 potential problems in your design. Please run 'check_design' for more information. (LINT-99)
+Information: There are 235 potential problems in your design. Please run 'check_design' for more information. (LINT-99)
 
 Information: Uniquified 2 instances of design 'LSC_weight_calc'. (OPT-1056)
 Information: Uniquified 2 instances of design 'Coor2WinBounds'. (OPT-1056)
@@ -528,73 +598,183 @@ Information: State dependent leakage is now switched from on to off.
   ------------------------
   Processing 'ISP'
 Information: Added key list 'DesignWare' to design 'ISP'. (DDB-72)
+Information: The register 'b_50_p1_reg9_reg[0]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p1_reg9_reg[1]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p1_reg9_reg[2]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p1_reg9_reg[3]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p1_reg9_reg[18]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p1_reg9_reg[19]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p1_reg9_reg[20]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p1_reg9_reg[21]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p1_reg9_reg[22]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p1_reg9_reg[23]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p2_reg9_reg[0]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p2_reg9_reg[13]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p2_reg9_reg[14]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p2_reg9_reg[15]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p2_reg9_reg[16]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p2_reg9_reg[17]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p2_reg9_reg[18]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p2_reg9_reg[19]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p2_reg9_reg[20]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p2_reg9_reg[21]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p2_reg9_reg[22]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p2_reg9_reg[23]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p1_reg9_reg[0]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p1_reg9_reg[1]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p1_reg9_reg[2]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p1_reg9_reg[3]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p1_reg9_reg[18]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p1_reg9_reg[19]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p1_reg9_reg[20]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p1_reg9_reg[21]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p1_reg9_reg[22]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_50_p1_reg9_reg[23]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p2_reg9_reg[0]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p2_reg9_reg[13]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p2_reg9_reg[14]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p2_reg9_reg[15]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p2_reg9_reg[16]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p2_reg9_reg[17]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p2_reg9_reg[18]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p2_reg9_reg[19]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p2_reg9_reg[20]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p2_reg9_reg[21]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p2_reg9_reg[22]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p2_reg9_reg[23]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p1_reg9_reg[0]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p1_reg9_reg[1]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p1_reg9_reg[2]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p1_reg9_reg[3]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p1_reg9_reg[18]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p1_reg9_reg[19]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p1_reg9_reg[20]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p1_reg9_reg[21]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p1_reg9_reg[22]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_50_p1_reg9_reg[23]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_1100_p2_reg9_reg[0]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_1100_p2_reg9_reg[1]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_1100_p2_reg9_reg[16]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_1100_p2_reg9_reg[17]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_1100_p2_reg9_reg[18]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_1100_p2_reg9_reg[19]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_1100_p2_reg9_reg[20]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_1100_p2_reg9_reg[21]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_1100_p2_reg9_reg[22]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_1100_p2_reg9_reg[23]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_1100_p1_reg9_reg[0]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_1100_p1_reg9_reg[1]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_1100_p1_reg9_reg[2]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_1100_p1_reg9_reg[3]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_1100_p1_reg9_reg[4]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_1100_p1_reg9_reg[5]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_1100_p1_reg9_reg[23]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_1100_p2_reg9_reg[0]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_1100_p2_reg9_reg[1]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_1100_p2_reg9_reg[16]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_1100_p2_reg9_reg[17]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_1100_p2_reg9_reg[18]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_1100_p2_reg9_reg[19]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_1100_p2_reg9_reg[20]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_1100_p2_reg9_reg[21]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_1100_p2_reg9_reg[22]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_1100_p2_reg9_reg[23]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_1100_p1_reg9_reg[0]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_1100_p1_reg9_reg[1]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_1100_p1_reg9_reg[2]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_1100_p1_reg9_reg[3]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_1100_p1_reg9_reg[4]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_1100_p1_reg9_reg[5]' is a constant and will be removed. (OPT-1206)
+Information: The register 'g_1100_p1_reg9_reg[23]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_1100_p2_reg9_reg[0]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_1100_p2_reg9_reg[1]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_1100_p2_reg9_reg[16]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_1100_p2_reg9_reg[17]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_1100_p2_reg9_reg[18]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_1100_p2_reg9_reg[19]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_1100_p2_reg9_reg[20]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_1100_p2_reg9_reg[21]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_1100_p2_reg9_reg[22]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_1100_p2_reg9_reg[23]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_1100_p1_reg9_reg[0]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_1100_p1_reg9_reg[1]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_1100_p1_reg9_reg[2]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_1100_p1_reg9_reg[3]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_1100_p1_reg9_reg[4]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_1100_p1_reg9_reg[5]' is a constant and will be removed. (OPT-1206)
+Information: The register 'r_1100_p1_reg9_reg[23]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p2_reg9_reg[0]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p2_reg9_reg[13]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p2_reg9_reg[14]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p2_reg9_reg[15]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p2_reg9_reg[16]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p2_reg9_reg[17]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p2_reg9_reg[18]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p2_reg9_reg[19]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p2_reg9_reg[20]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p2_reg9_reg[21]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p2_reg9_reg[22]' is a constant and will be removed. (OPT-1206)
+Information: The register 'b_50_p2_reg9_reg[23]' is a constant and will be removed. (OPT-1206)
  Implement Synthetic for 'ISP'.
 
   Updating timing information
 Information: Updating design information... (UID-85)
 Information: The library cell 'HOLDX1' in the library 'slow' is not characterized for internal power. (PWR-536)
 Information: The target library(s) contains cell(s), other than black boxes, that are not characterized for internal power. (PWR-24)
-Information: In design 'ISP', the register 'center_p_reg5_reg[8]' is removed because it is merged to 'pixel_buf_reg[231][8]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg5_reg[7]' is removed because it is merged to 'pixel_buf_reg[231][7]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg5_reg[6]' is removed because it is merged to 'pixel_buf_reg[231][6]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg5_reg[5]' is removed because it is merged to 'pixel_buf_reg[231][5]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg5_reg[4]' is removed because it is merged to 'pixel_buf_reg[231][4]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg5_reg[3]' is removed because it is merged to 'pixel_buf_reg[231][3]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg5_reg[2]' is removed because it is merged to 'pixel_buf_reg[231][2]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg5_reg[1]' is removed because it is merged to 'pixel_buf_reg[231][1]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg5_reg[0]' is removed because it is merged to 'pixel_buf_reg[231][0]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg5_reg[11]' is removed because it is merged to 'pixel_buf_reg[231][11]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg5_reg[10]' is removed because it is merged to 'pixel_buf_reg[231][10]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg5_reg[9]' is removed because it is merged to 'pixel_buf_reg[231][9]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg5_reg[8]' is removed because it is merged to 'pixel_buf_reg[230][8]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg5_reg[7]' is removed because it is merged to 'pixel_buf_reg[230][7]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg5_reg[6]' is removed because it is merged to 'pixel_buf_reg[230][6]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg5_reg[5]' is removed because it is merged to 'pixel_buf_reg[230][5]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg5_reg[4]' is removed because it is merged to 'pixel_buf_reg[230][4]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg5_reg[3]' is removed because it is merged to 'pixel_buf_reg[230][3]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg5_reg[2]' is removed because it is merged to 'pixel_buf_reg[230][2]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg5_reg[1]' is removed because it is merged to 'pixel_buf_reg[230][1]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg5_reg[0]' is removed because it is merged to 'pixel_buf_reg[230][0]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg5_reg[11]' is removed because it is merged to 'pixel_buf_reg[230][11]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg5_reg[10]' is removed because it is merged to 'pixel_buf_reg[230][10]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg5_reg[9]' is removed because it is merged to 'pixel_buf_reg[230][9]'. (OPT-1215)
 
   Beginning Mapping Optimizations  (Ultra High effort)
   -------------------------------
   Mapping Optimization (Phase 1)
   Mapping Optimization (Phase 2)
   Mapping Optimization (Phase 3)
-  Mapping Optimization (Phase 4)
-  Mapping Optimization (Phase 5)
-  Mapping Optimization (Phase 6)
-  Mapping Optimization (Phase 7)
-  Mapping Optimization (Phase 8)
-  Mapping Optimization (Phase 9)
-  Mapping Optimization (Phase 10)
-Information: In design 'ISP', the register 'pixel_buf_reg[232][11]' is removed because it is merged to 'center_p_reg6_reg[11]'. (OPT-1215)
-Information: In design 'ISP', the register 'pixel_buf_reg[232][10]' is removed because it is merged to 'center_p_reg6_reg[10]'. (OPT-1215)
-Information: In design 'ISP', the register 'pixel_buf_reg[232][9]' is removed because it is merged to 'center_p_reg6_reg[9]'. (OPT-1215)
-Information: In design 'ISP', the register 'pixel_buf_reg[232][8]' is removed because it is merged to 'center_p_reg6_reg[8]'. (OPT-1215)
-Information: In design 'ISP', the register 'pixel_buf_reg[232][7]' is removed because it is merged to 'center_p_reg6_reg[7]'. (OPT-1215)
-Information: In design 'ISP', the register 'pixel_buf_reg[232][6]' is removed because it is merged to 'center_p_reg6_reg[6]'. (OPT-1215)
-Information: In design 'ISP', the register 'pixel_buf_reg[232][5]' is removed because it is merged to 'center_p_reg6_reg[5]'. (OPT-1215)
-Information: In design 'ISP', the register 'pixel_buf_reg[232][4]' is removed because it is merged to 'center_p_reg6_reg[4]'. (OPT-1215)
-Information: In design 'ISP', the register 'pixel_buf_reg[232][2]' is removed because it is merged to 'center_p_reg6_reg[2]'. (OPT-1215)
-Information: In design 'ISP', the register 'pixel_buf_reg[232][1]' is removed because it is merged to 'center_p_reg6_reg[1]'. (OPT-1215)
-Information: In design 'ISP', the register 'pixel_buf_reg[232][0]' is removed because it is merged to 'center_p_reg6_reg[0]'. (OPT-1215)
-Information: In design 'ISP', the register 'pixel_buf_reg[232][3]' is removed because it is merged to 'center_p_reg6_reg[3]'. (OPT-1215)
+Information: In design 'ISP', the register 'pixel_buf_reg[231][0]' is removed because it is merged to 'center_p_reg6_reg[0]'. (OPT-1215)
+Information: In design 'ISP', the register 'pixel_buf_reg[231][1]' is removed because it is merged to 'center_p_reg6_reg[1]'. (OPT-1215)
+Information: In design 'ISP', the register 'pixel_buf_reg[231][7]' is removed because it is merged to 'center_p_reg6_reg[7]'. (OPT-1215)
+Information: In design 'ISP', the register 'pixel_buf_reg[231][8]' is removed because it is merged to 'center_p_reg6_reg[8]'. (OPT-1215)
+Information: In design 'ISP', the register 'pixel_buf_reg[231][9]' is removed because it is merged to 'center_p_reg6_reg[9]'. (OPT-1215)
+Information: In design 'ISP', the register 'pixel_buf_reg[231][10]' is removed because it is merged to 'center_p_reg6_reg[10]'. (OPT-1215)
+Information: In design 'ISP', the register 'pixel_buf_reg[231][11]' is removed because it is merged to 'center_p_reg6_reg[11]'. (OPT-1215)
+Information: In design 'ISP', the register 'pixel_buf_reg[231][6]' is removed because it is merged to 'center_p_reg6_reg[6]'. (OPT-1215)
+Information: In design 'ISP', the register 'pixel_buf_reg[231][5]' is removed because it is merged to 'center_p_reg6_reg[5]'. (OPT-1215)
+Information: In design 'ISP', the register 'pixel_buf_reg[231][3]' is removed because it is merged to 'center_p_reg6_reg[3]'. (OPT-1215)
+Information: In design 'ISP', the register 'pixel_buf_reg[231][4]' is removed because it is merged to 'center_p_reg6_reg[4]'. (OPT-1215)
+Information: In design 'ISP', the register 'pixel_buf_reg[231][2]' is removed because it is merged to 'center_p_reg6_reg[2]'. (OPT-1215)
 
                                   TOTAL                                                            
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE   MIN DELAY 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER      COST    
   --------- --------- --------- --------- --------- ------------------------- --------- -----------
-    0:00:56 1316133.4      1.31      80.5       0.0                           189072576.0000      0.00  
-    0:00:57 1307009.1      1.77     106.9       0.0                           187882496.0000      0.00  
+    0:00:54 1367523.0      0.77     124.2       0.0                           197292848.0000      0.00  
+    0:00:55 1358445.2      1.34     147.4       0.0                           196114816.0000      0.00  
 
   Beginning Constant Register Removal
   -----------------------------------
-Information: In design 'ISP', the register 'center_p_reg7_reg[11]' is removed because it is merged to 'pixel_buf_reg[233][11]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg7_reg[10]' is removed because it is merged to 'pixel_buf_reg[233][10]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg7_reg[9]' is removed because it is merged to 'pixel_buf_reg[233][9]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg7_reg[8]' is removed because it is merged to 'pixel_buf_reg[233][8]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg7_reg[7]' is removed because it is merged to 'pixel_buf_reg[233][7]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg7_reg[6]' is removed because it is merged to 'pixel_buf_reg[233][6]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg7_reg[5]' is removed because it is merged to 'pixel_buf_reg[233][5]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg7_reg[4]' is removed because it is merged to 'pixel_buf_reg[233][4]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg7_reg[2]' is removed because it is merged to 'pixel_buf_reg[233][2]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg7_reg[1]' is removed because it is merged to 'pixel_buf_reg[233][1]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg7_reg[0]' is removed because it is merged to 'pixel_buf_reg[233][0]'. (OPT-1215)
-Information: In design 'ISP', the register 'center_p_reg7_reg[3]' is removed because it is merged to 'pixel_buf_reg[233][3]'. (OPT-1215)
-    0:00:58 1306067.7      1.77     106.5       0.0                           187713072.0000      0.00  
-    0:00:58 1305462.3      2.06     114.0       0.0                           187613120.0000      0.00  
+Information: In design 'ISP', the register 'center_p_reg7_reg[0]' is removed because it is merged to 'pixel_buf_reg[232][0]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg7_reg[1]' is removed because it is merged to 'pixel_buf_reg[232][1]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg7_reg[7]' is removed because it is merged to 'pixel_buf_reg[232][7]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg7_reg[8]' is removed because it is merged to 'pixel_buf_reg[232][8]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg7_reg[9]' is removed because it is merged to 'pixel_buf_reg[232][9]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg7_reg[10]' is removed because it is merged to 'pixel_buf_reg[232][10]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg7_reg[11]' is removed because it is merged to 'pixel_buf_reg[232][11]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg7_reg[6]' is removed because it is merged to 'pixel_buf_reg[232][6]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg7_reg[5]' is removed because it is merged to 'pixel_buf_reg[232][5]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg7_reg[3]' is removed because it is merged to 'pixel_buf_reg[232][3]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg7_reg[4]' is removed because it is merged to 'pixel_buf_reg[232][4]'. (OPT-1215)
+Information: In design 'ISP', the register 'center_p_reg7_reg[2]' is removed because it is merged to 'pixel_buf_reg[232][2]'. (OPT-1215)
+    0:00:56 1358887.6      1.41     145.0       0.0                           196211872.0000      0.00  
+    0:00:56 1358661.4      1.41     150.1       0.0                           196179872.0000      0.00  
 
   Beginning Global Optimizations
   ------------------------------
@@ -631,53 +811,65 @@ Information: In design 'ISP', the register 'center_p_reg7_reg[3]' is removed bec
   Global Optimization (Phase 29)
   Global Optimization (Phase 30)
   Global Optimization (Phase 31)
-  Mapping 'ISP_DP_OP_4927J1_128_9910_1'
 
   Beginning Isolate Ports
   -----------------------
 
   Beginning Delay Optimization
   ----------------------------
-    0:01:06  790911.5      2.10     102.4      25.6                           66420044.0000      0.00  
-    0:01:10  801146.8      0.70      42.8      25.6                           68496712.0000      0.00  
-    0:01:10  801146.8      0.70      42.8      25.6                           68496712.0000      0.00  
-    0:01:11  800361.8      0.70      43.6      25.6                           68345832.0000      0.00  
-    0:01:14  797474.5      0.93      49.2      25.6                           68051528.0000      0.00  
-    0:01:15  795348.9      1.49      66.5      25.6                           67825984.0000      0.00  
+    0:01:03  823433.7      1.42     423.3      98.8                           70331072.0000      0.00  
+    0:01:05  831756.3      0.44      52.2      49.2                           71933520.0000      0.00  
+    0:01:05  831756.3      0.44      52.2      49.2                           71933520.0000      0.00  
+    0:01:06  831160.9      0.44      52.2      49.2                           71901552.0000      0.00  
+    0:01:09  828233.7      0.45      49.9      49.2                           71552240.0000      0.00  
+    0:01:10  821427.9      1.50      96.8      49.2                           70951176.0000      0.00  
 
   Beginning WLM Backend Optimization
   --------------------------------------
-Information: In design 'ISP', the register 'dxiy2_reg[0]' is removed because it is merged to 'ixdy2_reg[0]'. (OPT-1215)
-Information: In design 'ISP', the register 'ixiy2_reg[0]' is removed because it is merged to 'ixdy2_reg[0]'. (OPT-1215)
-Information: In design 'ISP', the register 'dxdy2_reg[0]' is removed because it is merged to 'ixdy2_reg[0]'. (OPT-1215)
+Information: In design 'ISP', the register 'ixiy2_reg[1]' is removed because it is merged to 'ixiy2_reg[2]'. (OPT-1215)
+Information: In design 'ISP', the register 'dxdy2_reg[1]' is removed because it is merged to 'ixiy2_reg[2]'. (OPT-1215)
+Information: In design 'ISP', the register 'ixdy2_reg[0]' is removed because it is merged to 'dxiy2_reg[0]'. (OPT-1215)
+Information: In design 'ISP', the register 'ixiy2_reg[0]' is removed because it is merged to 'dxiy2_reg[0]'. (OPT-1215)
+Information: In design 'ISP', the register 'dxdy2_reg[0]' is removed because it is merged to 'dxiy2_reg[0]'. (OPT-1215)
 Information: In design 'ISP', the register 'ixdy2_reg[1]' is removed because it is merged to 'dxiy2_reg[1]'. (OPT-1215)
-Information: In design 'ISP', the register 'ixiy2_reg[2]' is removed because it is merged to 'ixiy2_reg[1]'. (OPT-1215)
-Information: In design 'ISP', the register 'dxdy2_reg[1]' is removed because it is merged to 'ixiy2_reg[1]'. (OPT-1215)
-    0:01:24  784924.0      1.36      65.6       1.1                           66247804.0000      0.00  
-    0:01:24  780632.9      1.32      62.5       1.1                           65820508.0000      0.00  
-    0:01:25  780859.1      0.71      37.9       1.1                           65890276.0000      0.00  
-    0:01:25  780859.1      0.71      37.9       1.1                           65890276.0000      0.00  
-    0:01:27  780100.7      0.71      36.3       0.0                           63591424.0000      0.00  
-    0:01:27  780100.7      0.71      36.3       0.0                           63591424.0000      0.00  
-    0:01:38  797128.5      0.49      29.1       0.0                           66649112.0000      0.00  
-    0:01:38  797128.5      0.49      29.1       0.0                           66649112.0000      0.00  
-    0:01:38  797388.0      0.48      27.5       0.0                           66702332.0000      0.00  
-    0:01:38  797388.0      0.48      27.5       0.0                           66702332.0000      0.00  
-    0:01:48  807204.2      0.42      23.8       0.0                           68436920.0000      0.00  
-    0:01:48  807204.2      0.42      23.8       0.0                           68436920.0000      0.00  
-    0:01:50  809675.7      0.24      13.4       0.0                           69005680.0000      0.00  
-    0:01:50  809675.7      0.24      13.4       0.0                           69005680.0000      0.00  
-    0:01:54  812267.0      0.23      12.4       0.0                           69483720.0000      0.00  
-    0:01:54  812267.0      0.23      12.4       0.0                           69483720.0000      0.00  
-    0:01:57  814036.6      0.16       7.6       0.0                           69822712.0000      0.00  
-    0:01:57  814036.6      0.16       7.6       0.0                           69822712.0000      0.00  
-    0:01:58  814232.9      0.15       7.5       0.0                           69863832.0000      0.00  
-    0:01:58  814232.9      0.15       7.5       0.0                           69863832.0000      0.00  
-    0:01:59  814572.2      0.14       7.0       0.0                           69934408.0000      0.00  
-    0:01:59  814572.2      0.14       7.0       0.0                           69934408.0000      0.00  
-    0:02:00  814715.2      0.14       7.0       0.0                           69952344.0000      0.00  
-    0:02:01  814439.1      0.09       4.5       0.0                           69879312.0000      0.00  
-    0:02:04  819378.8      0.09       3.8       0.0                           70665824.0000      0.00  
+    0:01:20  812240.4      1.40      89.6       0.0                           69503664.0000      0.00  
+    0:01:20  808341.8      1.35      87.1       0.0                           69165472.0000      0.00  
+    0:01:21  808890.7      0.41      36.5       3.1                           69343960.0000      0.00  
+    0:01:21  808890.7      0.41      36.5       3.1                           69343960.0000      0.00  
+    0:01:23  807377.2      0.41      30.8       3.1                           66802316.0000      0.00  
+    0:01:23  807377.2      0.41      30.8       3.1                           66802316.0000      0.00  
+    0:01:24  810853.3      0.38      30.6       3.1                           67432576.0000      0.00  
+    0:01:24  810853.3      0.38      30.6       3.1                           67432576.0000      0.00  
+    0:01:24  811402.1      0.37      30.4       3.1                           67543440.0000      0.00  
+    0:01:24  811402.1      0.37      30.4       3.1                           67543440.0000      0.00  
+    0:01:25  815437.0      0.36      30.3       3.1                           68270512.0000      0.00  
+    0:01:25  815437.0      0.36      30.3       3.1                           68270512.0000      0.00  
+    0:01:31  825376.3      0.18      17.2       3.1                           70213784.0000      0.00  
+    0:01:31  825376.3      0.18      17.2       3.1                           70213784.0000      0.00  
+    0:01:31  825499.4      0.18      17.2       3.1                           70233808.0000      0.00  
+    0:01:31  825499.4      0.18      17.2       3.1                           70233808.0000      0.00  
+    0:01:33  827445.3      0.15      11.8       3.1                           70595808.0000      0.00  
+    0:01:33  827445.3      0.15      11.8       3.1                           70595808.0000      0.00  
+    0:01:34  828825.8      0.14      10.7       3.1                           70820120.0000      0.00  
+    0:01:34  828825.8      0.14      10.7       3.1                           70820120.0000      0.00  
+    0:01:35  829504.4      0.14       9.7       3.1                           70937344.0000      0.00  
+    0:01:35  829504.4      0.14       9.7       3.1                           70937344.0000      0.00  
+    0:01:35  829504.4      0.14       9.7       3.1                           70937344.0000      0.00  
+
+
+  Beginning Design Rule Fixing  (max_capacitance)
+  ----------------------------
+
+                                  TOTAL                                                            
+   ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE   MIN DELAY 
+    TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER      COST    
+  --------- --------- --------- --------- --------- ------------------------- --------- -----------
+    0:01:35  829504.4      0.14       9.7       3.1                           70937344.0000      0.00  
+  Global Optimization (Phase 32)
+  Global Optimization (Phase 33)
+  Global Optimization (Phase 34)
+    0:01:36  830299.4      0.09       5.9       0.0                           71131864.0000      0.00  
+    0:01:37  831972.6      0.10       6.0       0.0                           71416992.0000      0.00  
 
 
   Beginning Leakage Power Optimization  (max_leakage_power 0)
@@ -687,10 +879,7 @@ Information: In design 'ISP', the register 'dxdy2_reg[1]' is removed because it 
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE   MIN DELAY 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER      COST    
   --------- --------- --------- --------- --------- ------------------------- --------- -----------
-    0:02:04  819378.8      0.09       3.8       0.0                           70665824.0000      0.00  
-  Global Optimization (Phase 32)
-  Global Optimization (Phase 33)
-  Global Optimization (Phase 34)
+    0:01:37  831972.6      0.10       6.0       0.0                           71416992.0000      0.00  
   Global Optimization (Phase 35)
   Global Optimization (Phase 36)
   Global Optimization (Phase 37)
@@ -704,47 +893,54 @@ Information: In design 'ISP', the register 'dxdy2_reg[1]' is removed because it 
   Global Optimization (Phase 45)
   Global Optimization (Phase 46)
   Global Optimization (Phase 47)
-    0:02:20  802597.1      0.07       2.7       0.0 g_out_reg[11]/D           66343868.0000      0.00  
-    0:02:20  802793.4      0.05       2.1       0.0                           66372212.0000      0.00  
-    0:02:24  805773.8      0.07       2.3       0.0                           66916448.0000      0.00  
-    0:02:24  805773.8      0.07       2.3       0.0                           66916448.0000      0.00  
-    0:02:25  797274.9      0.06       2.4       0.0                           65241052.0000      0.00  
-    0:02:25  797274.9      0.06       2.4       0.0                           65241052.0000      0.00  
-    0:02:27  797414.6      0.06       2.2       0.0                           65263432.0000      0.00  
-    0:02:27  797414.6      0.06       2.2       0.0                           65263432.0000      0.00  
-    0:02:27  797507.7      0.06       2.0       0.0                           65279656.0000      0.00  
-    0:02:27  797507.7      0.06       2.0       0.0                           65279656.0000      0.00  
-    0:02:29  798921.5      0.07       2.6       0.0                           65549864.0000      0.00  
-    0:02:29  798921.5      0.07       2.6       0.0                           65549864.0000      0.00  
-    0:02:32  800361.8      0.01       0.1       0.7                           65890916.0000      0.00  
-    0:02:32  800361.8      0.01       0.1       0.7                           65890916.0000      0.00  
-    0:02:34  800897.3      0.01       0.1       0.7                           65982432.0000      0.00  
-    0:02:34  800897.3      0.01       0.1       0.7                           65982432.0000      0.00  
-    0:02:34  800907.3      0.01       0.0       1.7                           65984536.0000      0.00  
-    0:02:34  800907.3      0.01       0.0       1.7                           65984536.0000      0.00  
-    0:02:35  800907.3      0.01       0.0       1.7                           65984536.0000      0.00  
-    0:02:35  800907.3      0.01       0.0       1.7                           65984536.0000      0.00  
-    0:02:35  800907.3      0.01       0.0       1.7                           65984536.0000      0.00  
-    0:02:35  800907.3      0.01       0.0       1.7                           65984536.0000      0.00  
-    0:02:35  800907.3      0.01       0.0       1.7                           65984536.0000      0.00  
+  Global Optimization (Phase 48)
+  Global Optimization (Phase 49)
+  Global Optimization (Phase 50)
+    0:01:54  828180.5      0.06       5.6       0.0                           69814984.0000      0.00  
+    0:01:55  829803.8      0.06       5.5       0.0                           70110560.0000      0.00  
+    0:01:55  829803.8      0.06       5.5       0.0                           70110560.0000      0.00  
+    0:01:56  821354.7      0.06       4.3       0.0                           68356584.0000      0.00  
+    0:01:56  821354.7      0.06       4.3       0.0                           68356584.0000      0.00  
+    0:01:57  822392.5      0.06       4.3       0.0                           68549976.0000      0.00  
+    0:01:57  822392.5      0.06       4.3       0.0                           68549976.0000      0.00  
+    0:01:57  822402.5      0.06       4.3       0.0                           68551080.0000      0.00  
+    0:01:57  822402.5      0.06       4.3       0.0                           68551080.0000      0.00  
+    0:01:57  822402.5      0.06       4.3       0.0                           68551080.0000      0.00  
+    0:01:57  822402.5      0.06       4.3       0.0                           68551080.0000      0.00  
+    0:01:58  823666.5      0.05       2.0      12.1                           68829832.0000      0.00  
+    0:01:58  823666.5      0.05       2.0      12.1                           68829832.0000      0.00  
+    0:01:58  823666.5      0.05       2.0      12.1                           68829832.0000      0.00  
+    0:01:58  823666.5      0.05       2.0      12.1                           68829832.0000      0.00  
+    0:01:58  823666.5      0.05       2.0      12.1                           68829832.0000      0.00  
+    0:01:58  823666.5      0.05       2.0      12.1                           68829832.0000      0.00  
+    0:01:58  823666.5      0.05       2.0      12.1                           68829832.0000      0.00  
+    0:01:58  823666.5      0.05       2.0      12.1                           68829832.0000      0.00  
+    0:01:58  823666.5      0.05       2.0      12.1                           68829832.0000      0.00  
+    0:01:58  823666.5      0.05       2.0      12.1                           68829832.0000      0.00  
+    0:01:58  823666.5      0.05       2.0      12.1                           68829832.0000      0.00  
 
                                   TOTAL                                                            
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE   MIN DELAY 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER      COST    
   --------- --------- --------- --------- --------- ------------------------- --------- -----------
-    0:02:36  800890.7      0.01       0.1       1.7                           65985952.0000      0.00  
-    0:02:39  793386.3      0.02       0.1       1.7                           64640628.0000      0.00  
-    0:02:39  793319.8      0.00       0.0       1.7                           64624240.0000      0.00  
-    0:02:39  793319.8      0.00       0.0       1.7                           64624240.0000      0.00  
-    0:02:40  790382.6      0.00       0.0       1.7                           63888492.0000      0.00  
-    0:02:47  789434.6      0.00       0.0       0.1                           63686044.0000      0.00  
-    0:02:47  789417.9      0.00       0.0       0.0                           63597848.0000      0.00  
-    0:02:47  789417.9      0.00       0.0       0.0                           63597848.0000      0.00  
-    0:02:47  789417.9      0.00       0.0       0.0                           63597848.0000      0.00  
-    0:02:47  789417.9      0.00       0.0       0.0                           63597848.0000      0.00  
-    0:02:47  789417.9      0.00       0.0       0.0                           63597848.0000      0.00  
-    0:02:47  789417.9      0.00       0.0       0.0                           63597848.0000      0.00  
-    0:02:48  786610.4      0.00       0.0       0.0                           63297468.0000      0.00  
+    0:02:00  823666.5      0.05       2.0      12.1                           68829832.0000      0.00  
+    0:02:01  818171.3      0.05       1.7      12.1                           68195248.0000      0.00  
+    0:02:01  818138.1      0.05       1.7      12.1                           68192672.0000      0.00  
+    0:02:01  818138.1      0.05       1.7      12.1                           68192672.0000      0.00  
+    0:02:02  817612.5      0.05       1.7      12.1                           67739592.0000      0.00  
+    0:02:10  816341.8      0.05       1.8      12.1                           67618648.0000      0.00  
+    0:02:11  817286.5      0.04       1.7       1.9 G_xy_reg3_reg[9]/D        67636560.0000      0.00  
+    0:02:12  818291.1      0.02       0.9      12.2 G_xy_reg3_reg[5]/D        67809488.0000      0.00  
+    0:02:13  818520.6      0.02       0.6       0.0 G_xy_reg3_reg[8]/D        67832536.0000      0.00  
+    0:02:14  818783.4      0.01       0.2       0.0 G_xy_reg3_reg[8]/D        67845624.0000      0.00  
+    0:02:14  819152.6      0.00       0.0       0.0 G_xy_reg3_reg[8]/D        67905016.0000      0.00  
+    0:02:15  819215.8      0.00       0.0       0.0                           67914496.0000      0.00  
+    0:02:15  819215.8      0.00       0.0       0.0                           67914496.0000      0.00  
+    0:02:15  819215.8      0.00       0.0       0.0                           67914496.0000      0.00  
+    0:02:15  819215.8      0.00       0.0       0.0                           67914496.0000      0.00  
+    0:02:15  819215.8      0.00       0.0       0.0                           67914496.0000      0.00  
+    0:02:15  819215.8      0.00       0.0       0.0                           67914496.0000      0.00  
+    0:02:16  815234.1      0.00       0.0       0.0                           67500064.0000      0.00  
 Loading db file '/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/umc018/Synthesis/slow.db'
 
 
@@ -754,7 +950,7 @@ Note: Symbol # after min delay cost means estimated hold TNS across all active s
   Optimization Complete
   ---------------------
 Warning: Design 'ISP' contains 1 high-fanout nets. A fanout number of 1000 will be used for delay calculations involving these nets. (TIM-134)
-     Net 'clk': 6343 load(s), 1 driver(s)
+     Net 'clk': 6502 load(s), 1 driver(s)
 Information: State dependent leakage is now switched from off to on.
 Information: Propagating switching activity (low effort zero delay simulation). (PWR-6)
 1
@@ -820,7 +1016,7 @@ report_area
 Report : area
 Design : ISP
 Version: T-2022.03
-Date   : Mon Mar 16 00:10:28 2026
+Date   : Mon Mar 16 00:46:46 2026
 ****************************************
 
 Library(s) Used:
@@ -828,21 +1024,21 @@ Library(s) Used:
     slow (File: /RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/umc018/Synthesis/slow.db)
 
 Number of ports:                           65
-Number of nets:                         24259
-Number of cells:                        23076
-Number of combinational cells:          16727
-Number of sequential cells:              6343
+Number of nets:                         24816
+Number of cells:                        23877
+Number of combinational cells:          17368
+Number of sequential cells:              6502
 Number of macros/black boxes:               0
-Number of buf/inv:                       3824
-Number of references:                     133
+Number of buf/inv:                       4364
+Number of references:                     156
 
-Combinational area:             340470.351059
-Buf/Inv area:                    39890.190129
-Noncombinational area:          446140.098137
+Combinational area:             352152.667073
+Buf/Inv area:                    46170.433541
+Noncombinational area:          463081.453339
 Macro/Black Box area:                0.000000
 Net Interconnect area:      undefined  (No wire load specified)
 
-Total cell area:                786610.449196
+Total cell area:                815234.120412
 Total area:                 undefined
 1
 report_timing 
@@ -854,7 +1050,7 @@ Report : timing
         -max_paths 1
 Design : ISP
 Version: T-2022.03
-Date   : Mon Mar 16 00:10:28 2026
+Date   : Mon Mar 16 00:46:46 2026
 ****************************************
 
  # A fanout number of 1000 was used for high fanout net computations.
@@ -862,9 +1058,9 @@ Date   : Mon Mar 16 00:10:28 2026
 Operating Conditions: slow   Library: slow
 Wire Load Model Mode: top
 
-  Startpoint: demos_win_x_reg_3_
+  Startpoint: ixdy2_reg_10_
               (rising edge-triggered flip-flop clocked by clk)
-  Endpoint: r_out_reg_7_
+  Endpoint: G_xy_reg3_reg_8_
             (rising edge-triggered flip-flop clocked by clk)
   Path Group: clk
   Path Type: max
@@ -873,54 +1069,38 @@ Wire Load Model Mode: top
   -----------------------------------------------------------
   clock clk (rise edge)                    0.00       0.00
   clock network delay (ideal)              0.00       0.00
-  demos_win_x_reg_3_/CK (DFFRHQX4)         0.00 #     0.00 r
-  demos_win_x_reg_3_/Q (DFFRHQX4)          0.36       0.36 r
-  U10449/Y (NAND2X4)                       0.10       0.45 f
-  U10448/Y (NOR2X4)                        0.14       0.60 r
-  U8531/Y (BUFX16)                         0.19       0.78 r
-  U8732/Y (INVX4)                          0.10       0.88 f
-  U10397/Y (NAND3BXL)                      0.18       1.06 r
-  U10005/Y (NAND3X2)                       0.17       1.23 f
-  U14440/Y (OAI21X2)                       0.19       1.42 r
-  U14294/Y (NAND2X2)                       0.12       1.53 f
-  U10492/Y (XNOR3X2)                       0.36       1.89 f
-  U14446/Y (OAI2BB1X4)                     0.22       2.11 f
-  U14683/Y (NAND2X4)                       0.11       2.22 r
-  U8960/Y (INVX2)                          0.05       2.27 f
-  U9972/Y (NOR2X2)                         0.20       2.47 r
-  U10063/Y (XOR2X4)                        0.32       2.79 r
-  U10683/Y (INVX2)                         0.09       2.88 f
-  U9264/Y (NAND2X2)                        0.10       2.98 r
-  U9255/Y (INVX3)                          0.07       3.05 f
-  U8774/CO (ADDFHX2)                       0.31       3.36 f
-  U9243/CO (ADDFHX2)                       0.25       3.61 f
-  U17606/CO (ADDFHX1)                      0.35       3.96 f
-  U14648/CO (ADDFHX1)                      0.39       4.35 f
-  U14513/S (ADDFHX4)                       0.40       4.74 f
-  U14289/Y (NAND2X1)                       0.09       4.84 r
-  U10382/Y (NAND3X1)                       0.11       4.95 f
-  U9159/Y (OAI2BB1X2)                      0.15       5.09 r
-  U10381/Y (OAI21X4)                       0.09       5.18 f
-  U10383/Y (NAND2X2)                       0.13       5.31 r
-  U14256/Y (NAND2X4)                       0.10       5.41 f
-  U14254/Y (NAND3X4)                       0.10       5.51 r
-  U14407/Y (NAND3X4)                       0.13       5.64 f
-  U14405/Y (AOI21X1)                       0.18       5.83 r
-  U17618/Y (XOR2X1)                        0.25       6.07 f
-  U17623/Y (NAND2X1)                       0.09       6.16 r
-  U14724/Y (NAND2X1)                       0.07       6.23 f
-  r_out_reg_7_/D (DFFRHQXL)                0.00       6.23 f
-  data arrival time                                   6.23
+  ixdy2_reg_10_/CK (DFFRHQX4)              0.00 #     0.00 r
+  ixdy2_reg_10_/Q (DFFRHQX4)               0.38       0.38 r
+  U14305/Y (XOR2X4)                        0.30       0.68 r
+  U13871/Y (NAND2X4)                       0.14       0.82 f
+  U13590/Y (NOR2X1)                        0.13       0.95 r
+  U8989/Y (INVXL)                          0.07       1.02 f
+  U8774/Y (NAND2X1)                        0.14       1.16 r
+  U14178/CO (ADDFHX4)                      0.50       1.66 r
+  U13971/S (ADDFHX2)                       0.34       1.99 f
+  U13873/S (ADDFHX2)                       0.34       2.34 r
+  U13968/CO (ADDFHX2)                      0.45       2.79 r
+  U13969/CO (ADDFHX2)                      0.46       3.24 r
+  U13608/Y (XOR3X2)                        0.29       3.53 r
+  U13862/S (ADDFHX4)                       0.37       3.90 f
+  U16158/Y (NOR2X4)                        0.14       4.04 r
+  U14429/Y (OAI21X4)                       0.13       4.16 f
+  U14363/Y (AOI21X4)                       0.17       4.34 r
+  U14283/Y (OAI21X1)                       0.12       4.45 f
+  U16644/Y (AOI21X1)                       0.15       4.61 r
+  U16646/Y (XOR2X1)                        0.24       4.85 f
+  G_xy_reg3_reg_8_/D (DFFRX4)              0.00       4.85 f
+  data arrival time                                   4.85
 
-  clock clk (rise edge)                    6.60       6.60
-  clock network delay (ideal)              0.00       6.60
-  clock uncertainty                       -0.10       6.50
-  r_out_reg_7_/CK (DFFRHQXL)               0.00       6.50 r
-  library setup time                      -0.27       6.23
-  data required time                                  6.23
+  clock clk (rise edge)                    5.20       5.20
+  clock network delay (ideal)              0.00       5.20
+  clock uncertainty                       -0.10       5.10
+  G_xy_reg3_reg_8_/CK (DFFRX4)             0.00       5.10 r
+  library setup time                      -0.25       4.85
+  data required time                                  4.85
   -----------------------------------------------------------
-  data required time                                  6.23
-  data arrival time                                  -6.23
+  data required time                                  4.85
+  data arrival time                                  -4.85
   -----------------------------------------------------------
   slack (MET)                                         0.00
 
@@ -928,10 +1108,10 @@ Wire Load Model Mode: top
 1
 exit
 
-Memory usage for this session 332 Mbytes.
-Memory usage for this session including child processes 557 Mbytes.
-CPU usage for this session 368 seconds ( 0.10 hours ).
-Elapsed time for this session 182 seconds ( 0.05 hours ).
+Memory usage for this session 325 Mbytes.
+Memory usage for this session including child processes 565 Mbytes.
+CPU usage for this session 231 seconds ( 0.06 hours ).
+Elapsed time for this session 151 seconds ( 0.04 hours ).
 
 Thank you...
 
