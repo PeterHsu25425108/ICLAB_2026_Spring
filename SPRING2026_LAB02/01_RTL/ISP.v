@@ -1,23 +1,29 @@
 // =========================================================
 // Pipeline configuration
 // =========================================================
-`define PRE_STAGES       3  // Only blc1, blc2, and P3
-`define MID_STAGES 1        // the number of pipeline stages btw the DPC and Demos shift regs 
-`define POST_STAGES      3  // demos_buf[0] 鎖存 (1) + out_reg 鎖存 (1)
+// 嚴格定義的實體 Reg 級數 (不含 Shift Reg 寫入)
+`define PRE_STAGES       3  // blc1, blc2, P3
+`define MID_STAGES       2  // dpc_reg5, dpc_reg6
+`define POST_STAGES      1  // out_reg
 
 `define TARGET_LATENCY   256
 
 // Demosaicing 3x3 視窗中心需要的延遲 (1 row + 1 pixel = 17)
 `define DEMOS_CENTER_IDX 17
-`define DEMOS_REG_CNT    35  // 至少需要 2 rows + 3 pixels 以涵蓋 3x3 視窗
+`define DEMOS_REG_CNT    35  
 
-// DPC 5x5 視窗中心需要的延遲，扣除前後級與 Demosaic 的延遲
-`define DPC_CENTER_IDX   (`TARGET_LATENCY - `PRE_STAGES - `POST_STAGES - `DEMOS_CENTER_IDX - 1) //  256 - 3 - 3 - 17 - 1 = 232
-`define DPC_REG_CNT      (`DPC_CENTER_IDX + 35) // = 267
+// DPC 5x5 視窗中心需要的延遲
+// 公式解析：總延遲 - (實體Reg總數) - (Demos長度) - 2 (因為兩次寫入 Shift Reg 零號位址各消耗 1 cycle)
+`define DPC_CENTER_IDX   (`TARGET_LATENCY - `PRE_STAGES - `MID_STAGES - `POST_STAGES - `DEMOS_CENTER_IDX - 2) // 算出來會是 231
+`define DPC_REG_CNT      (`DPC_CENTER_IDX + 35) 
 
+// =========================================================
 // Flow control tap 點 (決定何時觸發座標計數)
-`define DPC_VALID_TAP_IDX   (`PRE_STAGES + `DPC_CENTER_IDX) // 3 + 232 = 235
-// `define DEMOS_VALID_TAP_IDX (`DPC_VALID_TAP_IDX + 1 + `DEMOS_CENTER_IDX) // 235 + 1 + 17 = 253
+// =========================================================
+// DPC 觸發點 = 前級延遲 + DPC中心點
+`define DPC_VALID_TAP_IDX   (`PRE_STAGES + `DPC_CENTER_IDX)
+
+// Demos 觸發點 = DPC觸發點 + 1 (寫入 demos_buf[0] 的成本) + 中間級延遲 + Demos中心點
 `define DEMOS_VALID_TAP_IDX (`DPC_VALID_TAP_IDX + 1 + `MID_STAGES + `DEMOS_CENTER_IDX)
 
 
@@ -701,45 +707,51 @@ always @(*) begin : DPC_window_assign_logic
     end
 end
 
-// Window values obtained, now perform DPC computations
-
 // =========================================================
-// 1. Find the medians on the 4 directions
+// Stage 6: Pipeline the 4 directional vectors from DPC_WIN5X5
+// =========================================================
+reg [11:0] h_reg5_0,  h_reg5_1,  h_reg5_2,  h_reg5_3;
+reg [11:0] v_reg5_0,  v_reg5_1,  v_reg5_2,  v_reg5_3;
+reg [11:0] d1_reg5_0, d1_reg5_1, d1_reg5_2, d1_reg5_3;
+reg [11:0] d2_reg5_0, d2_reg5_1, d2_reg5_2, d2_reg5_3;
+reg [11:0] center_p_reg5;
+
+always @(posedge clk or negedge rst_n) begin : DPC_stage5_to_6
+    if(!rst_n) begin
+        h_reg5_0 <= 0; h_reg5_1 <= 0; h_reg5_2 <= 0; h_reg5_3 <= 0;
+        v_reg5_0 <= 0; v_reg5_1 <= 0; v_reg5_2 <= 0; v_reg5_3 <= 0;
+        d1_reg5_0 <= 0; d1_reg5_1 <= 0; d1_reg5_2 <= 0; d1_reg5_3 <= 0;
+        d2_reg5_0 <= 0; d2_reg5_1 <= 0; d2_reg5_2 <= 0; d2_reg5_3 <= 0;
+        center_p_reg5 <= 0;
+    end else begin
+        // 取出水平、垂直、對角線的 16 個點與 1 個中心點
+        h_reg5_0 <= DPC_WIN5X5[2][0]; h_reg5_1 <= DPC_WIN5X5[2][1]; h_reg5_2 <= DPC_WIN5X5[2][3]; h_reg5_3 <= DPC_WIN5X5[2][4];
+        v_reg5_0 <= DPC_WIN5X5[0][2]; v_reg5_1 <= DPC_WIN5X5[1][2]; v_reg5_2 <= DPC_WIN5X5[3][2]; v_reg5_3 <= DPC_WIN5X5[4][2];
+        d1_reg5_0 <= DPC_WIN5X5[0][0]; d1_reg5_1 <= DPC_WIN5X5[1][1]; d1_reg5_2 <= DPC_WIN5X5[3][3]; d1_reg5_3 <= DPC_WIN5X5[4][4];
+        d2_reg5_0 <= DPC_WIN5X5[0][4]; d2_reg5_1 <= DPC_WIN5X5[1][3]; d2_reg5_2 <= DPC_WIN5X5[3][1]; d2_reg5_3 <= DPC_WIN5X5[4][0];
+        center_p_reg5 <= DPC_WIN5X5[2][2];
+    end
+end
+
+// Window values obtained, now perform DPC computations
+// =========================================================
+// 1. Find the medians on the 4 directions (Stage 6 Combinational)
 // =========================================================
 wire [11:0] sort_h_0, sort_h_1, sort_h_2, sort_h_3;
-Sorter4 sort_h(
-    .in0(DPC_WIN5X5[2][0]),
-    .in1(DPC_WIN5X5[2][1]),
-    .in2(DPC_WIN5X5[2][3]),
-    .in3(DPC_WIN5X5[2][4]),
-    // .out0(sort_h_0),
-    .out1(sort_h_1),
-    .out2(sort_h_2)
-    // .out3(sort_h_3)
-);
-// wire [11:0] med_h = (sort_h_1 + sort_h_2) >> 1;
+Sorter4 sort_h(.in0(h_reg5_0), .in1(h_reg5_1), .in2(h_reg5_2), .in3(h_reg5_3),
+               .out1(sort_h_1), .out2(sort_h_2));
 
 wire [11:0] sort_v_0, sort_v_1, sort_v_2, sort_v_3;
-Sorter4 sort_v(
-    .in0(DPC_WIN5X5[0][2]), 
-    .in1(DPC_WIN5X5[1][2]), 
-    .in2(DPC_WIN5X5[3][2]), 
-    .in3(DPC_WIN5X5[4][2]),
-    /*.out0(sort_v_0),*/ 
-    .out1(sort_v_1), 
-    .out2(sort_v_2) /*.out3(sort_v_3)*/
-);
-// wire [11:0] med_v = (sort_v_1 + sort_v_2) >> 1;
+Sorter4 sort_v(.in0(v_reg5_0), .in1(v_reg5_1), .in2(v_reg5_2), .in3(v_reg5_3),
+               .out1(sort_v_1), .out2(sort_v_2));
 
 wire [11:0] sort_d1_0, sort_d1_1, sort_d1_2, sort_d1_3;
-Sorter4 sort_d1(.in0(DPC_WIN5X5[0][0]), .in1(DPC_WIN5X5[1][1]), .in2(DPC_WIN5X5[3][3]), .in3(DPC_WIN5X5[4][4]),
-                /*.out0(sort_d1_0),*/ .out1(sort_d1_1), .out2(sort_d1_2) /*.out3(sort_d1_3)*/);
-// wire [11:0] med_d1 = (sort_d1_1 + sort_d1_2) >> 1;
+Sorter4 sort_d1(.in0(d1_reg5_0), .in1(d1_reg5_1), .in2(d1_reg5_2), .in3(d1_reg5_3),
+                .out1(sort_d1_1), .out2(sort_d1_2));
 
 wire [11:0] sort_d2_0, sort_d2_1, sort_d2_2, sort_d2_3;
-Sorter4 sort_d2(.in0(DPC_WIN5X5[0][4]), .in1(DPC_WIN5X5[1][3]), .in2(DPC_WIN5X5[3][1]), .in3(DPC_WIN5X5[4][0]),
-                /*.out0(sort_d2_0),*/ .out1(sort_d2_1), .out2(sort_d2_2) /*.out3(sort_d2_3)*/);
-// wire [11:0] med_d2 = (sort_d2_1 + sort_d2_2) >> 1;
+Sorter4 sort_d2(.in0(d2_reg5_0), .in1(d2_reg5_1), .in2(d2_reg5_2), .in3(d2_reg5_3),
+                .out1(sort_d2_1), .out2(sort_d2_2));
 
 wire [11:0] med_h = ({1'b0, sort_h_1} + sort_h_2) >> 1;
 wire [11:0] med_v = ({1'b0, sort_v_1} + sort_v_2) >> 1;
@@ -749,61 +761,49 @@ wire [11:0] med_d2 = ({1'b0, sort_d2_1} + sort_d2_2) >> 1;
 // =========================================================
 // 2. Sum of SAD scores on 4 dirs
 // =========================================================
-wire [11:0] diff_h0 = (DPC_WIN5X5[2][0] > med_h) ? DPC_WIN5X5[2][0] - med_h : med_h - DPC_WIN5X5[2][0];
-wire [11:0] diff_h1 = (DPC_WIN5X5[2][1] > med_h) ? DPC_WIN5X5[2][1] - med_h : med_h - DPC_WIN5X5[2][1];
-wire [11:0] diff_h2 = (DPC_WIN5X5[2][3] > med_h) ? DPC_WIN5X5[2][3] - med_h : med_h - DPC_WIN5X5[2][3];
-wire [11:0] diff_h3 = (DPC_WIN5X5[2][4] > med_h) ? DPC_WIN5X5[2][4] - med_h : med_h - DPC_WIN5X5[2][4];
+wire [11:0] diff_h0 = (h_reg5_0 > med_h) ? h_reg5_0 - med_h : med_h - h_reg5_0;
+wire [11:0] diff_h1 = (h_reg5_1 > med_h) ? h_reg5_1 - med_h : med_h - h_reg5_1;
+wire [11:0] diff_h2 = (h_reg5_2 > med_h) ? h_reg5_2 - med_h : med_h - h_reg5_2;
+wire [11:0] diff_h3 = (h_reg5_3 > med_h) ? h_reg5_3 - med_h : med_h - h_reg5_3;
 wire [13:0] sad_h = diff_h0 + diff_h1 + diff_h2 + diff_h3;
 
-wire [11:0] diff_v0 = (DPC_WIN5X5[0][2] > med_v) ? DPC_WIN5X5[0][2] - med_v : med_v - DPC_WIN5X5[0][2];
-wire [11:0] diff_v1 = (DPC_WIN5X5[1][2] > med_v) ? DPC_WIN5X5[1][2] - med_v : med_v - DPC_WIN5X5[1][2];
-wire [11:0] diff_v2 = (DPC_WIN5X5[3][2] > med_v) ? DPC_WIN5X5[3][2] - med_v : med_v - DPC_WIN5X5[3][2];
-wire [11:0] diff_v3 = (DPC_WIN5X5[4][2] > med_v) ? DPC_WIN5X5[4][2] - med_v : med_v - DPC_WIN5X5[4][2];
+wire [11:0] diff_v0 = (v_reg5_0 > med_v) ? v_reg5_0 - med_v : med_v - v_reg5_0;
+wire [11:0] diff_v1 = (v_reg5_1 > med_v) ? v_reg5_1 - med_v : med_v - v_reg5_1;
+wire [11:0] diff_v2 = (v_reg5_2 > med_v) ? v_reg5_2 - med_v : med_v - v_reg5_2;
+wire [11:0] diff_v3 = (v_reg5_3 > med_v) ? v_reg5_3 - med_v : med_v - v_reg5_3;
 wire [13:0] sad_v = diff_v0 + diff_v1 + diff_v2 + diff_v3;
 
-wire [11:0] diff_d10 = (DPC_WIN5X5[0][0] > med_d1) ? DPC_WIN5X5[0][0] - med_d1 : med_d1 - DPC_WIN5X5[0][0];
-wire [11:0] diff_d11 = (DPC_WIN5X5[1][1] > med_d1) ? DPC_WIN5X5[1][1] - med_d1 : med_d1 - DPC_WIN5X5[1][1];
-wire [11:0] diff_d12 = (DPC_WIN5X5[3][3] > med_d1) ? DPC_WIN5X5[3][3] - med_d1 : med_d1 - DPC_WIN5X5[3][3];
-wire [11:0] diff_d13 = (DPC_WIN5X5[4][4] > med_d1) ? DPC_WIN5X5[4][4] - med_d1 : med_d1 - DPC_WIN5X5[4][4];
+wire [11:0] diff_d10 = (d1_reg5_0 > med_d1) ? d1_reg5_0 - med_d1 : med_d1 - d1_reg5_0;
+wire [11:0] diff_d11 = (d1_reg5_1 > med_d1) ? d1_reg5_1 - med_d1 : med_d1 - d1_reg5_1;
+wire [11:0] diff_d12 = (d1_reg5_2 > med_d1) ? d1_reg5_2 - med_d1 : med_d1 - d1_reg5_2;
+wire [11:0] diff_d13 = (d1_reg5_3 > med_d1) ? d1_reg5_3 - med_d1 : med_d1 - d1_reg5_3;
 wire [13:0] sad_d1 = diff_d10 + diff_d11 + diff_d12 + diff_d13;
 
-wire [11:0] diff_d20 = (DPC_WIN5X5[0][4] > med_d2) ? DPC_WIN5X5[0][4] - med_d2 : med_d2 - DPC_WIN5X5[0][4];
-wire [11:0] diff_d21 = (DPC_WIN5X5[1][3] > med_d2) ? DPC_WIN5X5[1][3] - med_d2 : med_d2 - DPC_WIN5X5[1][3];
-wire [11:0] diff_d22 = (DPC_WIN5X5[3][1] > med_d2) ? DPC_WIN5X5[3][1] - med_d2 : med_d2 - DPC_WIN5X5[3][1];
-wire [11:0] diff_d23 = (DPC_WIN5X5[4][0] > med_d2) ? DPC_WIN5X5[4][0] - med_d2 : med_d2 - DPC_WIN5X5[4][0];
+wire [11:0] diff_d20 = (d2_reg5_0 > med_d2) ? d2_reg5_0 - med_d2 : med_d2 - d2_reg5_0;
+wire [11:0] diff_d21 = (d2_reg5_1 > med_d2) ? d2_reg5_1 - med_d2 : med_d2 - d2_reg5_1;
+wire [11:0] diff_d22 = (d2_reg5_2 > med_d2) ? d2_reg5_2 - med_d2 : med_d2 - d2_reg5_2;
+wire [11:0] diff_d23 = (d2_reg5_3 > med_d2) ? d2_reg5_3 - med_d2 : med_d2 - d2_reg5_3;
 wire [13:0] sad_d2 = diff_d20 + diff_d21 + diff_d22 + diff_d23;
 
-reg [11:0] med_h_reg5, med_v_reg5, med_d1_reg5, med_d2_reg5;
-reg [13:0] sad_h_reg5, sad_v_reg5, sad_d1_reg5, sad_d2_reg5;
-reg [11:0] center_p_reg5;
-always @(posedge clk or negedge rst_n) begin : DPC_stage6
+// =========================================================
+// Stage 7 Regs: Pipeline the Medians, SADs, and Center Pixel
+// =========================================================
+reg [11:0] med_h_reg6, med_v_reg6, med_d1_reg6, med_d2_reg6;
+reg [13:0] sad_h_reg6, sad_v_reg6, sad_d1_reg6, sad_d2_reg6;
+reg [11:0] center_p_reg6;
+
+always @(posedge clk or negedge rst_n) begin : DPC_stage6_to_7
     if(!rst_n) begin
-        med_h_reg5 <= 0;
-        med_v_reg5 <= 0;
-        med_d1_reg5 <= 0;
-        med_d2_reg5 <= 0;
-        sad_h_reg5 <= 0;
-        sad_v_reg5 <= 0;
-        sad_d1_reg5 <= 0;
-        sad_d2_reg5 <= 0;
-        center_p_reg5 <= 0;
+        med_h_reg6 <= 0; med_v_reg6 <= 0; med_d1_reg6 <= 0; med_d2_reg6 <= 0;
+        sad_h_reg6 <= 0; sad_v_reg6 <= 0; sad_d1_reg6 <= 0; sad_d2_reg6 <= 0;
+        center_p_reg6 <= 0;
     end
     else begin
-        med_h_reg5 <= med_h;
-        med_v_reg5 <= med_v;
-        med_d1_reg5 <= med_d1;
-        med_d2_reg5 <= med_d2;
-        sad_h_reg5 <= sad_h;
-        sad_v_reg5 <= sad_v;
-        sad_d1_reg5 <= sad_d1;
-        sad_d2_reg5 <= sad_d2;
-        center_p_reg5 <= DPC_WIN5X5[2][2];
+        med_h_reg6 <= med_h; med_v_reg6 <= med_v; med_d1_reg6 <= med_d1; med_d2_reg6 <= med_d2;
+        sad_h_reg6 <= sad_h; sad_v_reg6 <= sad_v; sad_d1_reg6 <= sad_d1; sad_d2_reg6 <= sad_d2;
+        center_p_reg6 <= center_p_reg5; // <--- 最重要的一步：把中心像素往下遞延，對齊時間軸
     end
 end
-
-// =========================================================
-// stage 6: Pipeline the med_h, med_v,..., med_d2 and sad_h,...sad_d2
-// =========================================================
 
 
 // =========================================================
@@ -812,28 +812,24 @@ end
 // =========================================================
 wire [13:0] min_sad_hv;
 wire [11:0] target_hv;
-wire sad_hv_comp = (sad_h_reg5 <= sad_v_reg5);
-assign min_sad_hv = (sad_hv_comp) ? sad_h_reg5 : sad_v_reg5;
-assign target_hv  = (sad_hv_comp) ? med_h_reg5 : med_v_reg5;
+assign min_sad_hv = (sad_h_reg6 <= sad_v_reg6) ? sad_h_reg6 : sad_v_reg6;
+assign target_hv  = (sad_h_reg6 <= sad_v_reg6) ? med_h_reg6 : med_v_reg6;
 
 wire [13:0] min_sad_d1d2;
 wire [11:0] target_d1d2;
-wire sad_d1d2_comp = (sad_d1_reg5 <= sad_d2_reg5);
-assign min_sad_d1d2 = (sad_d1d2_comp) ? sad_d1_reg5 : sad_d2_reg5;
-assign target_d1d2  = (sad_d1d2_comp) ? med_d1_reg5 : med_d2_reg5;
+assign min_sad_d1d2 = (sad_d1_reg6 <= sad_d2_reg6) ? sad_d1_reg6 : sad_d2_reg6;
+assign target_d1d2  = (sad_d1_reg6 <= sad_d2_reg6) ? med_d1_reg6 : med_d2_reg6;
 
-// wire [13:0] final_min_sad;
 wire [11:0] final_target;
-// assign final_min_sad = (min_sad_hv <= min_sad_d1d2) ? min_sad_hv : min_sad_d1d2;
 assign final_target  = (min_sad_hv <= min_sad_d1d2) ? target_hv  : target_d1d2;
 
 // =========================================================
 // 4. Replace the center pixel with the target if |P-target| > 320
 // =========================================================
-wire [11:0] diff_p_target = (center_p_reg5 > final_target) ? (center_p_reg5 - final_target) : (final_target - center_p_reg5);
+wire [11:0] diff_p_target = (center_p_reg6 > final_target) ? (center_p_reg6 - final_target) : (final_target - center_p_reg6);
 
 wire [11:0] dpc_corrected_pixel;
-assign dpc_corrected_pixel = (diff_p_target > 12'd320) ? final_target : center_p_reg5;
+assign dpc_corrected_pixel = (diff_p_target > 12'd320) ? final_target : center_p_reg6;
 
 
 // =========================================================
