@@ -172,26 +172,32 @@ module Sorter4(
     input [11:0] in1,
     input [11:0] in2,
     input [11:0] in3,
-    output [11:0] out0, // smallest
+    // output [11:0] out0, // smallest
     output [11:0] out1,
-    output [11:0] out2,
-    output [11:0] out3  // biggest
+    output [11:0] out2
+    // output [11:0] out3  // biggest
 );
 
     wire [11:0] cas01_big, cas01_small;
     CAS12 cas01(.a(in0), .b(in1), .bigVal(cas01_big), .smallVal(cas01_small));
     wire [11:0] cas23_big, cas23_small;
     CAS12 cas23(.a(in2), .b(in3), .bigVal(cas23_big), .smallVal(cas23_small));
-    wire [11:0] cas02_big, cas02_small;
-    CAS12 cas02(.a(cas01_small), .b(cas23_small), .bigVal(cas02_big), .smallVal(cas02_small));
-    wire [11:0] cas13_big, cas13_small;
-    CAS12 cas13(.a(cas01_big), .b(cas23_big), .bigVal(cas13_big), .smallVal(cas13_small));
+    wire [11:0] cas02_big/*, cas02_small*/;
+    // CAS12 cas02(.a(cas01_small), .b(cas23_small), .bigVal(cas02_big), .smallVal(cas02_small));
+    // do not need case02_small
+    assign cas02_big = (cas01_small > cas23_small) ? cas01_small : cas23_small;
+
+    wire [11:0] /*cas13_big,*/ cas13_small;
+    // CAS12 cas13(.a(cas01_big), .b(cas23_big), .bigVal(cas13_big), .smallVal(cas13_small));
+    // do not need case13_big
+    assign cas13_small = (cas01_big > cas23_big) ? cas23_big : cas01_big;
+
     wire [11:0] cas12_big, cas12_small;
     CAS12 cas12(.a(cas02_big), .b(cas13_small), .bigVal(cas12_big), .smallVal(cas12_small));
-    assign out0 = cas02_small;
+    // assign out0 = cas02_small;
     assign out1 = cas12_small;
     assign out2 = cas12_big;
-    assign out3 = cas13_big;
+    // assign out3 = cas13_big;
 endmodule
 
 module DemosMod(
@@ -667,7 +673,7 @@ always @(*) begin : DPC_window_assign_logic
         for(integer j=0;j<5;j=j+1) begin
             if(i >= winy_pix_lb && i <= winy_pix_ub && j >= winx_pix_lb && j <= winx_pix_ub) begin
                 // Note: DPC_WIN5X5[y][x], i -> y, j -> x
-                DPC_WIN5X5[i][j] = pixel_buf[`DPC_CENTER_IDX - (j-2) - (i-2)*16] & {12{dpc_win_trigger}};
+                DPC_WIN5X5[i][j] = pixel_buf[`DPC_CENTER_IDX - (j-2) - (i-2)*16] /*& {12{dpc_win_trigger}}*/;
             end
         end
     end
@@ -705,23 +711,38 @@ end
 // 1. Find the medians on the 4 directions
 // =========================================================
 wire [11:0] sort_h_0, sort_h_1, sort_h_2, sort_h_3;
-Sorter4 sort_h(.in0(DPC_WIN5X5[2][0]), .in1(DPC_WIN5X5[2][1]), .in2(DPC_WIN5X5[2][3]), .in3(DPC_WIN5X5[2][4]),
-                .out0(sort_h_0), .out1(sort_h_1), .out2(sort_h_2), .out3(sort_h_3));
+Sorter4 sort_h(
+    .in0(DPC_WIN5X5[2][0]),
+    .in1(DPC_WIN5X5[2][1]),
+    .in2(DPC_WIN5X5[2][3]),
+    .in3(DPC_WIN5X5[2][4]),
+    // .out0(sort_h_0),
+    .out1(sort_h_1),
+    .out2(sort_h_2)
+    // .out3(sort_h_3)
+);
 // wire [11:0] med_h = (sort_h_1 + sort_h_2) >> 1;
 
 wire [11:0] sort_v_0, sort_v_1, sort_v_2, sort_v_3;
-Sorter4 sort_v(.in0(DPC_WIN5X5[0][2]), .in1(DPC_WIN5X5[1][2]), .in2(DPC_WIN5X5[3][2]), .in3(DPC_WIN5X5[4][2]),
-                .out0(sort_v_0), .out1(sort_v_1), .out2(sort_v_2), .out3(sort_v_3));
+Sorter4 sort_v(
+    .in0(DPC_WIN5X5[0][2]), 
+    .in1(DPC_WIN5X5[1][2]), 
+    .in2(DPC_WIN5X5[3][2]), 
+    .in3(DPC_WIN5X5[4][2]),
+    /*.out0(sort_v_0),*/ 
+    .out1(sort_v_1), 
+    .out2(sort_v_2) /*.out3(sort_v_3)*/
+);
 // wire [11:0] med_v = (sort_v_1 + sort_v_2) >> 1;
 
 wire [11:0] sort_d1_0, sort_d1_1, sort_d1_2, sort_d1_3;
 Sorter4 sort_d1(.in0(DPC_WIN5X5[0][0]), .in1(DPC_WIN5X5[1][1]), .in2(DPC_WIN5X5[3][3]), .in3(DPC_WIN5X5[4][4]),
-                .out0(sort_d1_0), .out1(sort_d1_1), .out2(sort_d1_2), .out3(sort_d1_3));
+                /*.out0(sort_d1_0),*/ .out1(sort_d1_1), .out2(sort_d1_2) /*.out3(sort_d1_3)*/);
 // wire [11:0] med_d1 = (sort_d1_1 + sort_d1_2) >> 1;
 
 wire [11:0] sort_d2_0, sort_d2_1, sort_d2_2, sort_d2_3;
 Sorter4 sort_d2(.in0(DPC_WIN5X5[0][4]), .in1(DPC_WIN5X5[1][3]), .in2(DPC_WIN5X5[3][1]), .in3(DPC_WIN5X5[4][0]),
-                .out0(sort_d2_0), .out1(sort_d2_1), .out2(sort_d2_2), .out3(sort_d2_3));
+                /*.out0(sort_d2_0),*/ .out1(sort_d2_1), .out2(sort_d2_2) /*.out3(sort_d2_3)*/);
 // wire [11:0] med_d2 = (sort_d2_1 + sort_d2_2) >> 1;
 
 wire [11:0] med_h = ({1'b0, sort_h_1} + sort_h_2) >> 1;
@@ -770,9 +791,9 @@ wire [11:0] target_d1d2;
 assign min_sad_d1d2 = (sad_d1 <= sad_d2) ? sad_d1 : sad_d2;
 assign target_d1d2  = (sad_d1 <= sad_d2) ? med_d1 : med_d2;
 
-wire [13:0] final_min_sad;
+// wire [13:0] final_min_sad;
 wire [11:0] final_target;
-assign final_min_sad = (min_sad_hv <= min_sad_d1d2) ? min_sad_hv : min_sad_d1d2;
+// assign final_min_sad = (min_sad_hv <= min_sad_d1d2) ? min_sad_hv : min_sad_d1d2;
 assign final_target  = (min_sad_hv <= min_sad_d1d2) ? target_hv  : target_d1d2;
 
 // =========================================================
@@ -783,10 +804,6 @@ wire [11:0] diff_p_target = (center_p > final_target) ? (center_p - final_target
 
 wire [11:0] dpc_corrected_pixel;
 assign dpc_corrected_pixel = (diff_p_target > 12'd320) ? final_target : center_p;
-
-// =========================================================
-// 5. Reg output sent to the 6th stage, and also save the 3x3 window values for the demosaic stage to synchronize with the DPC output
-// =========================================================
 
 
 // =========================================================
@@ -811,7 +828,7 @@ end
 reg [1:0] demos_pix_lb_x, demos_pix_ub_x;
 reg [1:0] demos_pix_lb_y, demos_pix_ub_y;
 
-always @(*) begin
+always @(*) begin : demos_window_bound_logic
     // X boundary
     if      (demos_win_x == 0)  begin demos_pix_lb_x = 1; demos_pix_ub_x = 2; end
     else if (demos_win_x == 15) begin demos_pix_lb_x = 0; demos_pix_ub_x = 1; end
@@ -825,7 +842,7 @@ end
 
 // 3. 提取 3x3 視窗與鏡像填充
 reg [11:0] DEMOS_WIN3X3[2:0][2:0];
-always @(*) begin
+always @(*) begin : demos_window_logic
     for(integer i=0; i<3; i=i+1)
         for(integer j=0; j<3; j=j+1)
             DEMOS_WIN3X3[i][j] = 0;
@@ -929,6 +946,7 @@ always @(*) begin
     out_valid = out_valid_chain[`TARGET_LATENCY-1]; 
 end
 
+reg [11:0] r_out_reg, g_out_reg, b_out_reg;
 always @(posedge clk or negedge rst_n) begin : out_reg
     if(!rst_n) begin
         r_out <= 0;
@@ -936,9 +954,9 @@ always @(posedge clk or negedge rst_n) begin : out_reg
         b_out <= 0;
     end
     else begin //if (out_valid_chain[`TARGET_LATENCY-2]) begin // Evaluates 1 cycle before out_valid goes high
-        r_out <= R_clip;
-        g_out <= G_clip;
-        b_out <= B_clip;
+        r_out <= R_clip & {12{out_valid_chain[`TARGET_LATENCY-2]}};
+        g_out <= G_clip & {12{out_valid_chain[`TARGET_LATENCY-2]}};
+        b_out <= B_clip & {12{out_valid_chain[`TARGET_LATENCY-2]}};
     end
     // else begin
     //     // Forces outputs to strictly 0 when out_valid is low

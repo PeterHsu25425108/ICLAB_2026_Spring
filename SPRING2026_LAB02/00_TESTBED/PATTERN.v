@@ -16,13 +16,14 @@
 //
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //############################################################################
+`define PATTERN_CYCLE 20
 
 `ifdef RTL
-    `define CYCLE_TIME 13.1
+    `define CYCLE_TIME `PATTERN_CYCLE
 `endif
 
 `ifdef GATE
-    `define CYCLE_TIME 13.1
+    `define CYCLE_TIME `PATTERN_CYCLE
 `endif
 
 module PATTERN(
@@ -60,7 +61,7 @@ input [11:0] b_out;
 real CYCLE = `CYCLE_TIME;
 
 // ========== Parameter ==========
-parameter PATNUM = 10;     
+parameter PATNUM = 1000;     
 parameter IMG_HEIGHT = 16;  
 parameter IMG_WIDTH = 16;  
 parameter TOTAL_PIXELS = IMG_HEIGHT * IMG_WIDTH;  
@@ -72,11 +73,18 @@ parameter GAIN_WORDS = 4*MESH_SIZE;
 reg [11:0] all_gain [0:GAIN_WORDS-1];
 
 // ========== file path ==========
-parameter INPUT_FILE = "../00_TESTBED/input.txt";
-parameter GAIN_FILE = "../00_TESTBED/lsc_gain_map.txt";
-parameter OUTPUT_R_FILE = "../00_TESTBED/output_r_ccm.txt";
-parameter OUTPUT_G_FILE = "../00_TESTBED/output_g_ccm.txt";
-parameter OUTPUT_B_FILE = "../00_TESTBED/output_b_ccm.txt";
+// parameter INPUT_FILE = "../00_TESTBED/input.txt";
+// parameter GAIN_FILE = "../00_TESTBED/lsc_gain_map.txt";
+// parameter OUTPUT_R_FILE = "../00_TESTBED/output_r_ccm.txt";
+// parameter OUTPUT_G_FILE = "../00_TESTBED/output_g_ccm.txt";
+// parameter OUTPUT_B_FILE = "../00_TESTBED/output_b_ccm.txt";
+
+parameter CASE_NAME = "case4";
+parameter INPUT_FILE = $sformatf("../00_TESTBED/%s/input.txt", CASE_NAME);
+parameter GAIN_FILE = $sformatf("../00_TESTBED/%s/lsc_gain_map.txt", CASE_NAME);
+parameter OUTPUT_R_FILE = $sformatf("../00_TESTBED/%s/output_r_ccm.txt", CASE_NAME);
+parameter OUTPUT_G_FILE = $sformatf("../00_TESTBED/%s/output_g_ccm.txt", CASE_NAME);
+parameter OUTPUT_B_FILE = $sformatf("../00_TESTBED/%s/output_b_ccm.txt", CASE_NAME);
 
 
 integer patcount, total_latency, wait_val_time;
