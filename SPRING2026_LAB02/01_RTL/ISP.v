@@ -1,14 +1,9 @@
-// state assignment
-`define IDLE 2'd0
-`define GAIN 2'd1
-`define IMG 2'd2
-`define OUT 2'd3
-
 // =========================================================
 // Pipeline configuration
 // =========================================================
 `define PRE_STAGES       3  // Only blc1, blc2, and P3
-`define POST_STAGES      2  // demos_buf[0] 鎖存 (1) + out_reg 鎖存 (1)
+`define MID_STAGES 1        // the number of pipeline stages btw the DPC and Demos shift regs 
+`define POST_STAGES      3  // demos_buf[0] 鎖存 (1) + out_reg 鎖存 (1)
 
 `define TARGET_LATENCY   256
 
@@ -17,12 +12,13 @@
 `define DEMOS_REG_CNT    35  // 至少需要 2 rows + 3 pixels 以涵蓋 3x3 視窗
 
 // DPC 5x5 視窗中心需要的延遲，扣除前後級與 Demosaic 的延遲
-`define DPC_CENTER_IDX   (`TARGET_LATENCY - `PRE_STAGES - `POST_STAGES - `DEMOS_CENTER_IDX - 1) // 233
-`define DPC_REG_CNT      (`DPC_CENTER_IDX + 35) // 268
+`define DPC_CENTER_IDX   (`TARGET_LATENCY - `PRE_STAGES - `POST_STAGES - `DEMOS_CENTER_IDX - 1) //  256 - 3 - 3 - 17 - 1 = 232
+`define DPC_REG_CNT      (`DPC_CENTER_IDX + 35) // = 267
 
 // Flow control tap 點 (決定何時觸發座標計數)
-`define DPC_VALID_TAP_IDX   (`PRE_STAGES + `DPC_CENTER_IDX) // 3 + 233 = 236
-`define DEMOS_VALID_TAP_IDX (`DPC_VALID_TAP_IDX + 1 + `DEMOS_CENTER_IDX) // 236 + 1 + 17 = 254
+`define DPC_VALID_TAP_IDX   (`PRE_STAGES + `DPC_CENTER_IDX) // 3 + 232 = 235
+// `define DEMOS_VALID_TAP_IDX (`DPC_VALID_TAP_IDX + 1 + `DEMOS_CENTER_IDX) // 235 + 1 + 17 = 253
+`define DEMOS_VALID_TAP_IDX (`DPC_VALID_TAP_IDX + 1 + `MID_STAGES + `DEMOS_CENTER_IDX)
 
 
 // A parameterized counter of arbitary number of bits
@@ -36,7 +32,7 @@ module Counter #(parameter N = 4, parameter latency = 5) (
     output reg [N-1:0] count
 );
 // wire active;
-reg [N-1:0] nxt_count;
+// reg [N-1:0] nxt_count;
 // reg nxt_out_valid;
 
 // always @(*) begin : nxt_count_logic
@@ -662,7 +658,7 @@ Coor2WinBounds win_bound_y (
 
 // DPC window value logic so we can fix the center of the 5x5 window on pixel_buf[WIN_CENTER_IDX]
 always @(*) begin : DPC_window_assign_logic
-    for (integer i=0;i<5;i=i+1) begin : pixel_valid_assign
+    for (integer i=0;i<5;i=i+1) begin : pixel_default_assign
         for(integer j=0;j<5;j=j+1) begin
             DPC_WIN5X5[i][j] = 0; // default value, will be overwritten in the padding step
         end
@@ -777,19 +773,54 @@ wire [11:0] diff_d22 = (DPC_WIN5X5[3][1] > med_d2) ? DPC_WIN5X5[3][1] - med_d2 :
 wire [11:0] diff_d23 = (DPC_WIN5X5[4][0] > med_d2) ? DPC_WIN5X5[4][0] - med_d2 : med_d2 - DPC_WIN5X5[4][0];
 wire [13:0] sad_d2 = diff_d20 + diff_d21 + diff_d22 + diff_d23;
 
+reg [11:0] med_h_reg5, med_v_reg5, med_d1_reg5, med_d2_reg5;
+reg [13:0] sad_h_reg5, sad_v_reg5, sad_d1_reg5, sad_d2_reg5;
+reg [11:0] center_p_reg5;
+always @(posedge clk or negedge rst_n) begin : DPC_stage6
+    if(!rst_n) begin
+        med_h_reg5 <= 0;
+        med_v_reg5 <= 0;
+        med_d1_reg5 <= 0;
+        med_d2_reg5 <= 0;
+        sad_h_reg5 <= 0;
+        sad_v_reg5 <= 0;
+        sad_d1_reg5 <= 0;
+        sad_d2_reg5 <= 0;
+        center_p_reg5 <= 0;
+    end
+    else begin
+        med_h_reg5 <= med_h;
+        med_v_reg5 <= med_v;
+        med_d1_reg5 <= med_d1;
+        med_d2_reg5 <= med_d2;
+        sad_h_reg5 <= sad_h;
+        sad_v_reg5 <= sad_v;
+        sad_d1_reg5 <= sad_d1;
+        sad_d2_reg5 <= sad_d2;
+        center_p_reg5 <= DPC_WIN5X5[2][2];
+    end
+end
+
+// =========================================================
+// stage 6: Pipeline the med_h, med_v,..., med_d2 and sad_h,...sad_d2
+// =========================================================
+
+
 // =========================================================
 // 3. Select the median of the dir with min SAD as the target
 // tie-breaking: H -> V -> D1 -> D2
 // =========================================================
 wire [13:0] min_sad_hv;
 wire [11:0] target_hv;
-assign min_sad_hv = (sad_h <= sad_v) ? sad_h : sad_v;
-assign target_hv  = (sad_h <= sad_v) ? med_h : med_v;
+wire sad_hv_comp = (sad_h_reg5 <= sad_v_reg5);
+assign min_sad_hv = (sad_hv_comp) ? sad_h_reg5 : sad_v_reg5;
+assign target_hv  = (sad_hv_comp) ? med_h_reg5 : med_v_reg5;
 
 wire [13:0] min_sad_d1d2;
 wire [11:0] target_d1d2;
-assign min_sad_d1d2 = (sad_d1 <= sad_d2) ? sad_d1 : sad_d2;
-assign target_d1d2  = (sad_d1 <= sad_d2) ? med_d1 : med_d2;
+wire sad_d1d2_comp = (sad_d1_reg5 <= sad_d2_reg5);
+assign min_sad_d1d2 = (sad_d1d2_comp) ? sad_d1_reg5 : sad_d2_reg5;
+assign target_d1d2  = (sad_d1d2_comp) ? med_d1_reg5 : med_d2_reg5;
 
 // wire [13:0] final_min_sad;
 wire [11:0] final_target;
@@ -799,15 +830,14 @@ assign final_target  = (min_sad_hv <= min_sad_d1d2) ? target_hv  : target_d1d2;
 // =========================================================
 // 4. Replace the center pixel with the target if |P-target| > 320
 // =========================================================
-wire [11:0] center_p = DPC_WIN5X5[2][2];
-wire [11:0] diff_p_target = (center_p > final_target) ? (center_p - final_target) : (final_target - center_p);
+wire [11:0] diff_p_target = (center_p_reg5 > final_target) ? (center_p_reg5 - final_target) : (final_target - center_p_reg5);
 
 wire [11:0] dpc_corrected_pixel;
-assign dpc_corrected_pixel = (diff_p_target > 12'd320) ? final_target : center_p;
+assign dpc_corrected_pixel = (diff_p_target > 12'd320) ? final_target : center_p_reg5;
 
 
 // =========================================================
-// stage 6: Demosaicing
+// stage 7: Demosaicing + CCM
 // =========================================================
 
 // 1. Demosaicing Shift Register
