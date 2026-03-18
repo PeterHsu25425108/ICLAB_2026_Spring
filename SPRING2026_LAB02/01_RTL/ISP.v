@@ -1,55 +1,42 @@
 // =========================================================
 // Pipeline configuration
 // =========================================================
-// 嚴格定義的實體 Reg 級數 (不含 Shift Reg 寫入)
+// Strictly defined physical register stages (excluding shift-register write cycles)
 `define PRE_STAGES       3  // blc1, blc2, P3
 `define MID_STAGES       3  // dpc_reg5, dpc_reg6, dpc_reg7
 `define POST_STAGES      2  // out_reg
 
 `define TARGET_LATENCY   256
 
-// Demosaicing 3x3 視窗中心需要的延遲 (1 row + 1 pixel = 17)
+// Delay to reach the center of the 3x3 demosaic window (1 row + 1 pixel = 17)
 `define DEMOS_CENTER_IDX 17
 `define DEMOS_REG_CNT    35  
 
-// DPC 5x5 視窗中心需要的延遲
-// 公式解析：總延遲 - (實體Reg總數) - (Demos長度) - 2 (因為兩次寫入 Shift Reg 零號位址各消耗 1 cycle)
-`define DPC_CENTER_IDX   (`TARGET_LATENCY - `PRE_STAGES - `MID_STAGES - `POST_STAGES - `DEMOS_CENTER_IDX - 2) // 算出來會是 230
+// Delay to reach the center of the 5x5 DPC window
+// Formula: total latency - (physical register stages) - (demos length) - 2
+// (two writes to shift-register index 0, each consuming 1 cycle)
+`define DPC_CENTER_IDX   (`TARGET_LATENCY - `PRE_STAGES - `MID_STAGES - `POST_STAGES - `DEMOS_CENTER_IDX - 2) // Evaluates to 230
 `define DPC_REG_CNT      (`DPC_CENTER_IDX + 35) 
 
 // =========================================================
-// Flow control tap 點 (決定何時觸發座標計數)
+// Flow-control tap points (determine when to trigger coordinate counters)
 // =========================================================
-// DPC 觸發點 = 前級延遲 + DPC中心點
+// DPC trigger tap = pre-stage delay + DPC center index
 `define DPC_VALID_TAP_IDX   (`PRE_STAGES + `DPC_CENTER_IDX)
 
-// Demos 觸發點 = DPC觸發點 + 1 (寫入 demos_buf[0] 的成本) + 中間級延遲 + Demos中心點
+// Demos trigger tap = DPC trigger tap + 1 (cost to write demos_buf[0])
+//                  + middle-stage delay + demosaic center index
 `define DEMOS_VALID_TAP_IDX (`DPC_VALID_TAP_IDX + 1 + `MID_STAGES + `DEMOS_CENTER_IDX)
 
 
-// A parameterized counter of arbitary number of bits
+// A parameterized counter with arbitrary bit width
 module Counter #(parameter N = 4, parameter latency = 5) (
     input clk,
     input rst_n,
-    // input [1:0] state, // the counter can be reset once reaching certain UB depending on the current state
     input in_valid,
     input param_valid,
-    // output reg out_valid,
     output reg [N-1:0] count
 );
-// wire active;
-// reg [N-1:0] nxt_count;
-// reg nxt_out_valid;
-
-// always @(*) begin : nxt_count_logic
-//     nxt_count = active ? (count + 1) : 0;
-// end
-
-// always @(*) begin : nxt_out_valid_logic
-//     nxt_out_valid = active & (&count ^ ~in_valid);
-// end
-
-// assign active = in_valid | out_valid;
 
 always @(posedge clk or negedge rst_n) begin : counter_transistion
     if(!rst_n) begin
@@ -273,23 +260,23 @@ module MedianOf4 (
     input  [11:0] in0, in1, in2, in3,
     output [11:0] out_med
 );
-    // 第一層：分組比較 (2 個比較器)
+    // Layer 1: pairwise grouping comparisons (2 comparators)
     wire [11:0] max1 = (in0 > in1) ? in0 : in1;
     wire [11:0] min1 = (in0 > in1) ? in1 : in0;
     
     wire [11:0] max2 = (in2 > in3) ? in2 : in3;
     wire [11:0] min2 = (in2 > in3) ? in3 : in2;
     
-    // 第二層：找出中間的兩個數 (2 個比較器)
-    wire [11:0] mid_high = (max1 < max2) ? max1 : max2; // 兩個大數挑小的
-    wire [11:0] mid_low  = (min1 > min2) ? min1 : min2; // 兩個小數挑大的
+    // Layer 2: find the two middle values (2 comparators)
+    wire [11:0] mid_high = (max1 < max2) ? max1 : max2; // pick the smaller of the two larger values
+    wire [11:0] mid_low  = (min1 > min2) ? min1 : min2; // pick the larger of the two smaller values
     
-    // 第三層：直接輸出平均值
+    // Layer 3: output the average directly
     assign out_med = ({1'b0, mid_high} + mid_low) >> 1;
 endmodule
 
 module ISP(
-    //Input Port
+    // Input ports
     clk,
     rst_n,
 
@@ -298,7 +285,7 @@ module ISP(
     param_valid,
     param_gain,
 
-    //Output Port
+    // Output ports
     out_valid,
     r_out,
     g_out,
@@ -342,7 +329,7 @@ assign x_pix = count[3:0]; // count % 16
 wire [8:0] ix, iy;
 wire [7:0] dx, dy;
 
-// counter: MAX count is 255
+// Counter: max count is 255
 Counter #(.N(8), .latency(`TARGET_LATENCY)) counter (
     .clk(clk),
     .rst_n(rst_n),
@@ -414,10 +401,10 @@ always @(posedge clk or negedge rst_n) begin : gain_buffer_storage
 end
 
 // ===================
-// stage 1: BLC
+// Stage 1: BLC
 // ===================
 
-// BLC corected input
+// BLC-corrected input
 wire [11:0] BLC_out;
 BLC blc(.in_data(in), .out(BLC_out), .x_odd(x_pix[0]), .y_odd(y_pix[0]), .in_valid(in_valid));
 
@@ -446,7 +433,7 @@ always @(posedge clk or negedge rst_n) begin : x_and_Y_stage1
 end
 
 // =========================================================
-// stage 2
+// Stage 2
 // =========================================================
 
 // apply LUT to compute i and d for x and y direction
@@ -492,24 +479,12 @@ always @(*) begin : gain_select_logic
             2'b11: color_ch = 2'd0; // B
     endcase
 
-    // TODO: confirm the indexing rule of gain_buf and pixel_buf and its correspondence with the input order and their coordinates
+    // TODO: verify gain_buf/pixel_buf indexing and mapping to input order/coordinates
     g00 = gain_buf[color_ch][y0][x0];
     g01 = gain_buf[color_ch][y0][x0+1];
     g10 = gain_buf[color_ch][y0+1][x0];
     g11 = gain_buf[color_ch][y0+1][x0+1];
 end
-
-// reg [3:0] x_pix2, y_pix2;
-// always @(posedge clk or negedge rst_n) begin : X_and_Y_stage2
-//     if(!rst_n) begin
-//         x_pix2 <= 0;
-//         y_pix2 <= 0;
-//     end
-//     else begin
-//         x_pix2 <= x_pix1;
-//         y_pix2 <= y_pix1;
-//     end
-// end
 
 reg [11:0] g00_reg, g01_reg, g10_reg, g11_reg;
 always @(posedge clk or negedge rst_n) begin : gain_stage2
@@ -557,7 +532,7 @@ always @(posedge clk or negedge rst_n) begin : i_and_d_stage2
 end
 
 // =========================================================
-// stage 3
+// Stage 3
 // =========================================================
 
 // multiply the gains to get G(x, y)
@@ -588,7 +563,7 @@ always @(posedge clk or negedge rst_n) begin : G_xy_stage3
 end
 
 // =========================================================
-// stage 4
+// Stage 4
 // =========================================================
 wire [13:0] PG_term;
 assign PG_term = (P_xy_reg3 * G_xy_reg3 + 24'd512) >> 10;
@@ -632,7 +607,7 @@ always @(posedge clk or negedge rst_n) begin : demos_coord_counter
 end
 
 // =========================================================
-// stage 5: DPC
+// Stage 5: DPC
 // =========================================================
 reg [3:0] x_pix5, y_pix5;
 always @(posedge clk or negedge rst_n) begin : X_and_Y_stage5
@@ -662,12 +637,12 @@ always @(posedge clk or negedge rst_n) begin : DPC_shift_reg
     end
 end
 
-// for debugging
+// Debug signal
 wire [11:0] CENTER_VAL = pixel_buf[`DPC_CENTER_IDX];
 
 // the nets we are assigning the window values to, so we can use them for the DPC computation
 reg [11:0] DPC_WIN5X5[4:0][4:0];
-// the range in where we should assingn pixel_buf value to in DPC_WIN5X5
+// Range where pixel_buf values should be assigned into DPC_WIN5X5
 wire [3:0] winx_pix_lb, winy_pix_ub, winx_pix_ub, winy_pix_lb;
 
 Coor2WinBounds win_bound_x (
@@ -701,7 +676,7 @@ always @(*) begin : DPC_window_assign_logic
     end
 
     // Step 1: horizontal padding
-    // Within the valid y range, clone the vlaues from the valid region to their mirrored counterparts
+    // Within the valid y range, clone values from the valid region to mirrored counterparts
     // e.g. if winx_pix_lb = 1, winx_pix_ub = 4, then we clone the values in col 2 to col 0
     for(integer i=0;i<5;i=i+1) begin : horizontal_padding
         for(integer j=0;j<5;j=j+1) begin // CHANGED: Scan all 5 columns
@@ -728,7 +703,7 @@ always @(*) begin : DPC_window_assign_logic
 end
 
 // =========================================================
-// Stage 6 Regs (MID_STAGE 1): 提取 16 個方向點與中心點
+// Stage 6 Registers (MID_STAGE 1): Extract 16 directional points and center point
 // =========================================================
 reg [11:0] h_reg5_0,  h_reg5_1,  h_reg5_2,  h_reg5_3;
 reg [11:0] v_reg5_0,  v_reg5_1,  v_reg5_2,  v_reg5_3;
@@ -763,7 +738,7 @@ MedianOf4 med_inst_d1(.in0(d1_reg5_0), .in1(d1_reg5_1), .in2(d1_reg5_2), .in3(d1
 MedianOf4 med_inst_d2(.in0(d2_reg5_0), .in1(d2_reg5_1), .in2(d2_reg5_2), .in3(d2_reg5_3), .out_med(med_d2));
 
 // =========================================================
-// Stage 7 Regs (MID_STAGE 2): Pipeline Medians 和 16 個方向點
+// Stage 7 Registers (MID_STAGE 2): Pipeline medians and 16 directional points
 // =========================================================
 reg [11:0] med_h_reg6, med_v_reg6, med_d1_reg6, med_d2_reg6;
 reg [11:0] h_reg6_0,  h_reg6_1,  h_reg6_2,  h_reg6_3;
@@ -783,7 +758,7 @@ always @(posedge clk or negedge rst_n) begin : DPC_stage6_to_7
     end else begin
         med_h_reg6 <= med_h; med_v_reg6 <= med_v; med_d1_reg6 <= med_d1; med_d2_reg6 <= med_d2;
         
-        // 將 16 個方向點延遲一級，與算好的 Median 時間對齊，以便算 SAD
+        // Delay 16 directional points by one stage to align with computed medians for SAD
         h_reg6_0 <= h_reg5_0; h_reg6_1 <= h_reg5_1; h_reg6_2 <= h_reg5_2; h_reg6_3 <= h_reg5_3;
         v_reg6_0 <= v_reg5_0; v_reg6_1 <= v_reg5_1; v_reg6_2 <= v_reg5_2; v_reg6_3 <= v_reg5_3;
         d1_reg6_0 <= d1_reg5_0; d1_reg6_1 <= d1_reg5_1; d1_reg6_2 <= d1_reg5_2; d1_reg6_3 <= d1_reg5_3;
@@ -821,7 +796,7 @@ wire [11:0] diff_d23 = (d2_reg6_3 > med_d2_reg6) ? d2_reg6_3 - med_d2_reg6 : med
 wire [13:0] sad_d2   = diff_d20 + diff_d21 + diff_d22 + diff_d23;
 
 // =========================================================
-// Stage 8 Regs (MID_STAGE 3): Pipeline SADs, Medians, and Center
+// Stage 8 Registers (MID_STAGE 3): Pipeline SADs, medians, and center
 // =========================================================
 reg [13:0] sad_h_reg7, sad_v_reg7, sad_d1_reg7, sad_d2_reg7;
 reg [11:0] med_h_reg7, med_v_reg7, med_d1_reg7, med_d2_reg7;
@@ -834,7 +809,7 @@ always @(posedge clk or negedge rst_n) begin : DPC_stage7_to_8
         center_p_reg7 <= 0;
     end else begin
         sad_h_reg7 <= sad_h; sad_v_reg7 <= sad_v; sad_d1_reg7 <= sad_d1; sad_d2_reg7 <= sad_d2;
-        // Median 與 Center 再往後延遲一級，與算好的 SAD 時間對齊
+        // Delay medians and center by one more stage to align with computed SAD values
         med_h_reg7 <= med_h_reg6; med_v_reg7 <= med_v_reg6; med_d1_reg7 <= med_d1_reg6; med_d2_reg7 <= med_d2_reg6;
         center_p_reg7 <= center_p_reg6;
     end
@@ -862,16 +837,16 @@ wire [11:0] dpc_corrected_pixel;
 assign dpc_corrected_pixel = (diff_p_target > 12'd320) ? final_target : center_p_reg7;
 
 // =========================================================
-// stage 8: Demosaicing + CCM
+// Stage 8: Demosaicing + CCM
 // =========================================================
 
-// 1. Demosaicing Shift Register
+// 1. Demosaicing shift register
 reg [11:0] demos_buf[`DEMOS_REG_CNT-1:0];
 always @(posedge clk or negedge rst_n) begin : DEMOS_shift_reg
     if(!rst_n) begin
         for(integer i = 0; i< `DEMOS_REG_CNT; i=i+1) demos_buf[i] <= 0;
     end else begin
-        // 第一個 reg 接收 DPC 校正後的輸出
+        // First register receives DPC-corrected output
         demos_buf[0] <= dpc_corrected_pixel;
         for(integer i = 1; i< `DEMOS_REG_CNT; i=i+1) begin
             demos_buf[i] <= demos_buf[i-1];
@@ -879,7 +854,7 @@ always @(posedge clk or negedge rst_n) begin : DEMOS_shift_reg
     end
 end
 
-// 2. 決定 3x3 視窗的有效邊界 (Reflect Padding)
+// 2. Determine valid bounds of the 3x3 window (reflect padding)
 reg [1:0] demos_pix_lb_x, demos_pix_ub_x;
 reg [1:0] demos_pix_lb_y, demos_pix_ub_y;
 
@@ -895,14 +870,14 @@ always @(*) begin : demos_window_bound_logic
     else                        begin demos_pix_lb_y = 0; demos_pix_ub_y = 2; end
 end
 
-// 3. 提取 3x3 視窗與鏡像填充
+// 3. Extract the 3x3 window and apply mirror padding
 reg [11:0] DEMOS_WIN3X3[2:0][2:0];
 always @(*) begin : demos_window_logic
     for(integer i=0; i<3; i=i+1)
         for(integer j=0; j<3; j=j+1)
             DEMOS_WIN3X3[i][j] = 0;
 
-    // a. 填入有效區域 
+    // a. Fill the valid region
     for(integer i=0; i<3; i=i+1) begin
         for(integer j=0; j<3; j=j+1) begin
             if(i >= demos_pix_lb_y && i <= demos_pix_ub_y && 
@@ -912,7 +887,7 @@ always @(*) begin : demos_window_logic
         end
     end
 
-    // b. 水平鏡像填充 (Horizontal Padding)
+    // b. Horizontal mirror padding
     for(integer i=0; i<3; i=i+1) begin
         for(integer j=0; j<3; j=j+1) begin
             if(j < demos_pix_lb_x)
@@ -922,7 +897,7 @@ always @(*) begin : demos_window_logic
         end
     end
 
-    // c. 垂直鏡像填充 (Vertical Padding)
+    // c. Vertical mirror padding
     for(integer j=0; j<3; j=j+1) begin
         for(integer i=0; i<3; i=i+1) begin
             if(i < demos_pix_lb_y)
@@ -933,26 +908,26 @@ always @(*) begin : demos_window_logic
     end
 end
 
-// Demos
+// Demosaicing core
 wire [11:0] Rout5, Gout5, Bout5;
 DemosMod demod(
     .NW(DEMOS_WIN3X3[0][0]),
     .N (DEMOS_WIN3X3[0][1]),
     .NE(DEMOS_WIN3X3[0][2]),
     .W (DEMOS_WIN3X3[1][0]),
-    .C (DEMOS_WIN3X3[1][1]), // 這是已經經過 DPC 校正的中心像素
+    .C (DEMOS_WIN3X3[1][1]), // Center pixel already corrected by DPC
     .E (DEMOS_WIN3X3[1][2]),
     .SW(DEMOS_WIN3X3[2][0]),
     .S (DEMOS_WIN3X3[2][1]),
     .SE(DEMOS_WIN3X3[2][2]),
-    .x (demos_win_x), // 使用 Demosaic 專屬座標
-    .y (demos_win_y), // 使用 Demosaic 專屬座標
+    .x (demos_win_x), // Use demosaic-specific coordinates
+    .y (demos_win_y), // Use demosaic-specific coordinates
     .Rout(Rout5),
     .Gout(Gout5),
     .Bout(Bout5)
 );
 
-// CCM (Not modularized to foster flexibility in pipelining)
+// CCM (not modularized to keep pipelining flexibility)
 
 // Extend to 13-bit signed to ensure correct signed multiplication
 wire signed [12:0] R_signed = {1'b0, Rout5};
@@ -960,7 +935,7 @@ wire signed [12:0] G_signed = {1'b0, Gout5};
 wire signed [12:0] B_signed = {1'b0, Bout5};
 
 // =========================================================
-// Stage 8 Regs (POST_STAGE 1): Pipelined Multiplier (Shift & 1st Add)
+// Stage 9 Registers (POST_STAGE 1): Pipelined multiplier (shift + first add)
 // =========================================================
 // 1100 = 1024 + 64 + 8 + 4
 // 50   = 32 + 16 + 2
@@ -1004,9 +979,9 @@ always @(posedge clk or negedge rst_n) begin : CCM_Mult_Pipeline_Stage
 end
 
 // =========================================================
-// Stage 9 Comb: 完成乘法相加與 CCM 矩陣運算
+// Stage 9 Combinational: Complete multiplier sums and CCM matrix operation
 // =========================================================
-// 將兩組暫存器相加，完成乘法的最後一步
+// Add the two partial-register groups to complete the final multiplication step
 wire signed [23:0] R_mul_1100 = r_1100_p1_reg9 + r_1100_p2_reg9;
 wire signed [23:0] G_mul_1100 = g_1100_p1_reg9 + g_1100_p2_reg9;
 wire signed [23:0] B_mul_1100 = b_1100_p1_reg9 + b_1100_p2_reg9;
@@ -1016,7 +991,7 @@ wire signed [23:0] G_mul_50 = g_50_p1_reg9 + g_50_p2_reg9;
 wire signed [23:0] B_mul_50 = b_50_p1_reg9 + b_50_p2_reg9;
 
 // ---------------------------------------------------------
-// CCM Addition Block
+// CCM addition block
 // ---------------------------------------------------------
 reg signed [23:0] Rmm, Gmm, Bmm;
 
@@ -1039,7 +1014,7 @@ wire [11:0] R_clip = (R_shift < 0) ? 12'd0 : (R_shift > 4095) ? 12'd4095 : R_shi
 wire [11:0] G_clip = (G_shift < 0) ? 12'd0 : (G_shift > 4095) ? 12'd4095 : G_shift[11:0];
 wire [11:0] B_clip = (B_shift < 0) ? 12'd0 : (B_shift > 4095) ? 12'd4095 : B_shift[11:0];
 
-// Trigger out_valid exactly when the data arrives
+// Assert out_valid exactly when output data becomes valid
 always @(*) begin
     out_valid = out_valid_chain[`TARGET_LATENCY-1]; 
 end
@@ -1051,17 +1026,11 @@ always @(posedge clk or negedge rst_n) begin : out_reg
         g_out <= 0;
         b_out <= 0;
     end
-    else begin //if (out_valid_chain[`TARGET_LATENCY-2]) begin // Evaluates 1 cycle before out_valid goes high
+    else begin
         r_out <= R_clip & {12{out_valid_chain[`TARGET_LATENCY-2]}};
         g_out <= G_clip & {12{out_valid_chain[`TARGET_LATENCY-2]}};
         b_out <= B_clip & {12{out_valid_chain[`TARGET_LATENCY-2]}};
     end
-    // else begin
-    //     // Forces outputs to strictly 0 when out_valid is low
-    //     r_out <= 0;
-    //     g_out <= 0;
-    //     b_out <= 0;
-    // end
 end
 
 endmodule
