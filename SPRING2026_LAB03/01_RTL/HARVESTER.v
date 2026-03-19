@@ -19,7 +19,7 @@ module HARVESTER(
     input               w_ready,
     input       [1:0]   b_resp,  
     input               b_valid,  
-    output reg          b_ready,
+    output reg          b_ready, // must be ready to recieve b_valid at any time
     output reg  [31:0]  ar_addr, 
     output reg          ar_valid, 
     input               ar_ready,
