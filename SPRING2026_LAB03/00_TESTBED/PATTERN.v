@@ -82,6 +82,18 @@ reg [63:0] calc_mode_golden [0:3]; // the golden outputs of the CALC mode
 reg [15:0] dram_idx; // index for dram access
 reg [63:0] out_cycle_data [0:255]; // 用於暫存輸出的資料方便在 check_ans_task 中比對，不一定填滿
 reg [63:0] expected_data; // 用於暫存預期資料的變數
+reg [63:0] dbg_golden;
+reg [63:0] dbg_udram;
+
+// Debug registers for SORT mode failures (easily visible in waveform)
+reg [63:0] sort_fail_actual_data;   // Actual DRAM data that caused mismatch
+reg [63:0] sort_fail_expected_data; // Expected golden data
+reg [63:0] sort_fail_actual_data_LAST;   // Actual DRAM data of the previous column (for context)
+reg [63:0] sort_fail_expected_data_LAST; // Expected golden data of the previous column (for context)
+reg [15:0] sort_fail_address;       // Full address {bank, row, col}
+reg [2:0]  sort_fail_bank_idx;      // Bank index of failure
+reg [5:0]  sort_fail_row_idx;       // Row index of failure
+reg [7:0]  sort_fail_col_idx;       // Column index of failure
 
 reg sys_rst = 0; // indicate if the sys has been reset
 // READ: check out_data == 指定的 in_bank 與 in_src_row (範圍 0~62) 內 Column 0~255 的 Golden 資料
@@ -96,6 +108,11 @@ reg sys_rst = 0; // indicate if the sys has been reset
 reg err_main1, err_main2, err_main3, err_main4, err_main5;
 reg err_axi1, err_axi2, err_axi3, err_axi4, err_axi5, err_axi6;
 
+always @(*) begin
+    dbg_golden = golden_DRAM[{2'd3, 6'd50, 8'd255}];
+    dbg_udram  = u_DRAM.DRAM[{2'd3, 6'd50, 8'd255}];
+end
+
 //---------------------------------------------------------------------
 //  CLOCK
 //---------------------------------------------------------------------
@@ -108,6 +125,9 @@ initial begin
     clk = 0;
     err_main1 = 0; err_main2 = 0; err_main3 = 0; err_main4 = 0; err_main5 = 0;
     err_axi1 = 0;  err_axi2 = 0;  err_axi3 = 0;  err_axi4 = 0;  err_axi5 = 0;  err_axi6 = 0;
+
+    // Fix random seed for reproducible error reproduction (SPEC_MAIN4_FAIL debugging)
+    // $srandom(12345);
 
     // Reset the system and check reset behavior(SPEC MAIN-1)
     reset_task;
@@ -276,10 +296,75 @@ reg [30:0] sort_key  [0:1023];
 reg [15:0] sort_addr [0:1023];
 
 integer b, c, idx;
-integer m, n;
-reg [63:0] temp_data;
-reg [30:0] temp_key;
-reg [15:0] temp_addr;
+
+function automatic pair_less;
+    input [30:0] key_a;
+    input [15:0] addr_a;
+    input [30:0] key_b;
+    input [15:0] addr_b;
+    begin
+        pair_less = (key_a < key_b) || ((key_a == key_b) && (addr_a < addr_b));
+    end
+endfunction
+
+function automatic pair_greater;
+    input [30:0] key_a;
+    input [15:0] addr_a;
+    input [30:0] key_b;
+    input [15:0] addr_b;
+    begin
+        pair_greater = (key_a > key_b) || ((key_a == key_b) && (addr_a > addr_b));
+    end
+endfunction
+
+task automatic quick_sort;
+    input integer left;
+    input integer right;
+
+    integer i, j;
+    integer pivot_idx;
+    reg [30:0] pivot_key;
+    reg [15:0] pivot_addr;
+    reg [63:0] temp_data;
+    reg [30:0] temp_key;
+    reg [15:0] temp_addr;
+    begin
+        i = left;
+        j = right;
+        pivot_idx = (left + right) >> 1;
+        pivot_key = sort_key[pivot_idx];
+        pivot_addr = sort_addr[pivot_idx];
+
+        while (i <= j) begin
+            while (i <= right && pair_less(sort_key[i], sort_addr[i], pivot_key, pivot_addr)) begin
+                i = i + 1;
+            end
+            while (j >= left && pair_greater(sort_key[j], sort_addr[j], pivot_key, pivot_addr)) begin
+                j = j - 1;
+            end
+
+            if (i <= j) begin
+                temp_key = sort_key[i];
+                sort_key[i] = sort_key[j];
+                sort_key[j] = temp_key;
+
+                temp_data = sort_data[i];
+                sort_data[i] = sort_data[j];
+                sort_data[j] = temp_data;
+
+                temp_addr = sort_addr[i];
+                sort_addr[i] = sort_addr[j];
+                sort_addr[j] = temp_addr;
+
+                i = i + 1;
+                j = j - 1;
+            end
+        end
+
+        if (left < j) quick_sort(left, j);
+        if (i < right) quick_sort(i, right);
+    end
+endtask
 // =========================================================================
 // Testcase Generation Task (Seperated from input_task for better readability and modularity)
 // =========================================================================
@@ -311,8 +396,8 @@ task gen_testcase; begin
             // Generate a random 64 bit number
             for (col_idx=0; col_idx<256; col_idx=col_idx+1) begin
                 // in_data_rand[col_idx] = { $urandom_range(0, 32'hffffffff), $urandom_range(0, 32'hffffffff) };
-                // in_data_rand[col_idx] = { $urandom(), $urandom() };
-                in_data_rand[col_idx] = { $urandom() & 32'h3FFFFFFF, $urandom() };
+                in_data_rand[col_idx] = { $urandom(), $urandom() };
+                // in_data_rand[col_idx] = { $urandom() & 32'h3FFFFFFF, $urandom() };
                 // 這裡也需要把這筆 in_data 存進 PATTERN 自己的 golden 陣列中！
                 golden_DRAM[{bank_rand, dst_row_rand, col_idx[7:0]}] = in_data_rand[col_idx]; // 存到對應的位址中
             end
@@ -348,33 +433,8 @@ task gen_testcase; begin
                 end
             end
 
-            // 2. 進行氣泡排序 (Bubble Sort) - 雖然軟體跑得慢，但對 1024 筆資料在 PATTERN 中是完全可接受的，且實作簡單
-            for (m = 0; m < 1023; m = m + 1) begin
-                for (n = 0; n < 1023 - m; n = n + 1) begin
-                    
-                    // 判斷是否需要交換 (Ascending Order)
-                    // 條件一：前面的 Key 大於 後面的 Key
-                    // 條件二：Key 相同，但前面的原始位址 大於 後面的原始位址 (Tie-breaking)
-                    if ( (sort_key[n] > sort_key[n+1]) || 
-                         (sort_key[n] === sort_key[n+1] && sort_addr[n] > sort_addr[n+1]) ) begin
-                        
-                        // 交換 Key
-                        temp_key = sort_key[n];
-                        sort_key[n] = sort_key[n+1];
-                        sort_key[n+1] = temp_key;
-                        
-                        // 交換 Data
-                        temp_data = sort_data[n];
-                        sort_data[n] = sort_data[n+1];
-                        sort_data[n+1] = temp_data;
-                        
-                        // 交換 Addr
-                        temp_addr = sort_addr[n];
-                        sort_addr[n] = sort_addr[n+1];
-                        sort_addr[n+1] = temp_addr;
-                    end
-                end
-            end
+            // 2. 進行快速排序 (Quick Sort)
+            quick_sort(0, 1023);
 
             // 3. 將排序好的 1024 筆資料寫回 golden_DRAM 的 dst_row_rand
             idx = 0;
@@ -443,6 +503,17 @@ task check_ans_task; begin
         for (bank_idx = 0; bank_idx < 4; bank_idx = bank_idx + 1) begin
             for (col_idx = 0; col_idx < 256; col_idx = col_idx + 1) begin
                 if (u_DRAM.DRAM[{bank_idx[1:0], dst_row_rand, col_idx[7:0]}] !== golden_DRAM[{bank_idx[1:0], dst_row_rand, col_idx[7:0]}]) begin
+                    // Capture failure data in debug registers for waveform inspection
+                    sort_fail_actual_data   = u_DRAM.DRAM[{bank_idx[1:0], dst_row_rand, col_idx[7:0]}];
+                    // look at col_idx -1
+                    sort_fail_actual_data_LAST = u_DRAM.DRAM[{bank_idx[1:0], dst_row_rand, col_idx[7:0] - 1}];
+                    sort_fail_expected_data = golden_DRAM[{bank_idx[1:0], dst_row_rand, col_idx[7:0]}];
+                    sort_fail_expected_data_LAST = golden_DRAM[{bank_idx[1:0], dst_row_rand, col_idx[7:0] - 1}];
+                    sort_fail_address       = {bank_idx[1:0], dst_row_rand, col_idx[7:0]};
+                    sort_fail_bank_idx      = bank_idx;
+                    sort_fail_row_idx       = dst_row_rand;
+                    sort_fail_col_idx       = col_idx[7:0];
+                    
                     $display("Mode: SORT, Error at Array Index: %d", col_idx + bank_idx*256);
                     $display("Source Row for this SORT pattern: %d", src_row_rand);
                     $display("Data mismatch at Bank %d, Row %d, Col %d! Expected: 0x%h, Got: 0x%h", bank_idx, dst_row_rand, col_idx, golden_DRAM[{bank_idx[1:0], dst_row_rand, col_idx[7:0]}], u_DRAM.DRAM[{bank_idx[1:0], dst_row_rand, col_idx[7:0]}]);
