@@ -669,31 +669,31 @@ always @(negedge clk) begin
         
         // 檢查 AW 通道 (Master 輸出)
         if (aw_valid === 1'b0 && aw_addr !== 32'd0) begin
-            if(`DEBUG) $display("SPEC AXI-1 FAIL: AW channel has invalid address when AW_VALID is low! AW_ADDR = 0x%h", aw_addr);
+            $display("SPEC AXI-1 FAIL: AW channel has invalid address when AW_VALID is low! AW_ADDR = 0x%h", aw_addr);
             err_axi1 = 1'b1;
         end
         
         // 檢查 W 通道 (Master 輸出)
         if (w_valid === 1'b0 && w_data !== 64'd0) begin
-            if(`DEBUG) $display("SPEC AXI-1 FAIL: W channel has invalid data when W_VALID is low! W_DATA = 0x%h", w_data);
+            $display("SPEC AXI-1 FAIL: W channel has invalid data when W_VALID is low! W_DATA = 0x%h", w_data);
             err_axi1 = 1'b1;
         end
         
         // 檢查 AR 通道 (Master 輸出)
         if (ar_valid === 1'b0 && ar_addr !== 32'd0) begin
-            if(`DEBUG) $display("SPEC AXI-1 FAIL: AR channel has invalid address when AR_VALID is low! AR_ADDR = 0x%h", ar_addr);
+            $display("SPEC AXI-1 FAIL: AR channel has invalid address when AR_VALID is low! AR_ADDR = 0x%h", ar_addr);
             err_axi1 = 1'b1;
         end
         
         // 檢查 B 通道 (Slave 輸出)
         if (b_valid === 1'b0 && b_resp !== 2'd0) begin
-            if(`DEBUG) $display("SPEC AXI-1 FAIL: B channel has invalid response when B_VALID is low! B_RESP = 0x%h", b_resp);
+            $display("SPEC AXI-1 FAIL: B channel has invalid response when B_VALID is low! B_RESP = 0x%h", b_resp);
             err_axi1 = 1'b1;
         end
         
         // 檢查 R 通道 (Slave 輸出)
         if (r_valid === 1'b0 && (r_data !== 64'd0 || r_resp !== 2'd0)) begin
-            if(`DEBUG) $display("SPEC AXI-1 FAIL: R channel has invalid data or response when R_VALID is low! R_DATA = 0x%h, R_RESP = 0x%h", r_data, r_resp);
+            $display("SPEC AXI-1 FAIL: R channel has invalid data or response when R_VALID is low! R_DATA = 0x%h, R_RESP = 0x%h", r_data, r_resp);
             err_axi1 = 1'b1;
         end
 
@@ -743,6 +743,8 @@ always @(negedge clk) begin
         // 【AW 通道檢查】
         if (aw_valid_d === 1'b1 && aw_ready_d === 1'b0) begin
             if (aw_valid !== 1'b1 || aw_addr !== aw_addr_d) begin
+                // print the timestamp and the error details for debugging
+                $display("SPEC AXI-2 FAIL at time %t: AW channel signals changed during handshake! Previous AW_VALID = %b, AW_ADDR = 0x%h; Current AW_VALID = %b, AW_ADDR = 0x%h", $time, aw_valid_d, aw_addr_d, aw_valid, aw_addr);
                 err_axi2 = 1'b1;
             end
         end
@@ -750,6 +752,7 @@ always @(negedge clk) begin
         // 【W 通道檢查】
         if (w_valid_d === 1'b1 && w_ready_d === 1'b0) begin
             if (w_valid !== 1'b1 || w_data !== w_data_d) begin
+                $display("SPEC AXI-2 FAIL at time %t: W channel signals changed during handshake! Previous W_VALID = %b, W_DATA = 0x%h; Current W_VALID = %b, W_DATA = 0x%h", $time, w_valid_d, w_data_d, w_valid, w_data);
                 err_axi2 = 1'b1;
             end
         end
@@ -757,6 +760,7 @@ always @(negedge clk) begin
         // 【AR 通道檢查】
         if (ar_valid_d === 1'b1 && ar_ready_d === 1'b0) begin
             if (ar_valid !== 1'b1 || ar_addr !== ar_addr_d) begin
+                $display("SPEC AXI-2 FAIL at time %t: AR channel signals changed during handshake! Previous AR_VALID = %b, AR_ADDR = 0x%h; Current AR_VALID = %b, AR_ADDR = 0x%h", $time, ar_valid_d, ar_addr_d, ar_valid, ar_addr);
                 err_axi2 = 1'b1;
             end
         end
@@ -764,6 +768,7 @@ always @(negedge clk) begin
         // 【B 通道檢查】
         if (b_valid_d === 1'b1 && b_ready_d === 1'b0) begin
             if (b_valid !== 1'b1 || b_resp !== b_resp_d) begin
+                $display("SPEC AXI-2 FAIL at time %t: B channel signals changed during handshake! Previous B_VALID = %b, B_RESP = 0x%h; Current B_VALID = %b, B_RESP = 0x%h", $time, b_valid_d, b_resp_d, b_valid, b_resp);
                 err_axi2 = 1'b1;
             end
         end
@@ -771,6 +776,7 @@ always @(negedge clk) begin
         // 【R 通道檢查】
         if (r_valid_d === 1'b1 && r_ready_d === 1'b0) begin
             if (r_valid !== 1'b1 || r_data !== r_data_d || r_resp !== r_resp_d) begin
+                $display("SPEC AXI-2 FAIL at time %t: R channel signals changed during handshake! Previous R_VALID = %b, R_DATA = 0x%h, R_RESP = 0x%h; Current R_VALID = %b, R_DATA = 0x%h, R_RESP = 0x%h", $time, r_valid_d, r_data_d, r_resp_d, r_valid, r_data, r_resp);
                 err_axi2 = 1'b1;
             end
         end
@@ -1006,6 +1012,8 @@ always @(negedge clk) begin
         case ({(w_valid && w_ready), (b_valid && b_ready)})
             2'b10: w_b_unmatched_cnt <= w_b_unmatched_cnt + 1; // W 送完，等待 B
             2'b01: w_b_unmatched_cnt <= w_b_unmatched_cnt - 1; // B 接收完畢，結案
+            // 2'b11: 同時交握，一加一減抵銷，計數器不變
+            // 2'b00: 都沒交握，計數器不變
             default: w_b_unmatched_cnt <= w_b_unmatched_cnt;
         endcase
 
