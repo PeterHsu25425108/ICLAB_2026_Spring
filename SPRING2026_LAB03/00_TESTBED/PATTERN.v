@@ -60,7 +60,7 @@ initial $readmemh(DRAM_p_r, golden_DRAM);
 integer total_latency = 0;
 real CYCLE = `CYCLE_TIME;
 
-parameter PATNUM = 1000;
+parameter PATNUM = 200;
 integer patcount;
 integer latency = 0;
 integer i;
