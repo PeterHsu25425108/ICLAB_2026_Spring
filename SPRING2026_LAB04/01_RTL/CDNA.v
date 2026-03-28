@@ -916,6 +916,63 @@ end
 
 endmodule
 
+module OutputBuffer #(parameter OUT_SIZE=128)(
+    input clk,
+    input rst_n,
+    input in_valid,         // 來自管線最後一級 (例如 Act3) 的 valid 訊號
+    input [31:0] in_data,   // 來自管線最後一級 (例如 Act3) 的 data
+    
+    output reg out_valid,   // 連接至 Top Module 的 out_valid
+    output reg [31:0] out_data // 連接至 Top Module 的 out_data
+);
+
+    reg [31:0] buffer [0:OUT_SIZE-1]; // 暫存最後一級的輸出
+    reg [7:0]  collect_cnt;  // 記錄收集了幾筆 (0~OUT_SIZE)
+    reg [7:0]  burst_cnt;    // 記錄輸出了幾筆 (0~OUT_SIZE)
+    reg        is_bursting;  // 是否正在連續輸出
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            collect_cnt <= 0;
+            burst_cnt   <= 0;
+            is_bursting <= 0;
+            out_valid   <= 0;
+            out_data    <= 0;
+        end else begin
+            // 1. 收集最後一級的輸出
+            if (in_valid) begin
+                buffer[collect_cnt] <= in_data;
+                collect_cnt <= collect_cnt + 1;
+            end
+
+            // 2. 判斷是否收集完畢，準備啟動爆發輸出
+            if (collect_cnt == OUT_SIZE && !is_bursting) begin
+                is_bursting <= 1'b1;
+            end
+
+            // 3. 連續 OUT_SIZ 拍的輸出邏輯
+            if (is_bursting && burst_cnt < OUT_SIZE) begin
+                out_valid <= 1'b1;
+                out_data  <= buffer[burst_cnt];
+                burst_cnt <= burst_cnt + 1;
+            end 
+            else if (burst_cnt == OUT_SIZE) begin
+                // 輸出完畢，全部狀態歸零，準備迎接下一張影像！
+                out_valid   <= 1'b0;
+                out_data    <= 32'b0;
+                is_bursting <= 1'b0;
+                collect_cnt <= 0;
+                burst_cnt   <= 0;
+            end
+            else begin
+                out_valid <= 1'b0;
+                out_data  <= 32'b0;
+            end
+        end
+    end
+
+endmodule
+
 module CDNA(
     // Input Port
     clk,
@@ -937,8 +994,8 @@ input         image_in_valid;
 input         weight_in_valid;
 input  [31:0] in_data;
 
-output reg        out_valid;
-output reg [31:0] out_data;
+output        out_valid;
+output [31:0] out_data;
 
 // IEEE floating point parameter
 parameter inst_sig_width = 23;
@@ -978,8 +1035,54 @@ reg [1:0] sw_pool0_fifo [0:31]; // 深度 32，供 Unpool1 使用
 reg [1:0] sw_pool1_fifo [0:7];  // 深度 8，供 Unpool0 使用
 integer k;
 
+// act_0 output
+wire [31:0] act0_out_data;
+wire act0_out_valid;
+
+// conv1 output
+wire [31:0] c1_out_data;
+wire c1_out_valid;
+
+// maxpool1 output
+wire [31:0] maxpool1_out_data;
+wire maxpool1_out_valid;
+wire [1:0] maxpool1_out_switch;
+
+// act1 output
+wire [31:0] act1_out_data;
+wire act1_out_valid;
+
+// unpool0 output
+wire [31:0] upool0_out_data;
+wire upool0_out_valid;
+
+// deconv0 output
+wire [31:0] dc0_out_data;
+wire dc0_out_valid;
+
+// act2 output
+wire [31:0] act2_out_data;
+wire act2_out_valid;
+
+// unpool1 output
+wire [31:0] upool1_out_data;
+wire upool1_out_valid;
+
+// deconv1 output
+wire [31:0] dc1_out_data;
+wire dc1_out_valid;
+
+// act3 output (final output)
+wire [31:0] act3_out_data;
+wire act3_out_valid;
+
 // main counter
 reg [8:0] main_counter;
+
+// the signals at the final computational stage
+// not yet serialized to be a consective output stream
+wire [31:0] final_stage_data;
+wire        final_stage_valid;
 
 always @(posedge clk or negedge rst_n) begin : main_cnt_logic
     if(!rst_n) begin
@@ -1060,7 +1163,7 @@ Conv2d #(.IN_WID(8)) u_Conv0 (
     .output_valid(c0_out_valid)
 );
 
-MaxPool #(8) u_maxpool0 (
+MaxPool #(.IN_WID(8)) u_maxpool0 (
     .clk(clk),
     .rst_n(rst_n),
     .in_data(c0_out_data),
@@ -1070,28 +1173,53 @@ MaxPool #(8) u_maxpool0 (
     .output_valid(maxpool0_out_valid) 
 );
 
+ActFunc u_Act0 (
+    .clk(clk),
+    .rst_n(rst_n),
+    .in_data(maxpool0_out_data),
+    .act_mode(act_mode),
+    .input_valid(maxpool0_out_valid),
+    .out_data(act0_out_data), // Connect to OutputBuffer
+    .output_valid(act0_out_valid) // Connect to OutputBuffer
+);
+
 // 當 MaxPool0 吐出有效結果時，把 2-bit Switch 推入 FIFO
-always @(posedge clk or negedge rst_n) begin
+always @(posedge clk or negedge rst_n) begin : switch_fifo_logic
     if (!rst_n) begin
         for (k = 0; k < 32; k = k + 1) begin
             sw_pool0_fifo[k] <= 0;
         end
+
+        for (k = 0; k < 8; k = k + 1) begin
+            sw_pool1_fifo[k] <= 0;
+        end
+
     end else if (maxpool0_out_valid) begin
         sw_pool0_fifo[31] <= maxpool0_out_switch; // 剛產生的訊號從尾端進入
         for (k = 0; k < 31; k = k + 1) begin
             sw_pool0_fifo[k] <= sw_pool0_fifo[k + 1]; // 依序往前推
         end
+
+        sw_pool1_fifo[31] <= maxpool1_out_switch; // 剛產生的訊號從尾端進入
+        for (k = 0; k < 7; k = k + 1) begin
+            sw_pool1_fifo[k] <= sw_pool1_fifo[k + 1]; // 依序往前推
+        end
     end
 end
 
-// ==== Output logic ======
-always @(posedge clk or negedge rst_n) begin : output_logic
-    if(!rst_n) begin
-        out_valid <= 0;
-        out_data <= 0;
-    end else begin
-        // out_valid <= (main_counter >= 145) ? 1 : 0;
-    end
-end
+
+// assign final_stage_data  = maxpool0_out_data;
+// assign final_stage_valid = maxpool0_out_valid;
+
+// assign final_stage_data  = act3_out_data;
+// assign final_stage_valid = act3_out_valid;
+// OutputBuffer #(.OUT_SIZE(128)) u_OutputBuffer  (
+//     .clk(clk),
+//     .rst_n(rst_n),
+//     .in_valid(final_stage_valid), // 吃管線最後一級的斷續 valid
+//     .in_data(final_stage_data),   // 吃管線最後一級的斷續 data
+//     .out_valid(out_valid),        // 直接輸出給 PATTERN 的連續 valid
+//     .out_data(out_data)           // 直接輸出給 PATTERN 的連續 data
+// );
 
 endmodule
