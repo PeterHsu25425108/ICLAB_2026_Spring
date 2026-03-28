@@ -61,16 +61,24 @@ wire shift_en    = input_valid | is_flushing;
 
 // [修正 2] 限制 window_valid 最多 128 個，防止 Flush 期間多產生垃圾視窗
 wire window_valid = shift_en && (shift_pulses >= IN_WID + 2) && (window_out_cnt < 2 * PIXELS_PER_CH);
-
 always @(posedge clk or negedge rst_n) begin : line_buffer_counters
     if (!rst_n) begin
         pixel_in_cnt   <= 0;
         window_out_cnt <= 0;
         shift_pulses   <= 0;
     end else begin
-        if (input_valid)  pixel_in_cnt   <= pixel_in_cnt + 1;
-        if (shift_en)     shift_pulses   <= shift_pulses + 1;
-        if (window_valid) window_out_cnt <= window_out_cnt + 1;
+        // 🌟 核心歸零機制：如果已經滿載 (128)，且又有新的 input_valid 進來，代表下一張圖來了！
+        if (input_valid && pixel_in_cnt == 2 * PIXELS_PER_CH) begin
+            pixel_in_cnt   <= 1;   // 新圖的第一個像素已經進來了，所以設為 1
+            window_out_cnt <= 0;   // 視窗輸出歸零
+            shift_pulses   <= 1;   // 已經移位了一次
+        end 
+        // 正常計數邏輯
+        else begin
+            if (input_valid)  pixel_in_cnt   <= pixel_in_cnt + 1;
+            if (shift_en)     shift_pulses   <= shift_pulses + 1;
+            if (window_valid) window_out_cnt <= window_out_cnt + 1;
+        end
     end
 end
 
@@ -96,6 +104,10 @@ reg [4:0] cx, cy;
 always @(posedge clk or negedge rst_n) begin : coordinate_tracker
     if (!rst_n) begin
         cx <= 0; 
+        cy <= 0;
+    end else if (input_valid && pixel_in_cnt == 2 * PIXELS_PER_CH) begin
+        // 🌟 換新影像時，座標強制歸零
+        cx <= 0;
         cy <= 0;
     end else if (window_valid) begin
         if (cx == IN_WID - 1) begin
@@ -354,16 +366,128 @@ end
 
 endmodule
 
-// module MaxPool#(parameter IN_WID= 8)(
-//     clk,
-//     rst_n,
-//     in_data,
-//     out_data,
-//     input_valid, // high when a nex input pixel is sent
-//     output_valid // notify the later stages a new pixel is being sent
-// );
+module MaxPool #(parameter IN_WID = 8)(
+    input clk,
+    input rst_n,
+    input [31:0] in_data,
+    input input_valid,
+    
+    output reg [31:0] out_data,
+    output reg [1:0]  out_switch,
+    output reg output_valid
+);
 
-// endmodule
+localparam SR_DEPTH = IN_WID / 2;
+
+// =======================================================================
+// 1. 完美自帶 Reset 的座標追蹤器
+// =======================================================================
+reg [4:0] cx, cy;
+always @(posedge clk or negedge rst_n) begin : coord_tracker
+    if (!rst_n) begin
+        cx <= 0; cy <= 0;
+    end else if (input_valid) begin
+        if (cx == IN_WID - 1) begin
+            cx <= 0;
+            if (cy == IN_WID - 1) cy <= 0;
+            else cy <= cy + 1;
+        end else begin
+            cx <= cx + 1;
+        end
+    end
+end
+
+wire is_top_row  = ~cy[0];
+wire is_bot_row  =  cy[0];
+wire is_even_col = ~cx[0]; // 0, 2, 4... (你不 Shift 的 Cycle)
+wire is_odd_col  =  cx[0]; // 1, 3, 5... (你執行環狀 Shift 的 Cycle)
+
+// =======================================================================
+// 2. 核心暫存器 (Delay Line) 
+// =======================================================================
+reg [31:0] sr [0 : SR_DEPTH - 1];
+reg [1:0]  pos_sr [0 : SR_DEPTH - 1];
+integer i;
+
+// =======================================================================
+// 3. 單一比較器與極簡 Data Path
+// =======================================================================
+// 第一格的定義：上半部 且 是偶數列
+wire is_first = is_top_row && is_even_col;
+
+// 你的神來之筆：永遠只跟 sr[0] 比較！
+wire [31:0] cmp_b = sr[0]; 
+
+wire a_gt_b;
+DW_fp_cmp #(23, 8, 0) u_cmp (
+    .a(in_data),
+    .b(cmp_b),
+    .zctr(1'b0),
+    .aeqb(), .altb(), .agtb(a_gt_b), .unordered(),
+    .z0(), .z1(), .status0(), .status1()
+);
+
+wire [31:0] next_max = is_first ? in_data : (a_gt_b ? in_data : cmp_b);
+
+wire [1:0] current_pos = {cy[0], cx[0]};
+wire [1:0] next_pos    = is_first ? current_pos : (a_gt_b ? current_pos : pos_sr[0]);
+
+// =======================================================================
+// 4. 時序更新邏輯 (你的環狀移位魔法)
+// =======================================================================
+always @(posedge clk or negedge rst_n) begin : update_and_output
+    if (!rst_n) begin
+        for (i = 0; i < SR_DEPTH; i = i + 1) begin
+            sr[i] <= 0; pos_sr[i] <= 0;
+        end
+        out_data <= 0; out_switch <= 0; output_valid <= 0;
+    end else begin
+        if (input_valid) begin
+            
+            // 【階段 A：偶數列 (x=0, 2, 4)】-> 不移位，sr[0] 充當 iter_max
+            if (is_even_col) begin
+                sr[0]     <= next_max;
+                pos_sr[0] <= next_pos;
+            end 
+            // 【階段 B：奇數列 (x=1, 3, 5)】-> 執行環狀移位 (Circular Shift)
+            else begin
+                if (SR_DEPTH == 1) begin
+                    // IN_WID=2 的特例保護
+                    sr[0]     <= next_max;
+                    pos_sr[0] <= next_pos;
+                end else begin
+                    // 1. 新的最大值推入 sr[1]
+                    sr[1]     <= next_max;
+                    pos_sr[1] <= next_pos;
+                    
+                    // 2. 陣列大風吹
+                    for (i = 2; i < SR_DEPTH; i = i + 1) begin
+                        sr[i]     <= sr[i - 1];
+                        pos_sr[i] <= pos_sr[i - 1];
+                    end
+                    
+                    // 3. 頭尾相接：把最舊的歷史紀錄繞回 sr[0]，完美準備給下一個 Cycle！
+                    sr[0]     <= sr[SR_DEPTH - 1];
+                    pos_sr[0] <= pos_sr[SR_DEPTH - 1];
+                end
+            end
+
+            // 【輸出控制】-> 依然只在右下角觸發
+            if (is_bot_row && is_odd_col) begin
+                out_data     <= next_max;
+                out_switch   <= next_pos;
+                output_valid <= 1'b1;
+            end else begin
+                output_valid <= 1'b0;
+            end
+            
+        end else begin
+            output_valid <= 1'b0;
+        end
+    end
+end
+
+endmodule
 
 // module UnPool#(parameter IN_WID= 8)(
 //     clk,
@@ -838,9 +962,21 @@ wire c0_out_valid;
 reg [7:0] weight_cnt;
 wire [31:0] pre_out_data;
 wire pre_out_valid;
-
-
 integer i;
+
+// maxpool output and control signal
+wire [31:0] maxpool0_out_data;
+wire maxpool0_out_valid;
+wire [1:0] maxpool0_out_switch; // 2-bit switch to indicate the position of the max value in the 2x2 grid
+
+wire [31:0] maxpool1_out_data;
+wire maxpool1_out_valid;
+wire [1:0] maxpool1_out_switch; // 2-bit switch to indicate the position of the max value in the 2x2 grid
+
+// store the position of maxpool output in ther 2x2 grid, will be used by unpooling
+reg [1:0] sw_pool0_fifo [0:31]; // 深度 32，供 Unpool1 使用
+reg [1:0] sw_pool1_fifo [0:7];  // 深度 8，供 Unpool0 使用
+integer k;
 
 // main counter
 reg [8:0] main_counter;
@@ -924,8 +1060,29 @@ Conv2d #(.IN_WID(8)) u_Conv0 (
     .output_valid(c0_out_valid)
 );
 
-// Instantiate u_Conv1, u_DeConv0, u_DeConv1 using w_valid_c1, w_valid_dc0, w_valid_dc1
-// ...
+MaxPool #(8) u_maxpool0 (
+    .clk(clk),
+    .rst_n(rst_n),
+    .in_data(c0_out_data),
+    .input_valid(c0_out_valid),
+    .out_data(maxpool0_out_data), 
+    .out_switch(maxpool0_out_switch), // Connect to FIFO for UnPool
+    .output_valid(maxpool0_out_valid) 
+);
+
+// 當 MaxPool0 吐出有效結果時，把 2-bit Switch 推入 FIFO
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        for (k = 0; k < 32; k = k + 1) begin
+            sw_pool0_fifo[k] <= 0;
+        end
+    end else if (maxpool0_out_valid) begin
+        sw_pool0_fifo[31] <= maxpool0_out_switch; // 剛產生的訊號從尾端進入
+        for (k = 0; k < 31; k = k + 1) begin
+            sw_pool0_fifo[k] <= sw_pool0_fifo[k + 1]; // 依序往前推
+        end
+    end
+end
 
 // ==== Output logic ======
 always @(posedge clk or negedge rst_n) begin : output_logic
