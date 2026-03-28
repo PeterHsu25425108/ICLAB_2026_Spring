@@ -3,27 +3,356 @@
 // ch = 2
 // kernel width = 3
 // stride = 1
-// module Conv2d #(parameter IN_WID= 8)(
-//     clk,
-//     rst_n,
-//     in_data,
-//     out_data,
-//     weight, // weights have been pre-stored in Conv0/1_weight or DeConv0/1_weight
-//     pad_mode,
-//     input_valid, // high when a nex input pixel is sent
-//     output_valid, // notify the later stages a new pixel is being sent
-//     done // sent 
-// );
-// input clk, rst_n;
-// input input_valid;
-// input [31:0] in_data;
-// input [31:0] weight[0:35];
-// input pad_mode;
+module Conv2d #(parameter IN_WID = 8)(
+    input clk,
+    input rst_n,
+    input [31:0] in_data,
+    input [31:0] in_weight,
+    input pad_mode,
+    input weight_valid,
+    input input_valid, 
+    output reg [31:0] out_data,     // 必須加 reg，因為在 always 區塊中賦值
+    output reg output_valid         // 必須加 reg，因為在 always 區塊中賦值
+);
 
-// output [31:0] out_data;
-// output output_valid, done;
+// =======================================================================
+// 0. Global Parameters & Constants
+// =======================================================================
+localparam PIXELS_PER_CH = IN_WID * IN_WID;
 
-// endmodule
+// =======================================================================
+// 1. Weight Input Logic
+// =======================================================================
+reg [31:0] weight [0:35];
+integer i;
+
+always @(posedge clk or negedge rst_n) begin : weight_input_block
+    if (!rst_n) begin
+        for (i = 0; i < 36; i = i + 1) begin
+            weight[i] <= 0;
+        end
+    end else begin
+        // Shift weights down when weight_valid is high
+        if (weight_valid) begin
+            weight[35] <= in_weight;
+            for (i = 0; i < 35; i = i + 1) begin
+                weight[i] <= weight[i + 1];
+            end
+        end
+    end
+end
+
+// =======================================================================
+// 2. Control Counters & Flush Logic
+// =======================================================================
+reg [10:0] pixel_in_cnt;   // Tracks total valid pixels received
+reg [10:0] window_out_cnt; // Tracks total valid 3x3 windows generated
+reg [10:0] shift_pulses;   // Tracks total shifts performed
+
+// [新增] 必須把 d1, d2 提早宣告，給下面的 is_flushing 使用
+reg [10:0] window_out_cnt_d1, window_out_cnt_d2; 
+
+// 通道指標：前 PIXELS_PER_CH 個 window 屬於 In_Ch 0 (in_ch_idx=0)
+wire in_ch_idx = (window_out_cnt >= PIXELS_PER_CH);
+
+// [修正 1] Flush 必須等管線最尾端 (d2) 也收齊 128 個才停止
+wire is_flushing = (pixel_in_cnt == 2 * PIXELS_PER_CH) && (window_out_cnt_d2 < 2 * PIXELS_PER_CH);
+wire shift_en    = input_valid | is_flushing; 
+
+// [修正 2] 限制 window_valid 最多 128 個，防止 Flush 期間多產生垃圾視窗
+wire window_valid = shift_en && (shift_pulses >= IN_WID + 2) && (window_out_cnt < 2 * PIXELS_PER_CH);
+
+always @(posedge clk or negedge rst_n) begin : line_buffer_counters
+    if (!rst_n) begin
+        pixel_in_cnt   <= 0;
+        window_out_cnt <= 0;
+        shift_pulses   <= 0;
+    end else begin
+        if (input_valid)  pixel_in_cnt   <= pixel_in_cnt + 1;
+        if (shift_en)     shift_pulses   <= shift_pulses + 1;
+        if (window_valid) window_out_cnt <= window_out_cnt + 1;
+    end
+end
+
+// =======================================================================
+// 3. Line Buffer & Padding Logic
+// =======================================================================
+reg [31:0] sr [0 : 2*IN_WID+2];
+integer j;
+
+always @(posedge clk or negedge rst_n) begin : shift_register_block
+    if (!rst_n) begin
+        for(j=0; j<2*IN_WID+3; j=j+1) sr[j] <= 32'b0;
+    end else if (shift_en) begin
+        sr[0] <= is_flushing ? 32'b0 : in_data; 
+        for(j=0; j<2*IN_WID+2; j=j+1) begin
+            sr[j+1] <= sr[j];
+        end
+    end
+end
+
+// Coordinate Tracker
+reg [4:0] cx, cy;
+always @(posedge clk or negedge rst_n) begin : coordinate_tracker
+    if (!rst_n) begin
+        cx <= 0; 
+        cy <= 0;
+    end else if (window_valid) begin
+        if (cx == IN_WID - 1) begin
+            cx <= 0;
+            if (cy == IN_WID - 1) begin
+                cy <= 0; 
+            end else begin
+                cy <= cy + 1;
+            end
+        end else begin
+            cx <= cx + 1;
+        end
+    end
+end
+
+// Boundary Flags & Padding MUXes
+wire top_bound   = (cy == 0);
+wire bot_bound   = (cy == IN_WID - 1);
+wire left_bound  = (cx == 0);
+wire right_bound = (cx == IN_WID - 1);
+
+reg [31:0] p00, p01, p02;
+reg [31:0] p10, p11, p12;
+reg [31:0] p20, p21, p22;
+
+always @(*) begin
+    p11 = sr[IN_WID + 1];
+
+    if (pad_mode == 1'b0) begin 
+        // Zero Padding
+        p00 = (top_bound | left_bound)  ? 32'b0 : sr[2*IN_WID + 2];
+        p01 = (top_bound)               ? 32'b0 : sr[2*IN_WID + 1];
+        p02 = (top_bound | right_bound) ? 32'b0 : sr[2*IN_WID];
+        p10 = (left_bound)              ? 32'b0 : sr[IN_WID + 2];
+        p12 = (right_bound)             ? 32'b0 : sr[IN_WID];
+        p20 = (bot_bound | left_bound)  ? 32'b0 : sr[2];
+        p21 = (bot_bound)               ? 32'b0 : sr[1];
+        p22 = (bot_bound | right_bound) ? 32'b0 : sr[0];
+    end else begin 
+        // Replication Padding
+        p00 = (top_bound & left_bound) ? sr[IN_WID + 1]   : 
+              (top_bound)              ? sr[IN_WID + 2]   : 
+              (left_bound)             ? sr[2*IN_WID + 1] : sr[2*IN_WID + 2];
+        p01 = (top_bound)              ? sr[IN_WID + 1]   : sr[2*IN_WID + 1];
+        p02 = (top_bound & right_bound)? sr[IN_WID + 1]   : 
+              (top_bound)              ? sr[IN_WID]       : 
+              (right_bound)            ? sr[2*IN_WID + 1] : sr[2*IN_WID];
+        p10 = (left_bound)             ? sr[IN_WID + 1]   : sr[IN_WID + 2];
+        p12 = (right_bound)            ? sr[IN_WID + 1]   : sr[IN_WID];
+        p20 = (bot_bound & left_bound) ? sr[IN_WID + 1]   : 
+              (bot_bound)              ? sr[IN_WID + 2]   : 
+              (left_bound)             ? sr[1]            : sr[2];
+        p21 = (bot_bound)              ? sr[IN_WID + 1]   : sr[1];
+        p22 = (bot_bound & right_bound)? sr[IN_WID + 1]   : 
+              (bot_bound)              ? sr[IN_WID]       : 
+              (right_bound)            ? sr[1]            : sr[0];
+    end
+end
+
+// =======================================================================
+// 4. Dynamic Weight Selection
+// =======================================================================
+wire [31:0] w0 [0:8];
+wire [31:0] w1 [0:8];
+
+genvar k;
+generate
+    for (k = 0; k < 9; k = k + 1) begin : weight_mux
+        assign w0[k] = in_ch_idx ? weight[k + 9]  : weight[k];
+        assign w1[k] = in_ch_idx ? weight[k + 27] : weight[k + 18];
+    end
+endgenerate
+
+// =======================================================================
+// 5. Pipeline Control Signals (Delay Registers)
+// =======================================================================
+reg valid_d1, valid_d2;
+reg in_ch_idx_d1, in_ch_idx_d2;
+
+always @(posedge clk or negedge rst_n) begin : pipeline_ctrl_logic
+    if (!rst_n) begin
+        valid_d1 <= 0; valid_d2 <= 0;
+        in_ch_idx_d1 <= 0; in_ch_idx_d2 <= 0;
+        window_out_cnt_d1 <= 0; window_out_cnt_d2 <= 0;
+    end else if (shift_en) begin
+        valid_d1 <= window_valid;
+        valid_d2 <= valid_d1;
+        in_ch_idx_d1 <= in_ch_idx;
+        in_ch_idx_d2 <= in_ch_idx_d1;
+        window_out_cnt_d1 <= window_out_cnt;
+        window_out_cnt_d2 <= window_out_cnt_d1;
+    end
+end
+
+// =======================================================================
+// 6. MAC Tree Datapath
+// =======================================================================
+wire [31:0] p_arr [0:8];
+assign p_arr[0] = p00; assign p_arr[1] = p01; assign p_arr[2] = p02;
+assign p_arr[3] = p10; assign p_arr[4] = p11; assign p_arr[5] = p12;
+assign p_arr[6] = p20; assign p_arr[7] = p21; assign p_arr[8] = p22;
+
+wire [31:0] mult_out0 [0:8];
+wire [31:0] mult_out1 [0:8];
+reg  [31:0] mult_reg0 [0:8];
+reg  [31:0] mult_reg1 [0:8];
+
+genvar m;
+generate
+    for(m = 0; m < 9; m = m + 1) begin : mac_mults
+        DW_fp_mult #(23, 8, 0) u_mult0 (.a(p_arr[m]), .b(w0[m]), .rnd(3'b000), .z(mult_out0[m]), .status());
+        DW_fp_mult #(23, 8, 0) u_mult1 (.a(p_arr[m]), .b(w1[m]), .rnd(3'b000), .z(mult_out1[m]), .status());
+        
+        always @(posedge clk or negedge rst_n) begin
+            if (!rst_n) begin
+                mult_reg0[m] <= 32'b0;
+                mult_reg1[m] <= 32'b0;
+            end else if (shift_en) begin
+                mult_reg0[m] <= mult_out0[m];
+                mult_reg1[m] <= mult_out1[m];
+            end
+        end
+    end
+endgenerate
+
+wire [31:0] add_l1_c0 [0:3];
+wire [31:0] add_l1_c1 [0:3];
+wire [31:0] add_l2_c0 [0:1];
+wire [31:0] add_l2_c1 [0:1];
+
+reg [31:0] reg_add_l2_c0 [0:1];
+reg [31:0] reg_add_l2_c1 [0:1];
+reg [31:0] reg_mult8_c0;
+reg [31:0] reg_mult8_c1;
+
+generate
+    for(m = 0; m < 4; m = m + 1) begin : add_l1
+        DW_fp_add #(23, 8, 0) u_add_l1_c0 (.a(mult_reg0[m*2]), .b(mult_reg0[m*2+1]), .rnd(3'b000), .z(add_l1_c0[m]), .status());
+        DW_fp_add #(23, 8, 0) u_add_l1_c1 (.a(mult_reg1[m*2]), .b(mult_reg1[m*2+1]), .rnd(3'b000), .z(add_l1_c1[m]), .status());
+    end
+    for(m = 0; m < 2; m = m + 1) begin : add_l2
+        DW_fp_add #(23, 8, 0) u_add_l2_c0 (.a(add_l1_c0[m*2]), .b(add_l1_c0[m*2+1]), .rnd(3'b000), .z(add_l2_c0[m]), .status());
+        DW_fp_add #(23, 8, 0) u_add_l2_c1 (.a(add_l1_c1[m*2]), .b(add_l1_c1[m*2+1]), .rnd(3'b000), .z(add_l2_c1[m]), .status());
+    end
+endgenerate
+
+always @(posedge clk or negedge rst_n) begin : mac_reg_l2
+    if (!rst_n) begin
+        reg_add_l2_c0[0] <= 32'b0; reg_add_l2_c0[1] <= 32'b0; reg_mult8_c0 <= 32'b0;
+        reg_add_l2_c1[0] <= 32'b0; reg_add_l2_c1[1] <= 32'b0; reg_mult8_c1 <= 32'b0;
+    end else if (shift_en) begin
+        reg_add_l2_c0[0] <= add_l2_c0[0]; reg_add_l2_c0[1] <= add_l2_c0[1]; reg_mult8_c0 <= mult_reg0[8];
+        reg_add_l2_c1[0] <= add_l2_c1[0]; reg_add_l2_c1[1] <= add_l2_c1[1]; reg_mult8_c1 <= mult_reg1[8];
+    end
+end
+
+wire [31:0] add_l3_c0, add_l3_c1;
+wire [31:0] mac_out_ch0, mac_out_ch1;
+reg [31:0] psum_buf0 [0 : PIXELS_PER_CH - 1];
+reg [31:0] psum_buf1 [0 : PIXELS_PER_CH - 1];
+
+DW_fp_add #(23, 8, 0) u_add_l3_c0 (.a(reg_add_l2_c0[0]), .b(reg_add_l2_c0[1]), .rnd(3'b000), .z(add_l3_c0), .status());
+DW_fp_add #(23, 8, 0) u_add_l3_c1 (.a(reg_add_l2_c1[0]), .b(reg_add_l2_c1[1]), .rnd(3'b000), .z(add_l3_c1), .status());
+
+DW_fp_add #(23, 8, 0) u_add_l4_c0 (.a(add_l3_c0), .b(reg_mult8_c0), .rnd(3'b000), .z(mac_out_ch0), .status());
+DW_fp_add #(23, 8, 0) u_add_l4_c1 (.a(add_l3_c1), .b(reg_mult8_c1), .rnd(3'b000), .z(mac_out_ch1), .status());
+
+wire [31:0] acc_in0 = in_ch_idx_d2 ? psum_buf0[window_out_cnt_d2 - PIXELS_PER_CH] : 32'b0;
+wire [31:0] acc_in1 = in_ch_idx_d2 ? psum_buf1[window_out_cnt_d2 - PIXELS_PER_CH] : 32'b0;
+
+wire [31:0] final_ch0, final_ch1;
+DW_fp_add #(23, 8, 0) u_acc_c0 (.a(mac_out_ch0), .b(acc_in0), .rnd(3'b000), .z(final_ch0), .status());
+DW_fp_add #(23, 8, 0) u_acc_c1 (.a(mac_out_ch1), .b(acc_in1), .rnd(3'b000), .z(final_ch1), .status());
+
+// =======================================================================
+// 7. Pipeline Reg 3: Partial Sum Buffer & Serialization Output
+// =======================================================================
+
+
+always @(posedge clk or negedge rst_n) begin : partial_sum_logic
+    if (!rst_n) begin
+        // Reset if necessary
+    end else if (valid_d2 && !in_ch_idx_d2 && shift_en) begin
+        psum_buf0[window_out_cnt_d2] <= final_ch0; 
+        psum_buf1[window_out_cnt_d2] <= final_ch1;
+    end
+end
+
+reg serialize_active;
+reg [10:0] serialize_cnt;
+reg [31:0] out_ch1_fifo [0 : PIXELS_PER_CH - 1];
+integer s;
+
+always @(posedge clk or negedge rst_n) begin : serialize_trigger
+    if (!rst_n) begin
+        serialize_active <= 1'b0;
+    end else begin
+        if (valid_d2 && in_ch_idx_d2 && shift_en && (window_out_cnt_d2 == 2 * PIXELS_PER_CH - 1)) begin
+            serialize_active <= 1'b1;
+        end else if (serialize_cnt == PIXELS_PER_CH - 1) begin
+            serialize_active <= 1'b0;
+        end
+    end
+end
+
+always @(posedge clk or negedge rst_n) begin : output_serialization_logic
+    if (!rst_n) begin
+        out_data <= 32'b0;
+        output_valid <= 1'b0;
+        serialize_cnt <= 0;
+    end else begin
+        if (valid_d2 && in_ch_idx_d2 && shift_en) begin
+            out_data <= final_ch0;
+            output_valid <= 1'b1;
+            
+            out_ch1_fifo[PIXELS_PER_CH - 1] <= final_ch1;
+            for (s = 0; s < PIXELS_PER_CH - 1; s = s + 1) begin
+                out_ch1_fifo[s] <= out_ch1_fifo[s + 1];
+            end
+        end 
+        else if (serialize_active && serialize_cnt < PIXELS_PER_CH) begin
+            out_data <= out_ch1_fifo[0];
+            output_valid <= 1'b1;
+            serialize_cnt <= serialize_cnt + 1;
+            
+            out_ch1_fifo[PIXELS_PER_CH - 1] <= 32'b0;
+            for (s = 0; s < PIXELS_PER_CH - 1; s = s + 1) begin
+                out_ch1_fifo[s] <= out_ch1_fifo[s + 1];
+            end
+        end 
+        else begin
+            output_valid <= 1'b0;
+            if (pixel_in_cnt == 0) serialize_cnt <= 0;
+        end
+    end
+end
+
+// =======================================================================
+// Debug Counter (Only for nWave observation, will be optimized away if unused)
+// =======================================================================
+reg [7:0] debug_out_cnt;
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        debug_out_cnt <= 0;
+    end else begin
+        // 當收到新影像的第一筆資料時歸零
+        if (pixel_in_cnt == 1 && input_valid) begin
+            debug_out_cnt <= 0;
+        end
+        // 只要有輸出就 +1
+        else if (output_valid) begin
+            debug_out_cnt <= debug_out_cnt + 1;
+        end
+    end
+end
+
+endmodule
 
 // module MaxPool#(parameter IN_WID= 8)(
 //     clk,
@@ -31,8 +360,7 @@
 //     in_data,
 //     out_data,
 //     input_valid, // high when a nex input pixel is sent
-//     output_valid, // notify the later stages a new pixel is being sent
-//     done // sent 
+//     output_valid // notify the later stages a new pixel is being sent
 // );
 
 // endmodule
@@ -43,23 +371,183 @@
 //     in_data,
 //     out_data,
 //     input_valid, // high when a next input pixel is sent
-//     output_valid, // notify the later stages a new pixel is being sent
-//     done // sent 
+//     output_valid // notify the later stages a new pixel is being sent
 // );
 
 // endmodule
 
-// module ActFunc#(parameter IN_WID= 8)(
-//     clk,
-//     rst_n,
-//     in_data,
-//     out_data,
-//     input_valid, // high when a nex input pixel is sent
-//     output_valid, // notify the later stages a new pixel is being sent
-//     done // sent 
-// );
+module ActFunc (
+    input wire         clk,
+    input wire         rst_n,
+    input wire [31:0]  in_data,
+    input wire [1:0]   act_mode,      // Added: 00=Sigmoid, 01=Tanh, 10=ReLU, 11=Leaky ReLU
+    input wire         input_valid,   // high when a next input pixel is sent
+    
+    output reg [31:0]  out_data,
+    output reg         output_valid   // notify the later stages a new pixel is being sent
+);
 
-// endmodule
+// IEEE floating point parameters
+parameter inst_sig_width = 23;
+parameter inst_exp_width = 8;
+parameter inst_ieee_compliance = 0;
+parameter inst_arch = 0;
+
+// IEEE Constants
+wire [31:0] FLOAT_ONE = 32'h3F800000;
+
+// =======================================================================
+// Stage 0: Combinational Logic (Fast Paths & Exp Setup)
+// =======================================================================
+wire sign_bit = in_data[31];
+wire [7:0] exp_val = in_data[30:23];
+wire [22:0] frac_val = in_data[22:0];
+
+// --- 1. Fast Path: ReLU & Leaky ReLU (Combinational) ---
+wire [31:0] relu_comb;
+wire [31:0] lrelu_comb;
+wire underflow_flag;
+
+assign relu_comb = (~sign_bit) ? in_data : 32'b0;
+
+// Leaky ReLU: flush to zero if -2^-123 < x <= 0 (exponent <= 3)
+assign underflow_flag = sign_bit & (exp_val <= 8'd3);
+assign lrelu_comb = (~sign_bit)      ? in_data :
+                    (underflow_flag) ? 32'b0 :
+                    {1'b1, exp_val - 8'd3, frac_val}; // Multiply by 0.125
+
+// --- 2. Exp Setup: Sigmoid (-x) & Tanh (2x) ---
+wire is_zero = (in_data[30:0] == 31'b0);
+wire [31:0] neg_x = {~sign_bit, exp_val, frac_val};
+wire [31:0] mul2_x = is_zero ? 32'b0 : {sign_bit, exp_val + 8'd1, frac_val};
+
+wire [31:0] exp_in_comb;
+assign exp_in_comb = (act_mode == 2'b00) ? neg_x : mul2_x;
+
+
+// =======================================================================
+// Pipeline Stage 1: Register before DW_fp_exp
+// =======================================================================
+reg [31:0] exp_in_reg;
+reg valid_d1;
+
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        exp_in_reg <= 32'b0;
+        valid_d1   <= 1'b0;
+    end else begin
+        exp_in_reg <= exp_in_comb;
+        valid_d1   <= input_valid;
+    end
+end
+
+// =======================================================================
+// DW_fp_exp IP Core
+// =======================================================================
+wire [31:0] exp_out_comb;
+
+DW_fp_exp #(inst_sig_width, inst_exp_width, inst_ieee_compliance, inst_arch) u_exp (
+    .a(exp_in_reg),
+    .z(exp_out_comb),
+    .status()
+);
+
+// =======================================================================
+// Pipeline Stage 2: Register after DW_fp_exp
+// =======================================================================
+reg [31:0] exp_out_reg;
+reg valid_d2;
+
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        exp_out_reg <= 32'b0;
+        valid_d2    <= 1'b0;
+    end else begin
+        exp_out_reg <= exp_out_comb;
+        valid_d2    <= valid_d1;
+    end
+end
+
+// =======================================================================
+// Stage 2.5: Shared Combinational logic for Sigmoid and Tanh
+// =======================================================================
+wire [31:0] add_out, recip_out, sub_out;
+wire [31:0] tanh_mul2_comb;
+
+// 1. Compute (e^k + 1)
+DW_fp_add #(inst_sig_width, inst_exp_width, inst_ieee_compliance) u_add (
+    .a(exp_out_reg),
+    .b(FLOAT_ONE),
+    .rnd(3'b000),
+    .z(add_out),
+    .status()
+);
+
+// 2. Compute 1 / (e^k + 1) -> This is the final answer for Sigmoid
+DW_fp_recip #(inst_sig_width, inst_exp_width, inst_ieee_compliance) u_recip (
+    .a(add_out),
+    .rnd(3'b000),
+    .z(recip_out),
+    .status()
+);
+
+// 3. Multiply by 2.0 for Tanh (Shift Exponent)
+assign tanh_mul2_comb = (recip_out[30:0] == 31'b0) ? 32'b0 :
+                        {recip_out[31], recip_out[30:23] + 8'd1, recip_out[22:0]};
+
+// 4. Compute 1.0 - (2 / (e^2x + 1)) -> This is the final answer for Tanh
+DW_fp_sub #(inst_sig_width, inst_exp_width, inst_ieee_compliance) u_sub (
+    .a(FLOAT_ONE),
+    .b(tanh_mul2_comb),
+    .rnd(3'b000),
+    .z(sub_out),
+    .status()
+);
+
+// =======================================================================
+// Pipeline Stage 3: Final Output Isolation FF & MUX
+// =======================================================================
+reg [31:0] next_out_data;
+reg        next_out_valid;
+
+// Select data and valid signals based on act_mode to achieve optimal latency
+always @(*) begin
+    case (act_mode)
+        2'b00: begin // Sigmoid (3 cycles latency)
+            next_out_data  = recip_out;
+            next_out_valid = valid_d2;
+        end
+        2'b01: begin // Tanh (3 cycles latency)
+            next_out_data  = sub_out;
+            next_out_valid = valid_d2;
+        end
+        2'b10: begin // ReLU (1 cycle latency, bypassing pipeline)
+            next_out_data  = relu_comb;
+            next_out_valid = input_valid; 
+        end
+        2'b11: begin // Leaky ReLU (1 cycle latency, bypassing pipeline)
+            next_out_data  = lrelu_comb;
+            next_out_valid = input_valid;
+        end
+        default: begin
+            next_out_data  = 32'b0;
+            next_out_valid = 1'b0;
+        end
+    endcase
+end
+
+// Output isolation Flip-Flops
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        out_data     <= 32'b0;
+        output_valid <= 1'b0;
+    end else begin
+        out_data     <= next_out_data;
+        output_valid <= next_out_valid;
+    end
+end
+
+endmodule
 
 module PreProcess (
     // input
@@ -69,8 +557,8 @@ module PreProcess (
     input [31:0] in_data,
     output reg [31:0] out_data,
     // output 
-    output reg output_valid,
-    output reg done
+    output reg output_valid
+    // output reg done
 );
 
 // Image storage moved from CDNA
@@ -104,9 +592,9 @@ wire [31:0] dwout_max, dwout_min;
 reg [31:0] iter_max, iter_min;
 
 // ch_allset logic
-assign ch_allset = (preproc_counter[6:0] ==63) | (preproc_counter[6:0] ==127) && image_in_valid;
+assign ch_allset = (preproc_counter ==63) | (preproc_counter ==127) && image_in_valid;
 // first pixel logic
-assign first_pixel = (preproc_counter[6:0] ==0) | (preproc_counter[6:0] ==64) && image_in_valid;
+assign first_pixel = (preproc_counter ==0) | (preproc_counter ==64) && image_in_valid;
 // current channel logic
 // assign curr_ch = preproc_counter[6];
 
@@ -258,7 +746,8 @@ always @(posedge clk or negedge rst_n) begin : preproc_counter_logic
         preproc_counter <= 0;
     end
     else begin
-        preproc_counter <= ((image_in_valid || img_arrived) && preproc_counter < 195) ? preproc_counter + 1 : preproc_counter;
+        // preproc_counter <= ((image_in_valid || img_arrived) && preproc_counter < 195) ? preproc_counter + 1 : preproc_counter;
+        preproc_counter <= ((!image_in_valid && preproc_counter == 0) || (preproc_counter >= 194)) ? 0 : preproc_counter + 1;
     end
 end
 
@@ -301,8 +790,6 @@ always @(posedge clk or negedge rst_n) begin : image_input_block
     end
 end
 
-// Min-Max Scaling preprocessing logic to be added here
-
 endmodule
 
 module CDNA(
@@ -341,10 +828,17 @@ parameter inst_faithful_round = 0;
 reg repli_pad;
 reg [1:0] act_mode;
 
-reg [31:0] Conv0_weight[35:0];
-reg [31:0] Conv1_weight[35:0];
-reg [31:0] DeConv0_weight[35:0];
-reg [31:0] DeConv1_weight[35:0];
+// reg [31:0] Conv0_weight[35:0];
+// reg [31:0] Conv1_weight[35:0];
+// reg [31:0] DeConv0_weight[35:0];
+// reg [31:0] DeConv1_weight[35:0];
+wire [31:0] c0_out_data;
+wire c0_out_valid;
+
+reg [7:0] weight_cnt;
+wire [31:0] pre_out_data;
+wire pre_out_valid;
+
 
 integer i;
 
@@ -356,10 +850,40 @@ always @(posedge clk or negedge rst_n) begin : main_cnt_logic
         main_counter <= 0;
     end
     else begin
-        main_counter <= (image_in_valid || instruction_in_valid || weight_in_valid) ?
-                        main_counter + 1 : main_counter;
+        // main_counter <= (image_in_valid || instruction_in_valid || weight_in_valid) ?
+        //                 main_counter + 1 : main_counter;
+        if (instruction_in_valid) begin
+            main_counter <= 1; // 收到新測資的第一個訊號，強制重新起算
+        end
+        else if (image_in_valid || weight_in_valid) begin
+            main_counter <= main_counter + 1;
+        end
     end
 end
+
+// =======================================================================
+// Weight Counter & Distribution Logic
+// =======================================================================
+
+
+always @(posedge clk or negedge rst_n) begin : weight_cnt_logic
+    if (!rst_n) begin
+        weight_cnt <= 0;
+    end else begin
+        // Reset counter when weight_in_valid is low, ensuring clean start
+        if (weight_in_valid) begin
+            weight_cnt <= weight_cnt + 1;
+        end else begin
+            weight_cnt <= 0;
+        end
+    end
+end
+
+// Generate specific valid signals for each layer (36 weights per layer)
+wire w_valid_c0  = weight_in_valid && (weight_cnt < 36);
+wire w_valid_c1  = weight_in_valid && (weight_cnt >= 36 && weight_cnt < 72);
+wire w_valid_dc0 = weight_in_valid && (weight_cnt >= 72 && weight_cnt < 108);
+wire w_valid_dc1 = weight_in_valid && (weight_cnt >= 108 && weight_cnt < 144);
 
 // ================== Input storage logic =================
 always @(posedge clk or negedge rst_n) begin : instruction_input_block
@@ -373,37 +897,10 @@ always @(posedge clk or negedge rst_n) begin : instruction_input_block
     end
 end
 
-always @(posedge clk or negedge rst_n) begin : weight_input_block
-    if(!rst_n) begin
-        for(i=0; i<36; i=i+1) begin
-            Conv0_weight[i] <= 0;
-            Conv1_weight[i] <= 0;
-            DeConv0_weight[i] <= 0;
-            DeConv1_weight[i] <= 0;
-        end
-    end
-    else begin
-        // raster scan order
-        if(weight_in_valid) begin
-            DeConv1_weight[35] <= in_data;
-            DeConv0_weight[35] <= DeConv1_weight[0];
-            Conv1_weight[35] <= DeConv0_weight[0];
-            Conv0_weight[35] <= Conv1_weight[0];
-            // Conv0
-            for(i=0; i<35; i=i+1) begin
-                Conv0_weight[i] <= Conv0_weight[i+1];
-                Conv1_weight[i] <= Conv1_weight[i+1];
-                DeConv0_weight[i] <= DeConv0_weight[i+1];
-                DeConv1_weight[i] <= DeConv1_weight[i+1];
-            end
-        end
-    end
-end
 
-// ================== Module Instantiations =================
-wire [31:0] pre_out_data;
-wire pre_out_valid;
-wire pre_done;
+// =======================================================================
+// Module Instantiations
+// ======================================================================
 
 PreProcess u_PreProcess (
     .clk(clk),
@@ -411,9 +908,24 @@ PreProcess u_PreProcess (
     .image_in_valid(image_in_valid),
     .in_data(in_data),
     .out_data(pre_out_data),
-    .output_valid(pre_out_valid),
-    .done(pre_done)
+    .output_valid(pre_out_valid)
+    // .done(pre_done)
 );
+
+Conv2d #(.IN_WID(8)) u_Conv0 (
+    .clk(clk),
+    .rst_n(rst_n),
+    .in_data(pre_out_data),
+    .in_weight(in_data),
+    .pad_mode(repli_pad),
+    .weight_valid(w_valid_c0),   // Only high for the first 36 cycles
+    .input_valid(pre_out_valid), 
+    .out_data(c0_out_data),
+    .output_valid(c0_out_valid)
+);
+
+// Instantiate u_Conv1, u_DeConv0, u_DeConv1 using w_valid_c1, w_valid_dc0, w_valid_dc1
+// ...
 
 // ==== Output logic ======
 always @(posedge clk or negedge rst_n) begin : output_logic
