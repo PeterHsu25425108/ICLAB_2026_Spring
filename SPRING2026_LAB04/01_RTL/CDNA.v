@@ -67,9 +67,9 @@ module PreProcess (
     input rst_n,
     input image_in_valid,
     input [31:0] in_data,
-    output [31:0] out_data,
+    output reg [31:0] out_data,
     // output 
-    output output_valid,
+    output reg output_valid,
     output reg done
 );
 
@@ -108,6 +108,16 @@ assign ch_allset = (preproc_counter == 63) | (preproc_counter == 127) && image_i
 assign first_pixel = (preproc_counter == 0) | (preproc_counter == 64) && image_in_valid;
 // current channel logic
 assign curr_ch = preproc_counter[6];
+
+// main computation pipeline declaration
+wire [31:0] nxt_denom, nxt_numer; // call subtraction IP
+reg [31:0] denom, numer;
+wire [31:0] denom_reciprocal; // call DW_fp_recip
+
+wire [31:0] nxt_out_data; // call mult
+reg [31:0] numer_2_mult; 
+reg [31:0] denom_recip_2_mult; 
+wire [31:0] pixel_2_sub; // the pixel used for numerator computation
 
 // maintain per iter min/max value
 always @(posedge clk or negedge rst_n) begin
@@ -176,23 +186,71 @@ end
 // ========================
 // Main computation pipeline
 // ========================
-
 // schedule Pc,i,j input
 
+// call subtraction to compute nxt_denom & nxt_numer
+DW_fp_sub #(inst_sig_width, inst_exp_width, inst_ieee_compliance) sub_denom (
+    .a(ch_max),
+    .b(ch_min),
+    .rnd(3'b000),
+    .z(nxt_denom),
+    .status()
+);
 
-// max/min updated everytime a new pixel comes
-always @(posedge clk or negedge rst_n) begin : valid_propagate
+assign pixel_2_sub = in_image[0];
+DW_fp_sub #(inst_sig_width, inst_exp_width, inst_ieee_compliance) sub_numer (
+    .a(pixel_2_sub),
+    .b(ch_min),
+    .rnd(3'b000),
+    .z(nxt_numer),
+    .status()
+);
+
+// calcualte the numerator  & denominator
+always @(posedge clk or negedge rst_n) begin : compute_denom_numer
     if(!rst_n) begin
-        valid_chain <= 0;
-    end
-    else begin
-        valid_chain[0] <= ch_allset;
-        for(i=1; i<4; i=i+1) begin
-            valid_chain[i] <= valid_chain[i-1];
-        end
+        denom <= 0;
+        numer <= 0;
+    end else begin
+        denom <= nxt_denom;
+        numer <= nxt_numer;
     end
 end
-assign output_valid = valid_chain[3];
+
+// call DW_fp_recip
+DW_fp_recip #(inst_sig_width, inst_exp_width, inst_ieee_compliance) recip_denom (
+    .a(denom),
+    .rnd(3'b000),
+    .z(denom_reciprocal),
+    .status()
+);
+
+always @(posedge clk or negedge rst_n) begin : mult_input
+    if(!rst_n) begin
+        denom_recip_2_mult <= 0;
+        numer_2_mult <= 0;
+    end else begin
+        denom_recip_2_mult <= denom_reciprocal;
+        numer_2_mult <= numer;
+    end
+end
+
+// call DW_fp_mult to compute the final output
+DW_fp_mult #(inst_sig_width, inst_exp_width, inst_ieee_compliance) mult_final (
+    .a(numer_2_mult),
+    .b(denom_recip_2_mult),
+    .rnd(3'b000),
+    .z(nxt_out_data),
+    .status()
+);
+
+always @(posedge clk or negedge rst_n) begin : output_logic
+    if(!rst_n) begin
+        out_data <= 0;
+    end else begin
+        out_data <= nxt_out_data;
+    end
+end
 
 always @(posedge clk or negedge rst_n) begin : preproc_counter_logic
     if(!rst_n) begin
@@ -200,6 +258,15 @@ always @(posedge clk or negedge rst_n) begin : preproc_counter_logic
     end
     else begin
         preproc_counter <= image_in_valid ? preproc_counter + 1 : preproc_counter;
+    end
+end
+
+// output valid ctrl
+always @(posedge clk or negedge rst_n) begin
+    if(!rst_n) begin
+        output_valid <= 0;
+    end else begin
+        output_valid <= (preproc_counter >= 66) ? 1 : 0; // valid when the second channel starts to be processed
     end
 end
 
