@@ -74,11 +74,12 @@ module PreProcess (
 );
 
 // Image storage moved from CDNA
-reg [31:0] in_image[0:127];
+reg [31:0] in_image[0:63];
+reg img_arrived;
 integer i;
 
 // incre when imag_in_valid == 1
-reg [6:0] preproc_counter;
+reg [7:0] preproc_counter;
 
 // Having recieved all pixels of ch0/1, this signal is propageted as the output_valid signal
 wire ch_allset;
@@ -103,11 +104,11 @@ wire [31:0] dwout_max, dwout_min;
 reg [31:0] iter_max, iter_min;
 
 // ch_allset logic
-assign ch_allset = (preproc_counter == 63) | (preproc_counter == 127) && image_in_valid;
+assign ch_allset = (preproc_counter[6:0] ==63) | (preproc_counter[6:0] ==127) && image_in_valid;
 // first pixel logic
-assign first_pixel = (preproc_counter == 0) | (preproc_counter == 64) && image_in_valid;
+assign first_pixel = (preproc_counter[6:0] ==0) | (preproc_counter[6:0] ==64) && image_in_valid;
 // current channel logic
-assign curr_ch = preproc_counter[6];
+// assign curr_ch = preproc_counter[6];
 
 // main computation pipeline declaration
 wire [31:0] nxt_denom, nxt_numer; // call subtraction IP
@@ -257,7 +258,15 @@ always @(posedge clk or negedge rst_n) begin : preproc_counter_logic
         preproc_counter <= 0;
     end
     else begin
-        preproc_counter <= image_in_valid ? preproc_counter + 1 : preproc_counter;
+        preproc_counter <= ((image_in_valid || img_arrived) && preproc_counter < 195) ? preproc_counter + 1 : preproc_counter;
+    end
+end
+
+always @(posedge clk or negedge rst_n) begin
+    if(!rst_n) begin
+        img_arrived <= 0;
+    end else begin
+        img_arrived <= (image_in_valid) ? 1 : img_arrived;
     end
 end
 
@@ -266,22 +275,27 @@ always @(posedge clk or negedge rst_n) begin
     if(!rst_n) begin
         output_valid <= 0;
     end else begin
-        output_valid <= (preproc_counter >= 66) ? 1 : 0; // valid when the second channel starts to be processed
+        output_valid <= (preproc_counter >= 66 && preproc_counter < 194) ? 1 : 0; // valid when the second channel starts to be processed
     end
 end
 
-// Image input logic moved from CDNA
 always @(posedge clk or negedge rst_n) begin : image_input_block
     if(!rst_n) begin
-        for(i=0; i<128; i=i+1) begin
+        for(i=0; i<64; i=i+1) begin
             in_image[i] <= 0;
         end
     end
     else begin
         if(image_in_valid) begin
-            in_image[127] <= in_data;
-            for(i=0; i<127; i=i+1) begin
-                in_image[i] <= in_image[i+1];
+            in_image[63] <= in_data; // 新資料從 63 進入
+            for(i=0; i<63; i=i+1) begin
+                in_image[i] <= in_image[i+1]; // 資料往 0 的方向移位
+            end
+        end
+        else begin
+            in_image[63] <= 0; // 新資料從 63 進入
+            for(i=0; i<63; i=i+1) begin
+                in_image[i] <= in_image[i+1]; // 資料往 0 的方向移位
             end
         end
     end
