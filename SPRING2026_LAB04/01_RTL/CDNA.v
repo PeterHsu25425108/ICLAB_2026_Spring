@@ -49,31 +49,31 @@ reg [10:0] pixel_in_cnt;   // Tracks total valid pixels received
 reg [10:0] window_out_cnt; // Tracks total valid 3x3 windows generated
 reg [10:0] shift_pulses;   // Tracks total shifts performed
 
-// [新增] 必須把 d1, d2 提早宣告，給下面的 is_flushing 使用
-reg [10:0] window_out_cnt_d1, window_out_cnt_d2; 
+// [修正] 必須把 d1, d2, d3 提早宣告，給下面的 is_flushing 使用
+reg [10:0] window_out_cnt_d1, window_out_cnt_d2, window_out_cnt_d3; 
 
 // 通道指標：前 PIXELS_PER_CH 個 window 屬於 In_Ch 0 (in_ch_idx=0)
 wire in_ch_idx = (window_out_cnt >= PIXELS_PER_CH);
 
-// [修正 1] Flush 必須等管線最尾端 (d2) 也收齊 128 個才停止
-wire is_flushing = (pixel_in_cnt == 2 * PIXELS_PER_CH) && (window_out_cnt_d2 < 2 * PIXELS_PER_CH);
+// [修正] Flush 必須等管線最尾端 (d3) 也收齊 128 個才停止
+wire is_flushing = (pixel_in_cnt == 2 * PIXELS_PER_CH) && (window_out_cnt_d3 < 2 * PIXELS_PER_CH);
 wire shift_en    = input_valid | is_flushing; 
 
-// [修正 2] 限制 window_valid 最多 128 個，防止 Flush 期間多產生垃圾視窗
+// [限制] 防止 Flush 期間多產生垃圾視窗
 wire window_valid = shift_en && (shift_pulses >= IN_WID + 2) && (window_out_cnt < 2 * PIXELS_PER_CH);
+
 always @(posedge clk or negedge rst_n) begin : line_buffer_counters
     if (!rst_n) begin
         pixel_in_cnt   <= 0;
         window_out_cnt <= 0;
         shift_pulses   <= 0;
     end else begin
-        // 🌟 核心歸零機制：如果已經滿載 (128)，且又有新的 input_valid 進來，代表下一張圖來了！
+        // 核心歸零機制
         if (input_valid && pixel_in_cnt == 2 * PIXELS_PER_CH) begin
-            pixel_in_cnt   <= 1;   // 新圖的第一個像素已經進來了，所以設為 1
-            window_out_cnt <= 0;   // 視窗輸出歸零
-            shift_pulses   <= 1;   // 已經移位了一次
+            pixel_in_cnt   <= 1;   
+            window_out_cnt <= 0;   
+            shift_pulses   <= 1;   
         end 
-        // 正常計數邏輯
         else begin
             if (input_valid)  pixel_in_cnt   <= pixel_in_cnt + 1;
             if (shift_en)     shift_pulses   <= shift_pulses + 1;
@@ -106,7 +106,7 @@ always @(posedge clk or negedge rst_n) begin : coordinate_tracker
         cx <= 0; 
         cy <= 0;
     end else if (input_valid && pixel_in_cnt == 2 * PIXELS_PER_CH) begin
-        // 🌟 換新影像時，座標強制歸零
+        //  換新影像時，座標強制歸零
         cx <= 0;
         cy <= 0;
     end else if (window_valid) begin
@@ -184,21 +184,26 @@ endgenerate
 // =======================================================================
 // 5. Pipeline Control Signals (Delay Registers)
 // =======================================================================
-reg valid_d1, valid_d2;
-reg in_ch_idx_d1, in_ch_idx_d2;
+reg valid_d1, valid_d2, valid_d3;
+reg in_ch_idx_d1, in_ch_idx_d2, in_ch_idx_d3;
 
 always @(posedge clk or negedge rst_n) begin : pipeline_ctrl_logic
     if (!rst_n) begin
-        valid_d1 <= 0; valid_d2 <= 0;
-        in_ch_idx_d1 <= 0; in_ch_idx_d2 <= 0;
-        window_out_cnt_d1 <= 0; window_out_cnt_d2 <= 0;
+        valid_d1 <= 0; valid_d2 <= 0; valid_d3 <= 0;
+        in_ch_idx_d1 <= 0; in_ch_idx_d2 <= 0; in_ch_idx_d3 <= 0;
+        window_out_cnt_d1 <= 0; window_out_cnt_d2 <= 0; window_out_cnt_d3 <= 0;
     end else if (shift_en) begin
         valid_d1 <= window_valid;
         valid_d2 <= valid_d1;
+        valid_d3 <= valid_d2; // 新增 d3
+        
         in_ch_idx_d1 <= in_ch_idx;
         in_ch_idx_d2 <= in_ch_idx_d1;
+        in_ch_idx_d3 <= in_ch_idx_d2; // 新增 d3
+        
         window_out_cnt_d1 <= window_out_cnt;
         window_out_cnt_d2 <= window_out_cnt_d1;
+        window_out_cnt_d3 <= window_out_cnt_d2; // 新增 d3
     end
 end
 
@@ -210,6 +215,28 @@ assign p_arr[0] = p00; assign p_arr[1] = p01; assign p_arr[2] = p02;
 assign p_arr[3] = p10; assign p_arr[4] = p11; assign p_arr[5] = p12;
 assign p_arr[6] = p20; assign p_arr[7] = p21; assign p_arr[8] = p22;
 
+//  新增：乘法器前的一層 FF (Pipeline Stage 0) 
+reg [31:0] p_reg [0:8];
+reg [31:0] w0_reg [0:8];
+reg [31:0] w1_reg [0:8];
+integer r;
+
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        for (r = 0; r < 9; r = r + 1) begin
+            p_reg[r]  <= 32'b0;
+            w0_reg[r] <= 32'b0;
+            w1_reg[r] <= 32'b0;
+        end
+    end else if (shift_en) begin
+        for (r = 0; r < 9; r = r + 1) begin
+            p_reg[r]  <= p_arr[r];
+            w0_reg[r] <= w0[r];
+            w1_reg[r] <= w1[r];
+        end
+    end
+end
+
 wire [31:0] mult_out0 [0:8];
 wire [31:0] mult_out1 [0:8];
 reg  [31:0] mult_reg0 [0:8];
@@ -218,8 +245,9 @@ reg  [31:0] mult_reg1 [0:8];
 genvar m;
 generate
     for(m = 0; m < 9; m = m + 1) begin : mac_mults
-        DW_fp_mult #(23, 8, 0) u_mult0 (.a(p_arr[m]), .b(w0[m]), .rnd(3'b000), .z(mult_out0[m]), .status());
-        DW_fp_mult #(23, 8, 0) u_mult1 (.a(p_arr[m]), .b(w1[m]), .rnd(3'b000), .z(mult_out1[m]), .status());
+        //  修正：輸入改成 p_reg 與 w_reg
+        DW_fp_mult #(23, 8, 0) u_mult0 (.a(p_reg[m]), .b(w0_reg[m]), .rnd(3'b000), .z(mult_out0[m]), .status());
+        DW_fp_mult #(23, 8, 0) u_mult1 (.a(p_reg[m]), .b(w1_reg[m]), .rnd(3'b000), .z(mult_out1[m]), .status());
         
         always @(posedge clk or negedge rst_n) begin
             if (!rst_n) begin
@@ -266,6 +294,8 @@ end
 
 wire [31:0] add_l3_c0, add_l3_c1;
 wire [31:0] mac_out_ch0, mac_out_ch1;
+
+// 🌟 核心優化 1：宣告為純 Shift Register (無需 out_ch1_fifo)
 reg [31:0] psum_buf0 [0 : PIXELS_PER_CH - 1];
 reg [31:0] psum_buf1 [0 : PIXELS_PER_CH - 1];
 
@@ -275,8 +305,9 @@ DW_fp_add #(23, 8, 0) u_add_l3_c1 (.a(reg_add_l2_c1[0]), .b(reg_add_l2_c1[1]), .
 DW_fp_add #(23, 8, 0) u_add_l4_c0 (.a(add_l3_c0), .b(reg_mult8_c0), .rnd(3'b000), .z(mac_out_ch0), .status());
 DW_fp_add #(23, 8, 0) u_add_l4_c1 (.a(add_l3_c1), .b(reg_mult8_c1), .rnd(3'b000), .z(mac_out_ch1), .status());
 
-wire [31:0] acc_in0 = in_ch_idx_d2 ? psum_buf0[window_out_cnt_d2 - PIXELS_PER_CH] : 32'b0;
-wire [31:0] acc_in1 = in_ch_idx_d2 ? psum_buf1[window_out_cnt_d2 - PIXELS_PER_CH] : 32'b0;
+// 🌟 核心優化 2：永遠只讀取 Shift Register 的最前端 [0]，徹底消滅 64-to-1 巨大 MUX！
+wire [31:0] acc_in0 = in_ch_idx_d3 ? psum_buf0[0] : 32'b0;
+wire [31:0] acc_in1 = in_ch_idx_d3 ? psum_buf1[0] : 32'b0;
 
 wire [31:0] final_ch0, final_ch1;
 DW_fp_add #(23, 8, 0) u_acc_c0 (.a(mac_out_ch0), .b(acc_in0), .rnd(3'b000), .z(final_ch0), .status());
@@ -286,26 +317,36 @@ DW_fp_add #(23, 8, 0) u_acc_c1 (.a(mac_out_ch1), .b(acc_in1), .rnd(3'b000), .z(f
 // 7. Pipeline Reg 3: Partial Sum Buffer & Serialization Output
 // =======================================================================
 
-
-always @(posedge clk or negedge rst_n) begin : partial_sum_logic
-    if (!rst_n) begin
-        // Reset if necessary
-    end else if (valid_d2 && !in_ch_idx_d2 && shift_en) begin
-        psum_buf0[window_out_cnt_d2] <= final_ch0; 
-        psum_buf1[window_out_cnt_d2] <= final_ch1;
-    end
-end
-
 reg serialize_active;
 reg [10:0] serialize_cnt;
-reg [31:0] out_ch1_fifo [0 : PIXELS_PER_CH - 1];
 integer s;
+
+// 🌟 核心優化 3：合併 FIFO 與 psum_buf，用完美的移位時序取代雙倍的儲存空間
+always @(posedge clk) begin : partial_sum_logic
+    // 只要有運算，或是正在輸出序列化資料，就執行大風吹 (Shift)
+    if ((valid_d3 && shift_en) || serialize_active) begin
+        for (s = 0; s < PIXELS_PER_CH - 1; s = s + 1) begin
+            psum_buf0[s] <= psum_buf0[s + 1];
+            psum_buf1[s] <= psum_buf1[s + 1];
+        end
+        
+        // 將最新結果推入尾端
+        if (valid_d3 && shift_en) begin
+            psum_buf0[PIXELS_PER_CH - 1] <= final_ch0;
+            psum_buf1[PIXELS_PER_CH - 1] <= final_ch1;
+        end else begin
+            // 序列化階段時尾端補 0 即可
+            psum_buf0[PIXELS_PER_CH - 1] <= 32'b0;
+            psum_buf1[PIXELS_PER_CH - 1] <= 32'b0;
+        end
+    end
+end
 
 always @(posedge clk or negedge rst_n) begin : serialize_trigger
     if (!rst_n) begin
         serialize_active <= 1'b0;
     end else begin
-        if (valid_d2 && in_ch_idx_d2 && shift_en && (window_out_cnt_d2 == 2 * PIXELS_PER_CH - 1)) begin
+        if (valid_d3 && in_ch_idx_d3 && shift_en && (window_out_cnt_d3 == 2 * PIXELS_PER_CH - 1)) begin
             serialize_active <= 1'b1;
         end else if (serialize_cnt == PIXELS_PER_CH - 1) begin
             serialize_active <= 1'b0;
@@ -319,28 +360,19 @@ always @(posedge clk or negedge rst_n) begin : output_serialization_logic
         output_valid <= 1'b0;
         serialize_cnt <= 0;
     end else begin
-        if (valid_d2 && in_ch_idx_d2 && shift_en) begin
+        if (valid_d3 && in_ch_idx_d3 && shift_en) begin
+            // Phase 1：一邊計算 Ch1，一邊直接輸出已經算完的 Ch0
             out_data <= final_ch0;
             output_valid <= 1'b1;
-            
-            out_ch1_fifo[PIXELS_PER_CH - 1] <= final_ch1;
-            for (s = 0; s < PIXELS_PER_CH - 1; s = s + 1) begin
-                out_ch1_fifo[s] <= out_ch1_fifo[s + 1];
-            end
         end 
         else if (serialize_active && serialize_cnt < PIXELS_PER_CH) begin
-            out_data <= out_ch1_fifo[0];
+            // Phase 2：直接從 psum_buf1 的最前端讀取剛才存進去的 Ch1 結果！
+            out_data <= psum_buf1[0];
             output_valid <= 1'b1;
             serialize_cnt <= serialize_cnt + 1;
-            
-            out_ch1_fifo[PIXELS_PER_CH - 1] <= 32'b0;
-            for (s = 0; s < PIXELS_PER_CH - 1; s = s + 1) begin
-                out_ch1_fifo[s] <= out_ch1_fifo[s + 1];
-            end
         end 
         else begin
             output_valid <= 1'b0;
-            // 🌟 完美修正：只要序列化階段結束(或還沒開始)，計數器就乖乖待在 0 準備！
             if (!serialize_active) serialize_cnt <= 0;
         end
     end
@@ -567,140 +599,147 @@ module UnPool #(parameter IN_WID = 4)(
     output reg        output_valid 
 );
 
+localparam PIXELS_PER_CH = IN_WID * IN_WID;
+localparam TOTAL_IN      = 2 * PIXELS_PER_CH;
+localparam OUT_WID       = IN_WID * 2;
+
+// =======================================================================
+// 🌟 核心優化：純 Shift Register 陣列 (無 MUX)
+// =======================================================================
+reg [31:0] data_buf    [0 : TOTAL_IN - 1];
+reg [1:0]  sw_buf      [0 : TOTAL_IN - 1];
+// 重播緩衝區 (只暫存一列的長度)
+reg [31:0] replay_data [0 : IN_WID - 1];
+reg [1:0]  replay_sw   [0 : IN_WID - 1];
+
+reg [6:0] data_in_cnt; 
+reg [6:0] sw_in_cnt;
+
+reg       out_c;   
+reg [3:0] out_y;   
+reg [3:0] out_x;   
+
+wire is_last_pixel = (out_c == 1) && (out_y == OUT_WID - 1) && (out_x == OUT_WID - 1);
+
 reg [1:0] state;
 localparam IDLE    = 2'd0;
 localparam COLLECT = 2'd1;
 localparam OUTPUT  = 2'd2;
 
-// =======================================================================
-// 1. 參數化計算 (無論 IN_WID 是 2 或 4 皆可完美自動推算)
-// =======================================================================
-localparam PIXELS_PER_CH = IN_WID * IN_WID;
-localparam TOTAL_IN      = 2 * PIXELS_PER_CH; // 2 Channel 的總輸入量 (8 或 32)
-localparam OUT_WID       = IN_WID * 2;        // 輸出寬度 (4 或 8)
-localparam TOTAL_OUT     = 2 * OUT_WID * OUT_WID; // 總輸出量 (32 或 128)
-
-// =======================================================================
-// 2. 獨立的雙 Buffer 與計數器 (對抗 ActFunc 造成的時差)
-// =======================================================================
-reg [31:0] data_buf [0 : TOTAL_IN - 1];
-reg [1:0]  sw_buf   [0 : TOTAL_IN - 1];
-
-reg [6:0] data_in_cnt; 
-reg [6:0] sw_in_cnt;
-reg       out_c;   
-reg [3:0] out_y;   
-reg [3:0] out_x;   
-wire is_last_pixel = (out_c == 1) && (out_y == OUT_WID - 1) && (out_x == OUT_WID - 1);
-
-
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-        data_in_cnt <= 0;
-        sw_in_cnt   <= 0;
-    end else begin
-        // 🌟 修正點：當輸出完最後一顆像素時，才將計數器歸零準備接下一張圖
-        if (state == OUTPUT && is_last_pixel) begin
-            data_in_cnt <= 0;
-            sw_in_cnt   <= 0;
-        end else begin
-            // 只要 valid 為 High 就無腦收進來，不再被 IDLE 狀態卡住第一拍！
-            if (in_data_valid && data_in_cnt < TOTAL_IN) begin
-                data_buf[data_in_cnt] <= in_data;
-                data_in_cnt <= data_in_cnt + 1;
-            end
-            if (in_sw_valid && sw_in_cnt < TOTAL_IN) begin
-                sw_buf[sw_in_cnt] <= in_switch;
-                sw_in_cnt <= sw_in_cnt + 1;
-            end
-        end
-    end
-end
-
-// =======================================================================
-// 3. 輸出 Raster Scan 座標產生器 (確保 100% 連續輸出)
-// =======================================================================
-
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-        out_c <= 0; out_y <= 0; out_x <= 0;
-    end else if (state == OUTPUT) begin
-        if (out_x == OUT_WID - 1) begin
-            out_x <= 0;
-            if (out_y == OUT_WID - 1) begin
-                out_y <= 0;
-                out_c <= out_c + 1; // 0 變 1，1 自然溢位回 0
-            end else begin
-                out_y <= out_y + 1;
-            end
-        end else begin
-            out_x <= out_x + 1;
-        end
-    end else if (state == IDLE) begin
-        out_c <= 0; out_y <= 0; out_x <= 0;
-    end
-end
-
-// =======================================================================
-// 4. 座標降維對位 (Combinational Logic)
-// =======================================================================
-// 數學降維：把輸出的 Y, X 除以 2，就是對應的輸入 2x2 區塊座標
-wire [3:0] in_y = out_y >> 1; 
-wire [3:0] in_x = out_x >> 1;
-
-// 計算該區塊在 Buffer 裡的一維 Index
-// (編譯器會自動把 IN_WID 常數乘法優化成 Shift，不用擔心硬體成本)
-wire [6:0] buf_idx = (out_c * PIXELS_PER_CH) + (in_y * IN_WID) + in_x;
-
-// 目標 Switch 位置判定 (利用座標的最低位元)
-wire [1:0] target_sw = {out_y[0], out_x[0]};
-wire       is_match  = (sw_buf[buf_idx] == target_sw);
-
-// =======================================================================
-// 5. 主狀態機 (FSM)
-// =======================================================================
-
 wire data_done = (data_in_cnt == TOTAL_IN);
 wire sw_done   = (sw_in_cnt == TOTAL_IN);
 
+// =======================================================================
+// 1. Shift Register Data Path (資料移位邏輯)
+// =======================================================================
+integer i;
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-        state      <= IDLE;
-        output_valid  <= 1'b0;
-        out_data   <= 32'b0;
+        data_in_cnt <= 0; sw_in_cnt <= 0;
+        for (i = 0; i < TOTAL_IN; i = i + 1) begin
+            data_buf[i] <= 0; sw_buf[i] <= 0;
+        end
+        for (i = 0; i < IN_WID; i = i + 1) begin
+            replay_data[i] <= 0; replay_sw[i] <= 0;
+        end
+    end else begin
+        // 輸出完畢，準備接下一張圖
+        if (state == OUTPUT && is_last_pixel) begin
+            data_in_cnt <= 0;
+            sw_in_cnt   <= 0;
+        end else if (state == IDLE || state == COLLECT) begin
+            // 【收集階段】直接從尾巴推入，整排往左 Shift
+            if (in_data_valid && data_in_cnt < TOTAL_IN) begin
+                data_buf[TOTAL_IN - 1] <= in_data;
+                for (i = 0; i < TOTAL_IN - 1; i = i + 1) data_buf[i] <= data_buf[i + 1];
+                data_in_cnt <= data_in_cnt + 1;
+            end
+            if (in_sw_valid && sw_in_cnt < TOTAL_IN) begin
+                sw_buf[TOTAL_IN - 1] <= in_switch;
+                for (i = 0; i < TOTAL_IN - 1; i = i + 1) sw_buf[i] <= sw_buf[i + 1];
+                sw_in_cnt <= sw_in_cnt + 1;
+            end
+        end else if (state == OUTPUT) begin
+            // 【輸出階段】因為 1 顆 pixel 會被橫向展開成 2 顆，所以每 2 拍才 Shift 一次
+            if (out_x[0] == 1'b1) begin 
+                if (~out_y[0]) begin 
+                    // 🌟 偶數列：Shift 主緩衝區，並把彈出的資料塞進 Replay Buffer 備用！
+                    for (i = 0; i < TOTAL_IN - 1; i = i + 1) begin
+                        data_buf[i] <= data_buf[i + 1];
+                        sw_buf[i]   <= sw_buf[i + 1];
+                    end
+                    data_buf[TOTAL_IN - 1] <= 32'b0;
+                    sw_buf[TOTAL_IN - 1]   <= 2'b0;
+
+                    for (i = 0; i < IN_WID - 1; i = i + 1) begin
+                        replay_data[i] <= replay_data[i + 1];
+                        replay_sw[i]   <= replay_sw[i + 1];
+                    end
+                    replay_data[IN_WID - 1] <= data_buf[0];
+                    replay_sw[IN_WID - 1]   <= sw_buf[0];
+                end else begin
+                    // 🌟 奇數列：只 Shift Replay Buffer，主緩衝區不動！
+                    for (i = 0; i < IN_WID - 1; i = i + 1) begin
+                        replay_data[i] <= replay_data[i + 1];
+                        replay_sw[i]   <= replay_sw[i + 1];
+                    end
+                    replay_data[IN_WID - 1] <= 32'b0;
+                    replay_sw[IN_WID - 1]   <= 2'b0;
+                end
+            end
+        end
+    end
+end
+
+// =======================================================================
+// 2. FSM & Coordinate Tracker (狀態機與座標追蹤)
+// =======================================================================
+wire is_even_row = ~out_y[0];
+// 永遠只讀取陣列的第 0 格！徹底消滅變數索引 MUX！
+wire [31:0] current_data = is_even_row ? data_buf[0] : replay_data[0];
+wire [1:0]  current_sw   = is_even_row ? sw_buf[0]   : replay_sw[0];
+
+wire [1:0] target_sw = {out_y[0], out_x[0]};
+wire       is_match  = (current_sw == target_sw);
+
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        state        <= IDLE;
+        out_c        <= 0; out_y <= 0; out_x <= 0;
+        output_valid <= 1'b0;
+        out_data     <= 32'b0;
     end else begin
         case (state)
             IDLE: begin
                 output_valid <= 1'b0;
-                out_data  <= 32'b0;
-                if (in_sw_valid || in_data_valid) begin
-                    state <= COLLECT;
-                end
+                out_data     <= 32'b0;
+                out_c <= 0; out_y <= 0; out_x <= 0;
+                if (in_sw_valid || in_data_valid) state <= COLLECT;
             end
             
             COLLECT: begin
-                output_valid <= 1'b0;
-                out_data  <= 32'b0;
-                // 只有當「資料」跟「Switch」雙雙收集到齊，才准放行！
-                if (data_done && sw_done) begin
-                    state <= OUTPUT;
-                end
+                if (data_done && sw_done) state <= OUTPUT;
             end
             
             OUTPUT: begin
-                output_valid <= 1'b0; // 注意：這裡先設 0 是防呆
-                
-                // === Raster Scan 連續輸出 ===
-                // 因為 FSM 進入 OUTPUT 狀態，座標產生器會開始無腦跑 TOTAL_OUT 次
                 output_valid <= 1'b1;
-                out_data  <= is_match ? data_buf[buf_idx] : 32'b0;
+                out_data     <= is_match ? current_data : 32'b0;
 
-                // 跑完最後一顆像素，直接斷開
-                if (is_last_pixel) begin
-                    state <= IDLE;
+                // Raster Scan 座標推進
+                if (out_x == OUT_WID - 1) begin
+                    out_x <= 0;
+                    if (out_y == OUT_WID - 1) begin
+                        out_y <= 0;
+                        out_c <= out_c + 1;
+                    end else begin
+                        out_y <= out_y + 1;
+                    end
+                end else begin
+                    out_x <= out_x + 1;
                 end
+
+                if (is_last_pixel) state <= IDLE;
             end
-            
             default: state <= IDLE;
         endcase
     end
