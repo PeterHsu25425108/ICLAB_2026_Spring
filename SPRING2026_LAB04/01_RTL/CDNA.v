@@ -11,8 +11,8 @@ module Conv2d #(parameter IN_WID = 8)(
     input pad_mode,
     input weight_valid,
     input input_valid, 
-    output reg [31:0] out_data,     // 必須加 reg，因為在 always 區塊中賦值
-    output reg output_valid         // 必須加 reg，因為在 always 區塊中賦值
+    output reg [31:0] out_data,     
+    output reg output_valid         
 );
 
 // =======================================================================
@@ -366,22 +366,91 @@ end
 
 endmodule
 
+module OutputBuffer #(
+    parameter OUT_SIZE = 128, 
+    parameter DATA_WID = 32   // 新增資料寬度參數，預設為 32
+)(
+    input clk,
+    input rst_n,
+    input in_valid,         
+    input  [DATA_WID-1:0] in_data,   
+    
+    output reg out_valid,   
+    output reg [DATA_WID-1:0] out_data 
+);
+    // 使用 Shift Register 架構
+    reg [DATA_WID-1:0] buffer [0:OUT_SIZE-1]; 
+    reg [7:0]  collect_cnt;
+    reg [7:0]  burst_cnt;
+    reg        is_bursting;
+    integer i;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            collect_cnt <= 0;
+            burst_cnt   <= 0;
+            is_bursting <= 0;
+            out_valid   <= 0;
+            out_data    <= 0;
+            for (i = 0; i < OUT_SIZE; i = i + 1) begin
+                buffer[i] <= 0;
+            end
+        end else begin
+            // --- 狀態切換 ---
+            if (collect_cnt == OUT_SIZE && !is_bursting) begin
+                is_bursting <= 1'b1;
+            end else if (burst_cnt == OUT_SIZE) begin
+                is_bursting <= 1'b0;
+                collect_cnt <= 0;
+                burst_cnt   <= 0;
+            end
+
+            // --- 1. 收集階段 (Shift in from end) ---
+            if (in_valid && !is_bursting && collect_cnt < OUT_SIZE) begin
+                buffer[OUT_SIZE-1] <= in_data;
+                for (i = 0; i < OUT_SIZE-1; i = i + 1) begin
+                    buffer[i] <= buffer[i+1];
+                end
+                collect_cnt <= collect_cnt + 1;
+            end
+            
+            // --- 2. 爆發輸出階段 (Shift out from 0) ---
+            else if ((collect_cnt == OUT_SIZE || is_bursting) && burst_cnt < OUT_SIZE) begin
+                out_valid <= 1'b1;
+                out_data  <= buffer[0]; // 永遠輸出最前端的值
+                
+                // 將後面的資料往前推
+                buffer[OUT_SIZE-1] <= 0;
+                for (i = 0; i < OUT_SIZE-1; i = i + 1) begin
+                    buffer[i] <= buffer[i+1];
+                end
+                burst_cnt <= burst_cnt + 1;
+            end 
+            
+            // --- 3. 閒置/重置階段 ---
+            else begin
+                out_valid <= 1'b0;
+                out_data  <= 0;
+            end
+        end
+    end
+endmodule
+
 module MaxPool #(parameter IN_WID = 8)(
     input clk,
     input rst_n,
     input [31:0] in_data,
     input input_valid,
     
-    output reg [31:0] out_data,
-    output reg [1:0]  out_switch,
-    output reg output_valid
+    output [31:0] out_data,       // 注意：這裡改回 wire
+    output [1:0]  out_switch,     // 注意：這裡改回 wire
+    output        output_valid    // 注意：這裡改回 wire
 );
 
 localparam SR_DEPTH = IN_WID / 2;
+// 計算 MaxPool 最終要輸出的總像素數 = (IN_WID * IN_WID * 2個通道) / 4 (MaxPool 降採樣)
+localparam POOL_OUT_SIZE = (IN_WID * IN_WID) / 2; 
 
-// =======================================================================
-// 1. 完美自帶 Reset 的座標追蹤器
-// =======================================================================
 reg [4:0] cx, cy;
 always @(posedge clk or negedge rst_n) begin : coord_tracker
     if (!rst_n) begin
@@ -399,23 +468,14 @@ end
 
 wire is_top_row  = ~cy[0];
 wire is_bot_row  =  cy[0];
-wire is_even_col = ~cx[0]; // 0, 2, 4... (你不 Shift 的 Cycle)
-wire is_odd_col  =  cx[0]; // 1, 3, 5... (你執行環狀 Shift 的 Cycle)
+wire is_even_col = ~cx[0];
+wire is_odd_col  =  cx[0];
 
-// =======================================================================
-// 2. 核心暫存器 (Delay Line) 
-// =======================================================================
 reg [31:0] sr [0 : SR_DEPTH - 1];
 reg [1:0]  pos_sr [0 : SR_DEPTH - 1];
 integer i;
 
-// =======================================================================
-// 3. 單一比較器與極簡 Data Path
-// =======================================================================
-// 第一格的定義：上半部 且 是偶數列
 wire is_first = is_top_row && is_even_col;
-
-// 你的神來之筆：永遠只跟 sr[0] 比較！
 wire [31:0] cmp_b = sr[0]; 
 
 wire a_gt_b;
@@ -428,77 +488,249 @@ DW_fp_cmp #(23, 8, 0) u_cmp (
 );
 
 wire [31:0] next_max = is_first ? in_data : (a_gt_b ? in_data : cmp_b);
-
 wire [1:0] current_pos = {cy[0], cx[0]};
 wire [1:0] next_pos    = is_first ? current_pos : (a_gt_b ? current_pos : pos_sr[0]);
 
-// =======================================================================
-// 4. 時序更新邏輯 (你的環狀移位魔法)
-// =======================================================================
+// === 內部暫存器 (準備送給 OutputBuffer) ===
+reg [31:0] r_out_data;
+reg [1:0]  r_out_switch;
+reg        r_output_valid;
+
 always @(posedge clk or negedge rst_n) begin : update_and_output
     if (!rst_n) begin
         for (i = 0; i < SR_DEPTH; i = i + 1) begin
             sr[i] <= 0; pos_sr[i] <= 0;
         end
-        out_data <= 0; out_switch <= 0; output_valid <= 0;
+        r_out_data <= 0; r_out_switch <= 0; r_output_valid <= 0;
     end else begin
         if (input_valid) begin
-            
-            // 【階段 A：偶數列 (x=0, 2, 4)】-> 不移位，sr[0] 充當 iter_max
             if (is_even_col) begin
                 sr[0]     <= next_max;
                 pos_sr[0] <= next_pos;
-            end 
-            // 【階段 B：奇數列 (x=1, 3, 5)】-> 執行環狀移位 (Circular Shift)
-            else begin
+            end else begin
                 if (SR_DEPTH == 1) begin
-                    // IN_WID=2 的特例保護
                     sr[0]     <= next_max;
                     pos_sr[0] <= next_pos;
                 end else begin
-                    // 1. 新的最大值推入 sr[1]
                     sr[1]     <= next_max;
                     pos_sr[1] <= next_pos;
-                    
-                    // 2. 陣列大風吹
                     for (i = 2; i < SR_DEPTH; i = i + 1) begin
                         sr[i]     <= sr[i - 1];
                         pos_sr[i] <= pos_sr[i - 1];
                     end
-                    
-                    // 3. 頭尾相接：把最舊的歷史紀錄繞回 sr[0]，完美準備給下一個 Cycle！
                     sr[0]     <= sr[SR_DEPTH - 1];
                     pos_sr[0] <= pos_sr[SR_DEPTH - 1];
                 end
             end
 
-            // 【輸出控制】-> 依然只在右下角觸發
+            // 觸發內部 Valid
             if (is_bot_row && is_odd_col) begin
-                out_data     <= next_max;
-                out_switch   <= next_pos;
-                output_valid <= 1'b1;
+                r_out_data     <= next_max;
+                r_out_switch   <= next_pos;
+                r_output_valid <= 1'b1;
             end else begin
-                output_valid <= 1'b0;
+                r_output_valid <= 1'b0;
             end
-            
         end else begin
-            output_valid <= 1'b0;
+            r_output_valid <= 1'b0;
         end
     end
 end
 
+// =======================================================================
+// 實例化 OutputBuffer 進行序列化輸出 (結合 data 與 switch)
+// =======================================================================
+wire [33:0] combined_out;
+
+OutputBuffer #(
+    .OUT_SIZE(POOL_OUT_SIZE), 
+    .DATA_WID(34) // 32 bits data + 2 bits switch = 34 bits
+) u_obuf (
+    .clk(clk),
+    .rst_n(rst_n),
+    .in_valid(r_output_valid),
+    .in_data({r_out_switch, r_out_data}), // 將兩個訊號接在一起送入
+    
+    .out_valid(output_valid),
+    .out_data(combined_out)
+);
+
+// 拆解 Buffer 吐出來的連續訊號
+assign out_switch = combined_out[33:32];
+assign out_data   = combined_out[31:0];
+
 endmodule
 
-// module UnPool#(parameter IN_WID= 8)(
-//     clk,
-//     rst_n,
-//     in_data,
-//     out_data,
-//     input_valid, // high when a next input pixel is sent
-//     output_valid // notify the later stages a new pixel is being sent
-// );
+module UnPool#(parameter IN_WID= 4)(
+    clk,
+    rst_n,
+    in_data,
+    in_switch,
+    in_sw_valid,
+    out_data,
+    in_data_valid, // high when a next input pixel is sent
+    output_valid // notify the later stages a new pixel is being sent
+);
+input clk;
+input rst_n;
+input [1:0] in_switch;
+input [31:0] in_data;
+output reg [31:0] out_data;
+input in_data_valid;
+input in_sw_valid;
+output reg output_valid;
 
-// endmodule
+parameter SWITCH_CNT_BITNUM = IN_WID * 2;
+parameter ROUND_CNT_BITNUM = IN_WID/2 + 2;
+parameter FLOW_CNT_BITNUM = IN_WID/2;
+
+// states
+parameter IDLE = 2'd0;
+parameter SWITCH = 2'd1; // waiting for switch input
+parameter DATA = 2'd2; // waiting for data input && perform computation
+
+// input bufer storing the switch and input data
+reg [1:0] in_switch_buf [0:IN_WID*IN_WID-1];
+reg [31:0] in_data_buf [0:IN_WID*IN_WID-1];
+
+reg [SWITCH_CNT_BITNUM-1:0] input_cnt, nxt_input_cnt; // count the number of switch/in_data stored, 0~IN_WID*IN_WID-1
+reg [ROUND_CNT_BITNUM-1:0] rnd_cnt, nxt_rnd_cnt; // count the number of rounds (2 rows) processed, 0~IN_WID-1
+reg [FLOW_CNT_BITNUM-1:0] flow_cnt, nxt_flow_cnt; // count the number of pixels output in the current round, 0~4*IN_WID-1
+
+reg [1:0] state, nxt_state;
+integer i;
+
+// define operation performed in each state
+always @(posedge clk or negedge rst_n) begin : switch_buf_stoage
+    if(!rst_n) begin
+        for(i=0; i<IN_WID*IN_WID; i=i+1) begin
+            in_switch_buf[i] <= 0;
+        end
+    end else begin
+        case(state)
+        IDLE, SWITCH: begin
+            if(in_sw_valid) begin
+                // shift the buffer and store the new switch at the end
+                in_switch_buf[IN_WID*IN_WID-1] <= in_switch;
+                for(i=0; i<IN_WID*IN_WID-1; i=i+1) begin
+                    in_switch_buf[i] <= in_switch_buf[i+1];
+                end
+            end else begin
+                // hold the buffer value if no new switch input comes
+                for(i=0; i<IN_WID*IN_WID; i=i+1) begin
+                    in_switch_buf[i] <= in_switch_buf[i];
+                end
+            end
+        end
+        DATA: begin
+            
+        end
+        default: ;
+        endcase 
+    end
+end
+
+always @(posedge clk or negedge rst_n) begin : data_buf_stoage
+    if(!rst_n) begin
+        for(i=0; i<IN_WID*IN_WID; i=i+1) begin
+            in_data_buf[i] <= 0;
+        end
+    end else begin
+        case(state)
+        IDLE, SWITCH: begin
+            // hold the buffer value
+            for(i=0; i<IN_WID*IN_WID; i=i+1) begin
+                in_data_buf[i] <= in_data_buf[i];
+            end
+        end
+        DATA: begin
+            if(in_data_valid) begin
+                // shift the buffer and store the new data at the end
+                in_data_buf[IN_WID*IN_WID-1] <= in_data;
+                for(i=0; i<IN_WID*IN_WID-1; i=i+1) begin
+                    in_data_buf[i] <= in_data_buf[i+1];
+                end
+            end else begin
+                // hold the buffer value if no new data input comes
+                for(i=0; i<IN_WID*IN_WID; i=i+1) begin
+                    in_data_buf[i] <= in_data_buf[i];
+                end
+            end
+        end
+        default: ;
+        endcase 
+    end
+end
+
+// state trasition
+always @(*) begin : nxt_state_logic
+    case(state)
+    IDLE: begin
+        nxt_state = in_sw_valid ? SWITCH : IDLE;
+    end
+    SWITCH: begin
+        nxt_state = (in_data_valid && input_cnt == IN_WID * IN_WID-1) ? DATA : SWITCH;
+    end
+    DATA: begin
+        nxt_state = (rnd_cnt >= IN_WID-1) ? IDLE : DATA;
+    end
+    default: nxt_state = IDLE;
+    endcase 
+end
+
+// counters are set here to according to state 
+always @(*) begin : counters_nxt_values
+    case(state) 
+    IDLE:begin
+        nxt_input_cnt = in_sw_valid ? 1 : 0;
+        nxt_rnd_cnt = 0;
+        nxt_flow_cnt = 0;
+    end
+    SWITCH:begin
+        // nxt_input_cnt reset to 1 when transistioning to DATA, else increment itself
+        nxt_input_cnt = (in_sw_valid && input_cnt == IN_WID * IN_WID-1) ? 1 : (in_sw_valid ? input_cnt + 1 : input_cnt);
+        nxt_rnd_cnt = 0;
+        nxt_flow_cnt = 0;
+    end
+    DATA: begin
+        nxt_input_cnt = in_data_valid ? nxt_input_cnt + 1 : input_cnt;
+        nxt_flow_cnt = nxt_flow_cnt + 1;
+        if(/*in_data_valid &&*/ flow_cnt == 4*IN_WID-1) begin
+            nxt_rnd_cnt = rnd_cnt + 1;
+        end else begin
+            nxt_rnd_cnt = rnd_cnt;
+        end
+    end
+    default: begin
+        nxt_rnd_cnt = 0;
+        nxt_flow_cnt = 0;
+        nxt_input_cnt = 0;
+    end
+    endcase
+end
+
+always @(posedge clk or negedge rst_n) begin
+    if(!rst_n) begin
+        input_cnt <= 0;
+        rnd_cnt <= 0;
+        flow_cnt <= 0;
+    end else begin
+        input_cnt <= nxt_input_cnt;
+        rnd_cnt <= nxt_rnd_cnt;
+        flow_cnt <= nxt_flow_cnt;
+    end
+end
+
+
+always @(posedge clk or negedge rst_n) begin
+    if(!rst_n) begin
+        state <= IDLE;
+    end else begin
+        state <= nxt_state;
+    end
+end
+
+endmodule
 
 module ActFunc (
     input wire         clk,
@@ -916,63 +1148,6 @@ end
 
 endmodule
 
-module OutputBuffer #(parameter OUT_SIZE=128)(
-    input clk,
-    input rst_n,
-    input in_valid,         // 來自管線最後一級 (例如 Act3) 的 valid 訊號
-    input [31:0] in_data,   // 來自管線最後一級 (例如 Act3) 的 data
-    
-    output reg out_valid,   // 連接至 Top Module 的 out_valid
-    output reg [31:0] out_data // 連接至 Top Module 的 out_data
-);
-
-    reg [31:0] buffer [0:OUT_SIZE-1]; // 暫存最後一級的輸出
-    reg [7:0]  collect_cnt;  // 記錄收集了幾筆 (0~OUT_SIZE)
-    reg [7:0]  burst_cnt;    // 記錄輸出了幾筆 (0~OUT_SIZE)
-    reg        is_bursting;  // 是否正在連續輸出
-
-    always @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            collect_cnt <= 0;
-            burst_cnt   <= 0;
-            is_bursting <= 0;
-            out_valid   <= 0;
-            out_data    <= 0;
-        end else begin
-            // 1. 收集最後一級的輸出
-            if (in_valid) begin
-                buffer[collect_cnt] <= in_data;
-                collect_cnt <= collect_cnt + 1;
-            end
-
-            // 2. 判斷是否收集完畢，準備啟動爆發輸出
-            if (collect_cnt == OUT_SIZE && !is_bursting) begin
-                is_bursting <= 1'b1;
-            end
-
-            // 3. 連續 OUT_SIZ 拍的輸出邏輯
-            if (is_bursting && burst_cnt < OUT_SIZE) begin
-                out_valid <= 1'b1;
-                out_data  <= buffer[burst_cnt];
-                burst_cnt <= burst_cnt + 1;
-            end 
-            else if (burst_cnt == OUT_SIZE) begin
-                // 輸出完畢，全部狀態歸零，準備迎接下一張影像！
-                out_valid   <= 1'b0;
-                out_data    <= 32'b0;
-                is_bursting <= 1'b0;
-                collect_cnt <= 0;
-                burst_cnt   <= 0;
-            end
-            else begin
-                out_valid <= 1'b0;
-                out_data  <= 32'b0;
-            end
-        end
-    end
-
-endmodule
-
 module CDNA(
     // Input Port
     clk,
@@ -1025,10 +1200,6 @@ integer i;
 wire [31:0] maxpool0_out_data;
 wire maxpool0_out_valid;
 wire [1:0] maxpool0_out_switch; // 2-bit switch to indicate the position of the max value in the 2x2 grid
-
-wire [31:0] maxpool1_out_data;
-wire maxpool1_out_valid;
-wire [1:0] maxpool1_out_switch; // 2-bit switch to indicate the position of the max value in the 2x2 grid
 
 // store the position of maxpool output in ther 2x2 grid, will be used by unpooling
 reg [1:0] sw_pool0_fifo [0:31]; // 深度 32，供 Unpool1 使用
@@ -1183,43 +1354,86 @@ ActFunc u_Act0 (
     .output_valid(act0_out_valid) // Connect to OutputBuffer
 );
 
+Conv2d  #(.IN_WID(4)) u_Conv1(
+    .clk(clk),
+    .rst_n(rst_n),
+    .in_data(act0_out_data),
+    .in_weight(in_data),
+    .pad_mode(repli_pad),
+    .weight_valid(w_valid_c1),   // Only high for the next 36 cycles
+    .input_valid(act0_out_valid), 
+    .out_data(c1_out_data),
+    .output_valid(c1_out_valid)
+);
+
+MaxPool #(.IN_WID(4)) u_maxpool1 (
+    .clk(clk),
+    .rst_n(rst_n),
+    .in_data(c1_out_data),
+    .input_valid(c1_out_valid),
+    .out_data(maxpool1_out_data), 
+    .out_switch(maxpool1_out_switch), // Connect to FIFO for UnPool
+    .output_valid(maxpool1_out_valid) 
+);
+
+ActFunc u_Act1 (
+    .clk(clk),
+    .rst_n(rst_n),
+    .in_data(maxpool1_out_data),
+    .act_mode(act_mode),
+    .input_valid(maxpool1_out_valid),
+    .out_data(act1_out_data), 
+    .output_valid(act1_out_valid) 
+);
+
+UnPool #(.IN_WID(2)) u_UnPool0 (
+    .clk(clk),
+    .rst_n(rst_n),
+    .in_data(act1_out_data),
+    .in_switch(maxpool1_out_switch), // Connect to FIFO output
+    .in_sw_valid(maxpool1_out_valid), // Use maxpool valid as switch valid
+    .in_data_valid(act1_out_valid), // Use act valid as data valid
+    .out_data(upool0_out_data),
+    .output_valid(upool0_out_valid)
+);
+
 // 當 MaxPool0 吐出有效結果時，把 2-bit Switch 推入 FIFO
-always @(posedge clk or negedge rst_n) begin : switch_fifo_logic
-    if (!rst_n) begin
-        for (k = 0; k < 32; k = k + 1) begin
-            sw_pool0_fifo[k] <= 0;
-        end
+// always @(posedge clk or negedge rst_n) begin : switch_fifo_logic
+//     if (!rst_n) begin
+//         for (k = 0; k < 32; k = k + 1) begin
+//             sw_pool0_fifo[k] <= 0;
+//         end
 
-        for (k = 0; k < 8; k = k + 1) begin
-            sw_pool1_fifo[k] <= 0;
-        end
+//         for (k = 0; k < 8; k = k + 1) begin
+//             sw_pool1_fifo[k] <= 0;
+//         end
 
-    end else if (maxpool0_out_valid) begin
-        sw_pool0_fifo[31] <= maxpool0_out_switch; // 剛產生的訊號從尾端進入
-        for (k = 0; k < 31; k = k + 1) begin
-            sw_pool0_fifo[k] <= sw_pool0_fifo[k + 1]; // 依序往前推
-        end
+//     end else if (maxpool0_out_valid) begin
+//         sw_pool0_fifo[31] <= maxpool0_out_switch; // 剛產生的訊號從尾端進入
+//         for (k = 0; k < 31; k = k + 1) begin
+//             sw_pool0_fifo[k] <= sw_pool0_fifo[k + 1]; // 依序往前推
+//         end
 
-        sw_pool1_fifo[31] <= maxpool1_out_switch; // 剛產生的訊號從尾端進入
-        for (k = 0; k < 7; k = k + 1) begin
-            sw_pool1_fifo[k] <= sw_pool1_fifo[k + 1]; // 依序往前推
-        end
-    end
-end
+//         sw_pool1_fifo[7] <= maxpool1_out_switch; // 剛產生的訊號從尾端進入
+//         for (k = 0; k < 7; k = k + 1) begin
+//             sw_pool1_fifo[k] <= sw_pool1_fifo[k + 1]; // 依序往前推
+//         end
+//     end
+// end
 
 
-// assign final_stage_data  = maxpool0_out_data;
-// assign final_stage_valid = maxpool0_out_valid;
+assign final_stage_data  = act1_out_data;
+assign final_stage_valid = act1_out_valid;
 
 // assign final_stage_data  = act3_out_data;
 // assign final_stage_valid = act3_out_valid;
-// OutputBuffer #(.OUT_SIZE(128)) u_OutputBuffer  (
-//     .clk(clk),
-//     .rst_n(rst_n),
-//     .in_valid(final_stage_valid), // 吃管線最後一級的斷續 valid
-//     .in_data(final_stage_data),   // 吃管線最後一級的斷續 data
-//     .out_valid(out_valid),        // 直接輸出給 PATTERN 的連續 valid
-//     .out_data(out_data)           // 直接輸出給 PATTERN 的連續 data
-// );
+OutputBuffer #(.OUT_SIZE(32)) u_OutputBuffer  (
+    .clk(clk),
+    .rst_n(rst_n),
+    .in_valid(final_stage_valid), // 吃管線最後一級的斷續 valid
+    .in_data(final_stage_data),   // 吃管線最後一級的斷續 data
+    .out_valid(out_valid),        // 直接輸出給 PATTERN 的連續 valid
+    .out_data(out_data)           // 直接輸出給 PATTERN 的連續 data
+);
 
 endmodule
