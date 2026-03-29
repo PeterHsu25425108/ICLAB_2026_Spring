@@ -340,7 +340,8 @@ always @(posedge clk or negedge rst_n) begin : output_serialization_logic
         end 
         else begin
             output_valid <= 1'b0;
-            if (pixel_in_cnt == 0) serialize_cnt <= 0;
+            // 🌟 完美修正：只要序列化階段結束(或還沒開始)，計數器就乖乖待在 0 準備！
+            if (!serialize_active) serialize_cnt <= 0;
         end
     end
 end
@@ -365,7 +366,7 @@ always @(posedge clk or negedge rst_n) begin
 end
 
 endmodule
-
+/*
 module OutputBuffer #(
     parameter OUT_SIZE = 128, 
     parameter DATA_WID = 32   // 新增資料寬度參數，預設為 32
@@ -435,16 +436,16 @@ module OutputBuffer #(
         end
     end
 endmodule
-
+*/
 module MaxPool #(parameter IN_WID = 8)(
     input clk,
     input rst_n,
     input [31:0] in_data,
     input input_valid,
     
-    output [31:0] out_data,       // 注意：這裡改回 wire
-    output [1:0]  out_switch,     // 注意：這裡改回 wire
-    output        output_valid    // 注意：這裡改回 wire
+    output reg [31:0] out_data,       
+    output reg [1:0]  out_switch,     
+    output reg        output_valid
 );
 
 localparam SR_DEPTH = IN_WID / 2;
@@ -499,234 +500,209 @@ reg        r_output_valid;
 always @(posedge clk or negedge rst_n) begin : update_and_output
     if (!rst_n) begin
         for (i = 0; i < SR_DEPTH; i = i + 1) begin
-            sr[i] <= 0; pos_sr[i] <= 0;
+            sr[i] <= 0; 
+            pos_sr[i] <= 0;
         end
-        r_out_data <= 0; r_out_switch <= 0; r_output_valid <= 0;
+        out_data     <= 0; 
+        out_switch   <= 0; 
+        output_valid <= 0;
     end else begin
         if (input_valid) begin
+            
+            // 【階段 A：偶數列 (x=0, 2, 4)】-> 不移位，sr[0] 直接充當 iter_max
             if (is_even_col) begin
                 sr[0]     <= next_max;
                 pos_sr[0] <= next_pos;
-            end else begin
+            end 
+            // 【階段 B：奇數列 (x=1, 3, 5)】-> 執行環狀移位 (Circular Shift)
+            else begin
                 if (SR_DEPTH == 1) begin
+                    // IN_WID=2 的特例保護 (因為深度只有 1，直接覆寫即可)
                     sr[0]     <= next_max;
                     pos_sr[0] <= next_pos;
                 end else begin
+                    // 1. 算出 2x2 格子的最新暫存結果，推入 sr[1]
                     sr[1]     <= next_max;
                     pos_sr[1] <= next_pos;
+                    
+                    // 2. 陣列大風吹 (Shift)
                     for (i = 2; i < SR_DEPTH; i = i + 1) begin
                         sr[i]     <= sr[i - 1];
                         pos_sr[i] <= pos_sr[i - 1];
                     end
+                    
+                    // 3. 頭尾相接：把最舊的歷史紀錄繞回 sr[0]，完美準備給下一個 Cycle 的偶數列！
                     sr[0]     <= sr[SR_DEPTH - 1];
                     pos_sr[0] <= pos_sr[SR_DEPTH - 1];
                 end
             end
 
-            // 觸發內部 Valid
+            // 【輸出控制】-> 直接送出！走到右下角 (Bot Row & Odd Col) 時，2x2 結算完畢
             if (is_bot_row && is_odd_col) begin
-                r_out_data     <= next_max;
-                r_out_switch   <= next_pos;
-                r_output_valid <= 1'b1;
+                out_data     <= next_max;
+                out_switch   <= next_pos;
+                output_valid <= 1'b1;
             end else begin
-                r_output_valid <= 1'b0;
+                output_valid <= 1'b0;
             end
+            
         end else begin
-            r_output_valid <= 1'b0;
+            // Stall / Bubble 防護：只要輸入斷掉，輸出 valid 就乖乖拉低
+            output_valid <= 1'b0;
         end
     end
 end
-
-// =======================================================================
-// 實例化 OutputBuffer 進行序列化輸出 (結合 data 與 switch)
-// =======================================================================
-wire [33:0] combined_out;
-
-OutputBuffer #(
-    .OUT_SIZE(POOL_OUT_SIZE), 
-    .DATA_WID(34) // 32 bits data + 2 bits switch = 34 bits
-) u_obuf (
-    .clk(clk),
-    .rst_n(rst_n),
-    .in_valid(r_output_valid),
-    .in_data({r_out_switch, r_out_data}), // 將兩個訊號接在一起送入
-    
-    .out_valid(output_valid),
-    .out_data(combined_out)
-);
-
-// 拆解 Buffer 吐出來的連續訊號
-assign out_switch = combined_out[33:32];
-assign out_data   = combined_out[31:0];
 
 endmodule
 
-module UnPool#(parameter IN_WID= 4)(
-    clk,
-    rst_n,
-    in_data,
-    in_switch,
-    in_sw_valid,
-    out_data,
-    in_data_valid, // high when a next input pixel is sent
-    output_valid // notify the later stages a new pixel is being sent
+module UnPool #(parameter IN_WID = 4)(
+    input  clk,
+    input  rst_n,
+    input  [31:0] in_data,
+    input  [1:0]  in_switch,
+    input         in_sw_valid,
+    input         in_data_valid,
+    
+    output reg [31:0] out_data,
+    output reg        output_valid 
 );
-input clk;
-input rst_n;
-input [1:0] in_switch;
-input [31:0] in_data;
-output reg [31:0] out_data;
-input in_data_valid;
-input in_sw_valid;
-output reg output_valid;
 
-parameter SWITCH_CNT_BITNUM = IN_WID * 2;
-parameter ROUND_CNT_BITNUM = IN_WID/2 + 2;
-parameter FLOW_CNT_BITNUM = IN_WID/2;
+reg [1:0] state;
+localparam IDLE    = 2'd0;
+localparam COLLECT = 2'd1;
+localparam OUTPUT  = 2'd2;
 
-// states
-parameter IDLE = 2'd0;
-parameter SWITCH = 2'd1; // waiting for switch input
-parameter DATA = 2'd2; // waiting for data input && perform computation
+// =======================================================================
+// 1. 參數化計算 (無論 IN_WID 是 2 或 4 皆可完美自動推算)
+// =======================================================================
+localparam PIXELS_PER_CH = IN_WID * IN_WID;
+localparam TOTAL_IN      = 2 * PIXELS_PER_CH; // 2 Channel 的總輸入量 (8 或 32)
+localparam OUT_WID       = IN_WID * 2;        // 輸出寬度 (4 或 8)
+localparam TOTAL_OUT     = 2 * OUT_WID * OUT_WID; // 總輸出量 (32 或 128)
 
-// input bufer storing the switch and input data
-reg [1:0] in_switch_buf [0:IN_WID*IN_WID-1];
-reg [31:0] in_data_buf [0:IN_WID*IN_WID-1];
+// =======================================================================
+// 2. 獨立的雙 Buffer 與計數器 (對抗 ActFunc 造成的時差)
+// =======================================================================
+reg [31:0] data_buf [0 : TOTAL_IN - 1];
+reg [1:0]  sw_buf   [0 : TOTAL_IN - 1];
 
-reg [SWITCH_CNT_BITNUM-1:0] input_cnt, nxt_input_cnt; // count the number of switch/in_data stored, 0~IN_WID*IN_WID-1
-reg [ROUND_CNT_BITNUM-1:0] rnd_cnt, nxt_rnd_cnt; // count the number of rounds (2 rows) processed, 0~IN_WID-1
-reg [FLOW_CNT_BITNUM-1:0] flow_cnt, nxt_flow_cnt; // count the number of pixels output in the current round, 0~4*IN_WID-1
+reg [6:0] data_in_cnt; 
+reg [6:0] sw_in_cnt;
+reg       out_c;   
+reg [3:0] out_y;   
+reg [3:0] out_x;   
+wire is_last_pixel = (out_c == 1) && (out_y == OUT_WID - 1) && (out_x == OUT_WID - 1);
 
-reg [1:0] state, nxt_state;
-integer i;
 
-// define operation performed in each state
-always @(posedge clk or negedge rst_n) begin : switch_buf_stoage
-    if(!rst_n) begin
-        for(i=0; i<IN_WID*IN_WID; i=i+1) begin
-            in_switch_buf[i] <= 0;
-        end
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        data_in_cnt <= 0;
+        sw_in_cnt   <= 0;
     end else begin
-        case(state)
-        IDLE, SWITCH: begin
-            if(in_sw_valid) begin
-                // shift the buffer and store the new switch at the end
-                in_switch_buf[IN_WID*IN_WID-1] <= in_switch;
-                for(i=0; i<IN_WID*IN_WID-1; i=i+1) begin
-                    in_switch_buf[i] <= in_switch_buf[i+1];
-                end
-            end else begin
-                // hold the buffer value if no new switch input comes
-                for(i=0; i<IN_WID*IN_WID; i=i+1) begin
-                    in_switch_buf[i] <= in_switch_buf[i];
-                end
-            end
-        end
-        DATA: begin
-            
-        end
-        default: ;
-        endcase 
-    end
-end
-
-always @(posedge clk or negedge rst_n) begin : data_buf_stoage
-    if(!rst_n) begin
-        for(i=0; i<IN_WID*IN_WID; i=i+1) begin
-            in_data_buf[i] <= 0;
-        end
-    end else begin
-        case(state)
-        IDLE, SWITCH: begin
-            // hold the buffer value
-            for(i=0; i<IN_WID*IN_WID; i=i+1) begin
-                in_data_buf[i] <= in_data_buf[i];
-            end
-        end
-        DATA: begin
-            if(in_data_valid) begin
-                // shift the buffer and store the new data at the end
-                in_data_buf[IN_WID*IN_WID-1] <= in_data;
-                for(i=0; i<IN_WID*IN_WID-1; i=i+1) begin
-                    in_data_buf[i] <= in_data_buf[i+1];
-                end
-            end else begin
-                // hold the buffer value if no new data input comes
-                for(i=0; i<IN_WID*IN_WID; i=i+1) begin
-                    in_data_buf[i] <= in_data_buf[i];
-                end
-            end
-        end
-        default: ;
-        endcase 
-    end
-end
-
-// state trasition
-always @(*) begin : nxt_state_logic
-    case(state)
-    IDLE: begin
-        nxt_state = in_sw_valid ? SWITCH : IDLE;
-    end
-    SWITCH: begin
-        nxt_state = (in_data_valid && input_cnt == IN_WID * IN_WID-1) ? DATA : SWITCH;
-    end
-    DATA: begin
-        nxt_state = (rnd_cnt >= IN_WID-1) ? IDLE : DATA;
-    end
-    default: nxt_state = IDLE;
-    endcase 
-end
-
-// counters are set here to according to state 
-always @(*) begin : counters_nxt_values
-    case(state) 
-    IDLE:begin
-        nxt_input_cnt = in_sw_valid ? 1 : 0;
-        nxt_rnd_cnt = 0;
-        nxt_flow_cnt = 0;
-    end
-    SWITCH:begin
-        // nxt_input_cnt reset to 1 when transistioning to DATA, else increment itself
-        nxt_input_cnt = (in_sw_valid && input_cnt == IN_WID * IN_WID-1) ? 1 : (in_sw_valid ? input_cnt + 1 : input_cnt);
-        nxt_rnd_cnt = 0;
-        nxt_flow_cnt = 0;
-    end
-    DATA: begin
-        nxt_input_cnt = in_data_valid ? nxt_input_cnt + 1 : input_cnt;
-        nxt_flow_cnt = nxt_flow_cnt + 1;
-        if(/*in_data_valid &&*/ flow_cnt == 4*IN_WID-1) begin
-            nxt_rnd_cnt = rnd_cnt + 1;
+        // 🌟 修正點：當輸出完最後一顆像素時，才將計數器歸零準備接下一張圖
+        if (state == OUTPUT && is_last_pixel) begin
+            data_in_cnt <= 0;
+            sw_in_cnt   <= 0;
         end else begin
-            nxt_rnd_cnt = rnd_cnt;
+            // 只要 valid 為 High 就無腦收進來，不再被 IDLE 狀態卡住第一拍！
+            if (in_data_valid && data_in_cnt < TOTAL_IN) begin
+                data_buf[data_in_cnt] <= in_data;
+                data_in_cnt <= data_in_cnt + 1;
+            end
+            if (in_sw_valid && sw_in_cnt < TOTAL_IN) begin
+                sw_buf[sw_in_cnt] <= in_switch;
+                sw_in_cnt <= sw_in_cnt + 1;
+            end
         end
     end
-    default: begin
-        nxt_rnd_cnt = 0;
-        nxt_flow_cnt = 0;
-        nxt_input_cnt = 0;
-    end
-    endcase
 end
 
+// =======================================================================
+// 3. 輸出 Raster Scan 座標產生器 (確保 100% 連續輸出)
+// =======================================================================
+
 always @(posedge clk or negedge rst_n) begin
-    if(!rst_n) begin
-        input_cnt <= 0;
-        rnd_cnt <= 0;
-        flow_cnt <= 0;
-    end else begin
-        input_cnt <= nxt_input_cnt;
-        rnd_cnt <= nxt_rnd_cnt;
-        flow_cnt <= nxt_flow_cnt;
+    if (!rst_n) begin
+        out_c <= 0; out_y <= 0; out_x <= 0;
+    end else if (state == OUTPUT) begin
+        if (out_x == OUT_WID - 1) begin
+            out_x <= 0;
+            if (out_y == OUT_WID - 1) begin
+                out_y <= 0;
+                out_c <= out_c + 1; // 0 變 1，1 自然溢位回 0
+            end else begin
+                out_y <= out_y + 1;
+            end
+        end else begin
+            out_x <= out_x + 1;
+        end
+    end else if (state == IDLE) begin
+        out_c <= 0; out_y <= 0; out_x <= 0;
     end
 end
 
+// =======================================================================
+// 4. 座標降維對位 (Combinational Logic)
+// =======================================================================
+// 數學降維：把輸出的 Y, X 除以 2，就是對應的輸入 2x2 區塊座標
+wire [3:0] in_y = out_y >> 1; 
+wire [3:0] in_x = out_x >> 1;
+
+// 計算該區塊在 Buffer 裡的一維 Index
+// (編譯器會自動把 IN_WID 常數乘法優化成 Shift，不用擔心硬體成本)
+wire [6:0] buf_idx = (out_c * PIXELS_PER_CH) + (in_y * IN_WID) + in_x;
+
+// 目標 Switch 位置判定 (利用座標的最低位元)
+wire [1:0] target_sw = {out_y[0], out_x[0]};
+wire       is_match  = (sw_buf[buf_idx] == target_sw);
+
+// =======================================================================
+// 5. 主狀態機 (FSM)
+// =======================================================================
+
+wire data_done = (data_in_cnt == TOTAL_IN);
+wire sw_done   = (sw_in_cnt == TOTAL_IN);
 
 always @(posedge clk or negedge rst_n) begin
-    if(!rst_n) begin
-        state <= IDLE;
+    if (!rst_n) begin
+        state      <= IDLE;
+        output_valid  <= 1'b0;
+        out_data   <= 32'b0;
     end else begin
-        state <= nxt_state;
+        case (state)
+            IDLE: begin
+                output_valid <= 1'b0;
+                out_data  <= 32'b0;
+                if (in_sw_valid || in_data_valid) begin
+                    state <= COLLECT;
+                end
+            end
+            
+            COLLECT: begin
+                output_valid <= 1'b0;
+                out_data  <= 32'b0;
+                // 只有當「資料」跟「Switch」雙雙收集到齊，才准放行！
+                if (data_done && sw_done) begin
+                    state <= OUTPUT;
+                end
+            end
+            
+            OUTPUT: begin
+                output_valid <= 1'b0; // 注意：這裡先設 0 是防呆
+                
+                // === Raster Scan 連續輸出 ===
+                // 因為 FSM 進入 OUTPUT 狀態，座標產生器會開始無腦跑 TOTAL_OUT 次
+                output_valid <= 1'b1;
+                out_data  <= is_match ? data_buf[buf_idx] : 32'b0;
+
+                // 跑完最後一顆像素，直接斷開
+                if (is_last_pixel) begin
+                    state <= IDLE;
+                end
+            end
+            
+            default: state <= IDLE;
+        endcase
     end
 end
 
@@ -898,7 +874,7 @@ always @(posedge clk or negedge rst_n) begin
         out_data     <= 32'b0;
         output_valid <= 1'b0;
     end else begin
-        out_data     <= next_out_data;
+        out_data     <= {32{next_out_valid}} & next_out_data;
         output_valid <= next_out_valid;
     end
 end
@@ -1224,8 +1200,8 @@ wire [31:0] act1_out_data;
 wire act1_out_valid;
 
 // unpool0 output
-wire [31:0] upool0_out_data;
-wire upool0_out_valid;
+wire [31:0] unpool0_out_data;
+wire unpool0_out_valid;
 
 // deconv0 output
 wire [31:0] dc0_out_data;
@@ -1248,7 +1224,7 @@ wire [31:0] act3_out_data;
 wire act3_out_valid;
 
 // main counter
-reg [8:0] main_counter;
+reg [12:0] main_counter;
 
 // the signals at the final computational stage
 // not yet serialized to be a consective output stream
@@ -1262,12 +1238,13 @@ always @(posedge clk or negedge rst_n) begin : main_cnt_logic
     else begin
         // main_counter <= (image_in_valid || instruction_in_valid || weight_in_valid) ?
         //                 main_counter + 1 : main_counter;
-        if (instruction_in_valid) begin
-            main_counter <= 1; // 收到新測資的第一個訊號，強制重新起算
-        end
-        else if (image_in_valid || weight_in_valid) begin
-            main_counter <= main_counter + 1;
-        end
+        // if (instruction_in_valid) begin
+        //     main_counter <= 1; // 收到新測資的第一個訊號，強制重新起算
+        // end
+        // else if (image_in_valid || weight_in_valid) begin
+        //     main_counter <= main_counter + 1;
+        // end
+        main_counter <= main_counter+1;
     end
 end
 
@@ -1393,47 +1370,71 @@ UnPool #(.IN_WID(2)) u_UnPool0 (
     .in_switch(maxpool1_out_switch), // Connect to FIFO output
     .in_sw_valid(maxpool1_out_valid), // Use maxpool valid as switch valid
     .in_data_valid(act1_out_valid), // Use act valid as data valid
-    .out_data(upool0_out_data),
-    .output_valid(upool0_out_valid)
+    .out_data(unpool0_out_data),
+    .output_valid(unpool0_out_valid)
 );
 
-// 當 MaxPool0 吐出有效結果時，把 2-bit Switch 推入 FIFO
-// always @(posedge clk or negedge rst_n) begin : switch_fifo_logic
-//     if (!rst_n) begin
-//         for (k = 0; k < 32; k = k + 1) begin
-//             sw_pool0_fifo[k] <= 0;
-//         end
-
-//         for (k = 0; k < 8; k = k + 1) begin
-//             sw_pool1_fifo[k] <= 0;
-//         end
-
-//     end else if (maxpool0_out_valid) begin
-//         sw_pool0_fifo[31] <= maxpool0_out_switch; // 剛產生的訊號從尾端進入
-//         for (k = 0; k < 31; k = k + 1) begin
-//             sw_pool0_fifo[k] <= sw_pool0_fifo[k + 1]; // 依序往前推
-//         end
-
-//         sw_pool1_fifo[7] <= maxpool1_out_switch; // 剛產生的訊號從尾端進入
-//         for (k = 0; k < 7; k = k + 1) begin
-//             sw_pool1_fifo[k] <= sw_pool1_fifo[k + 1]; // 依序往前推
-//         end
-//     end
-// end
-
-
-assign final_stage_data  = act1_out_data;
-assign final_stage_valid = act1_out_valid;
-
-// assign final_stage_data  = act3_out_data;
-// assign final_stage_valid = act3_out_valid;
-OutputBuffer #(.OUT_SIZE(32)) u_OutputBuffer  (
+Conv2d #(.IN_WID(4)) u_DeConv0 (
     .clk(clk),
     .rst_n(rst_n),
-    .in_valid(final_stage_valid), // 吃管線最後一級的斷續 valid
-    .in_data(final_stage_data),   // 吃管線最後一級的斷續 data
-    .out_valid(out_valid),        // 直接輸出給 PATTERN 的連續 valid
-    .out_data(out_data)           // 直接輸出給 PATTERN 的連續 data
+    .in_data(unpool0_out_data),
+    .in_weight(in_data),
+    .pad_mode(repli_pad),
+    .weight_valid(w_valid_dc0),   // Only high for the next 36 cycles
+    .input_valid(unpool0_out_valid), 
+    .out_data(dc0_out_data),
+    .output_valid(dc0_out_valid)
 );
+
+ActFunc u_Act2 (
+    .clk(clk),
+    .rst_n(rst_n),
+    .in_data(dc0_out_data),
+    .act_mode(act_mode),
+    .input_valid(dc0_out_valid),
+    .out_data(act2_out_data), 
+    .output_valid(act2_out_valid) 
+);
+
+UnPool #(.IN_WID(4)) u_UnPool1 (
+    .clk(clk),
+    .rst_n(rst_n),
+    .in_data(act2_out_data),
+    .in_switch(maxpool0_out_switch), // Connect to FIFO output
+    .in_sw_valid(maxpool0_out_valid), // Use maxpool valid as switch valid
+    .in_data_valid(act2_out_valid), // Use act valid as data valid
+    .out_data(upool1_out_data),
+    .output_valid(upool1_out_valid)
+);
+
+Conv2d #(.IN_WID(8)) u_DeConv1 (
+    .clk(clk),
+    .rst_n(rst_n),
+    .in_data(upool1_out_data),
+    .in_weight(in_data),
+    .pad_mode(repli_pad),
+    .weight_valid(w_valid_dc1),   // Only high for the next 36 cycles
+    .input_valid(upool1_out_valid), 
+    .out_data(dc1_out_data),
+    .output_valid(dc1_out_valid)
+);
+
+ActFunc u_Act3 (
+    .clk(clk),
+    .rst_n(rst_n),
+    .in_data(dc1_out_data),
+    .act_mode(act_mode),
+    .input_valid(dc1_out_valid),
+    .out_data(act3_out_data), 
+    .output_valid(act3_out_valid) 
+);
+
+
+// assign final_stage_data  = unpool0_out_data;
+// assign final_stage_valid = unpool0_out_valid;
+
+assign out_data  = act3_out_data;
+assign out_valid = act3_out_valid;
+
 
 endmodule

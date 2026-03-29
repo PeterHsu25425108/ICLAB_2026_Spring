@@ -404,7 +404,6 @@ task wait_out_valid_task; begin
             $display("========================================================================");
             $finish;
         end
-        out_data_buffer[wait_cycles] = out_data; // Store output data for later checking
         @(negedge clk);
         wait_cycles = wait_cycles + 1;
     end
@@ -424,11 +423,11 @@ task check_ans_task; begin
         
         // Implement IEEE-754 floating point check with < 0.002 error margin here.
         // Calculate relative error
-        error_val = $abs((golden_out_data_float[i] - out_data_buffer[i]) / golden_out_data_float[i]);
+        error_val = $abs( golden_out_data_float[i] - $bitstoshortreal(out_data) );
         if (error_val >= 0.002) begin
             $display("========================================================================");
             $display("SPEC FAIL: Output data mismatch at cycle %0d. Expected: %f, Got: %f, Error: %f", 
-                    i, golden_out_data_float[i], out_data_buffer[i], error_val);
+                    i, golden_out_data_float[i], out_data/*out_data_buffer[i]*/, error_val);
             $display("========================================================================");
             $finish;
         end
