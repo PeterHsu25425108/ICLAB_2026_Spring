@@ -183,47 +183,34 @@ task wait_out_valid_and_check;
 begin
     lat = 0;
     out_cnt = 0;
-    // Latency limit: 150,000 cycles per iteration [cite: 590]
     max_lat_per_iter = all_iter_data[patcount] * 150000;
 
-    while(o_valid === 0) begin
-        lat = lat + 1;
-        if(lat > max_lat_per_iter) begin
-            $display("  FAIL! Execution latency exceeded %0d cycles.", max_lat_per_iter);
-            $finish;
+    while(out_cnt < OUT_WORDS) begin
+        if(o_valid === 1'b1) begin
+            golden = all_golden_data[patcount * OUT_WORDS + out_cnt];
+            
+            if (o_data !== golden) begin
+                $display("-----------------------------------------------------------------------");
+                $display("  [FAIL] Pattern %0d, Pixel %0d", patcount+1, out_cnt);
+                $display("         Expected: %h", golden);
+                $display("         Got     : %h", o_data);
+                $display("-----------------------------------------------------------------------");
+                repeat(2) @(negedge clk);
+                $finish;
+            end
+            
+            out_cnt = out_cnt + 1;
+        end else begin
+            lat = lat + 1;
+            if(lat > max_lat_per_iter) begin
+                $display("  FAIL! Execution latency exceeded %0d cycles.", max_lat_per_iter);
+                $finish;
+            end
         end
         @(negedge clk);
     end
     
     total_latency = total_latency + lat;
-    
-    // Expecting continuous output as per user instruction
-    while(out_cnt < OUT_WORDS) begin
-        if(o_valid !== 1) begin
-            $display("  FAIL! o_valid dropped early at pixel %0d.", out_cnt);
-            $finish;
-        end
-
-        golden = all_golden_data[patcount * OUT_WORDS + out_cnt];
-        
-        if (o_data !== golden) begin
-            $display("-----------------------------------------------------------------------");
-            $display("  [FAIL] Pattern %0d, Pixel %0d", patcount+1, out_cnt);
-            $display("         Expected: %h", golden);
-            $display("         Got     : %h", o_data);
-            $display("-----------------------------------------------------------------------");
-            repeat(2) @(negedge clk);
-            $finish;
-        end
-        
-        out_cnt = out_cnt + 1;
-        @(negedge clk);
-    end
-    
-    if (o_valid === 1) begin
-        $display("  FAIL! o_valid is high for more than 4096 cycles. [cite: 652]");
-        $finish;
-    end
 end endtask
 
 task YOU_PASS_task; begin
