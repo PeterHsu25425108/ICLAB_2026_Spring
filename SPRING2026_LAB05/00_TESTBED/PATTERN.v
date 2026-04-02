@@ -38,7 +38,7 @@ output reg i_valid;
 output reg [2:0] i_iter;
 output reg [1:0] i_mode;
 output reg [7:0] i_data;
-output reg [3:0] i_weight;
+output reg signed [3:0] i_weight;
     
 input  o_valid;
 input  [7:0] o_data;
@@ -68,7 +68,7 @@ parameter GOLDEN_FILE  = "../00_TESTBED/golden_output.txt";
 integer patcount, total_latency, i;
 integer current_iter, current_mode;
 
-reg [3:0] all_weight_data [0:WEIGHT_WORDS-1]; // Weight input only once [cite: 641]
+reg signed [3:0] all_weight_data [0:WEIGHT_WORDS-1]; // Weight input only once [cite: 641]
 reg [7:0] all_image_data  [0:PATNUM*IMAGE_WORDS-1];
 reg [2:0] all_iter_data   [0:PATNUM-1];
 reg [1:0] all_mode_data   [0:PATNUM-1];

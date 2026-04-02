@@ -2,6 +2,39 @@ import numpy as np
 import os
 import shutil
 # ===================================================================
+# README
+# This script generates test patterns for the DM module, and the intermediate outputs for each stage of the processing pipeline. The generated files include:
+# A. Primary Input/Output Files, all in hexadecimal format:
+#    1. input_weight.txt: Contains all the weights for convolution and transformer blocks
+#    2. input_image.txt: Contains the initial 64x64 grayscale image for each pattern
+#    3. input_iter.txt: Contains the number of iterations for each pattern
+#    4. input_mode.txt: Contains the interpolation mode for each pattern
+#    5. golden_output.txt: Contains the final output image after all iterations
+# B. Intermediate Output Files (in decimal format for easier debugging):
+#    For each pattern, intermediate outputs are saved in a structured directory format:
+#    inter_out/
+#    ├── pat0/
+#    │   ├── ds_conv/
+#    │   ├── transformer/
+#    │   │   ├── mid_point/
+#    │   │   ├── q/
+#    │   │   ├── k/
+#    │   │   ├── v/
+#    │   │   ├── softmax/
+#    │   │   ├── attn_out/
+#    │   │   ├── ffn_linear/
+#    │   │   └── ffn_out/
+#    │   ├── ds_conv/
+#    │   ├── interp/
+#    │   └── denoise/
+#    ├── pat1/
+#    └── ...
+# Each subdirectory contains text files for each iteration, named according to the stage and iteration number
+# (e.g., mid_point_0.txt, q_0.txt, ds_conv_0.txt, interp_0.txt, denoise_0.txt, etc.)
+# ===================================================================
+
+
+# ===================================================================
 # Configuration
 # ===================================================================
 PATNUM = 10
@@ -29,7 +62,7 @@ def save_inter_data(base_dir, stage_name, iteration, data):
     filepath = os.path.join(stage_dir, f"{stage_name}_{iteration}.txt")
     np.savetxt(filepath, data.flatten(), fmt='%d')
 
-def conv2d(img, weight, stride):
+def us_convd(img, weight, stride):
     in_h, in_w, in_c = img.shape
     out_c = weight.shape[0]
     
@@ -141,27 +174,26 @@ def interpolate(feat, mode):
 # ===================================================================
 def main():
     # Clear the intermediate output directory if it exists
-    # if os.path.exists(INTER_OUT_DIR):
-    #     shutil.rmtree(INTER_OUT_DIR)
-    #     print("Cleared existing intermediate output directory.")
+    if os.path.exists(INTER_OUT_DIR):
+        shutil.rmtree(INTER_OUT_DIR, ignore_errors=True)
         
     create_dir_if_not_exists(OUT_DIR)
     create_dir_if_not_exists(INTER_OUT_DIR)
     
-    w_conv1 = np.random.randint(-8, 8, size=(16, 1, 3, 3), dtype=np.int32)
+    w_ds_conv = np.random.randint(-8, 8, size=(16, 1, 3, 3), dtype=np.int32)
     w_q = np.random.randint(-8, 8, size=(16, 16), dtype=np.int32)
     w_k = np.random.randint(-8, 8, size=(16, 16), dtype=np.int32)
     w_v = np.random.randint(-8, 8, size=(16, 16), dtype=np.int32)
     w_ffn = np.random.randint(-8, 8, size=(16, 16), dtype=np.int32)
-    w_conv2 = np.random.randint(-8, 8, size=(1, 16, 3, 3), dtype=np.int32)
+    w_us_conv = np.random.randint(-8, 8, size=(1, 16, 3, 3), dtype=np.int32)
     
     all_weights = np.concatenate([
-        w_conv1.flatten(),
+        w_ds_conv.flatten(),
         w_q.flatten(),
         w_k.flatten(),
         w_v.flatten(),
         w_ffn.flatten(),
-        w_conv2.flatten()
+        w_us_conv.flatten()
     ])
     write_hex_file(os.path.join(OUT_DIR, "input_weight.txt"), all_weights, bits=4)
     
@@ -188,15 +220,15 @@ def main():
         create_dir_if_not_exists(trans_dir)
         
         for it in range(iter_count):
-            conv1_out = conv2d(current_img, w_conv1, stride=4)
-            save_inter_data(pat_dir, "conv1", it, conv1_out)
+            ds_conv_out = us_convd(current_img, w_ds_conv, stride=4)
+            save_inter_data(pat_dir, "ds_conv", it, ds_conv_out)
             
-            trans_out = transformer_block(conv1_out, w_q, w_k, w_v, w_ffn, trans_dir, it)
+            trans_out = transformer_block(ds_conv_out, w_q, w_k, w_v, w_ffn, trans_dir, it)
             
-            conv2_out = conv2d(trans_out, w_conv2, stride=1)
-            save_inter_data(pat_dir, "conv2", it, conv2_out)
+            us_conv_out = us_convd(trans_out, w_us_conv, stride=1)
+            save_inter_data(pat_dir, "us_conv", it, us_conv_out)
             
-            interp_out = interpolate(conv2_out, mode_val)
+            interp_out = interpolate(us_conv_out, mode_val)
             save_inter_data(pat_dir, "interp", it, interp_out)
             
             scaled_noise = interp_out >> 3
