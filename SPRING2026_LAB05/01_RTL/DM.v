@@ -13,8 +13,11 @@ module ConvBlock(
     output_data
 );
 input       clk, rst_n, input_valid;
-reg signed [3:0] us_weight [0:8];
-reg signed [3:0] ds_weight [0:8];
+// the weights are stored in sram, have to read them out before computing output
+// but at the first time ds_conv is running, we load the weight directly into this reg
+// and also send its weight to the sram at the same time
+reg signed [3:0] win_weight [0:8];
+// reg signed [3:0] ds_weight [0:8];
 
 endmodule
 
