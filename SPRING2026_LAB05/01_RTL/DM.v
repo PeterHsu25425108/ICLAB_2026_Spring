@@ -483,6 +483,7 @@ wire tf_out_valid;
 reg [1:0] interpolate_mode; // mode of interpolation
 reg [11:0] main_counter; // records the number of inputs
 reg weight_input_done;
+reg img_input_done;
 
 // Threshold wire driven by the current state
 // 32 elements (0-31) for Proj/FFN, 18 elements (0-17) for Conv
@@ -528,7 +529,7 @@ always @(posedge clk or negedge rst_n) begin
     end
 end
 
-always @(*) begin
+always @(*) begin : state_transition
     nxt_state = state;
     case (state)
         LOAD_DS_CONV_WEIGHT: begin
@@ -544,7 +545,9 @@ always @(*) begin
                 nxt_state = LOAD_NEW_IMG;
         end
         LOAD_NEW_IMG: begin
-            //TODO
+            if (img_input_done)begin
+                nxt_state = DS_CONV;
+            end
         end
         DS_CONV: begin
             // Defined by subsequent processing logic
@@ -716,7 +719,19 @@ always @(posedge clk or negedge rst_n) begin
     end
 end
 
-always @(posedge clk or negedge rst_n) begin
+always @(posedge clk or negedge rst_n) begin : img_input_done_logic
+    if(!rst_n) begin
+        img_input_done <= 0;
+    end else begin
+        // reset img_input_done when transitioning to LOAD_NEW_IMG from other states
+        if(state != nxt_state && nxt_state == LOAD_NEW_IMG) img_input_done <= 0;
+        else begin
+            img_input_done <= img_input_done || (state == LOAD_NEW_IMG && main_counter == 4095);
+        end 
+    end
+end
+
+always @(posedge clk or negedge rst_n) begin : weight_input_done_logic
     if(!rst_n) begin
         weight_input_done <= 0;
         interpolate_mode <= 0;
