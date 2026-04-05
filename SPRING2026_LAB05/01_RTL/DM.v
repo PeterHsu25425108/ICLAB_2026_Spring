@@ -626,33 +626,35 @@ end
 
 // SRAM Command & Write Data Generation
 // Command, Din, and Address updates
-always @(*) begin : weight_sram_cmd_and_din_ctrl
-    if(weight_sram_write_cnt == write_threshold && 
-        (state == LOAD_DS_CONV_WEIGHT || state == LOAD_US_CONV_WEIGHT || state == LOAD_PROJ_WEIGHT))begin
-        weight_sram_cmd = `WRITE;
-        // Format data based on the current state
-        if (state == LOAD_PROJ_WEIGHT) begin
-            // 128-bit full payload
-            din_weight = {weight_sram_write_buf[123:0], i_weight}; //weight_sram_write_buf[127:0];
-        end else begin
-            // 72-bit payload (17 previous elements + current element), padded with 56 zeros
-            din_weight = (i_valid) ? {56'd0, weight_sram_write_buf[67:0], i_weight} : {56'd0, weight_sram_write_buf[71:0]}; //{56'd0, weight_sram_write_buf[71:0]};
-        end
-    end else begin
-        weight_sram_cmd = `STANDBY;
-        din_weight = 0;
-    end
+always @(*) begin : weight_sram__din_ctrl
+    din_weight = weight_sram_write_buf;
+    // if(weight_sram_write_cnt == write_threshold && 
+    //     (state == LOAD_DS_CONV_WEIGHT || state == LOAD_US_CONV_WEIGHT || state == LOAD_PROJ_WEIGHT))begin
+    //     weight_sram_cmd = `WRITE;
+    //     // Format data based on the current state
+    //     if (state == LOAD_PROJ_WEIGHT) begin
+    //         // 128-bit full payload
+    //         din_weight = {weight_sram_write_buf[123:0], i_weight}; //weight_sram_write_buf[127:0];
+    //     end else begin
+    //         // 72-bit payload (17 previous elements + current element), padded with 56 zeros
+    //         din_weight = (i_valid) ? {56'd0, weight_sram_write_buf[67:0], i_weight} : {56'd0, weight_sram_write_buf[71:0]}; //{56'd0, weight_sram_write_buf[71:0]};
+    //     end
+    // end else begin
+    //     weight_sram_cmd = `STANDBY;
+    //     din_weight = 0;
+    // end
 end
 
 always @(posedge clk or negedge rst_n) begin : weight_wr_addr_ctrl
     if (!rst_n) begin
         weight_wr_addr <= 0;
-
+        weight_sram_cmd <= `STANDBY;
     end else if (weight_sram_write_cnt == write_threshold 
         && (state == LOAD_DS_CONV_WEIGHT || state == LOAD_US_CONV_WEIGHT || state == LOAD_PROJ_WEIGHT)) begin
         weight_wr_addr <= weight_wr_addr + 1;
+        weight_sram_cmd <= `WRITE;
     end else begin // TODO: we need to reset weight_wr_addr for future reads
-        // weight_sram_cmd <= `STANDBY;
+        weight_sram_cmd <= `STANDBY;
         weight_wr_addr <= weight_wr_addr;
     end
 end
