@@ -502,16 +502,17 @@ reg [127:0] weight_sram_write_buf; // buffer for the weights to be written into 
 assign {cs_weight, web_weight, oe_weight} = weight_sram_cmd;
 
 // SRAM_IMG IO
-reg [5:0] img_wr_addr;
+reg [5:0] img_sram_wr_addr;
 wire web_img, oe_img, cs_img;
 reg [2:0] img_sram_cmd;
 wire [511:0] dout_img_raw;
-reg [511:0] din_img;
+wire [511:0] din_img;
 // store 64 i_image inputs before writing the entire row into sram
 // TODO: might be able to share this buf for read and write, since the read and write operations are separated in time
 reg [511:0] img_sram_write_buf;
 reg [5:0] img_sram_write_cnt; // count the number of i_image inputs currently in the buffer
 assign {cs_img, web_img, oe_img} = img_sram_cmd;
+assign din_img = img_sram_write_buf;
 
 //SRAM_TEMP IO
 reg [7:0] temp_addr;
@@ -564,7 +565,7 @@ end
 
 // SRAM_IMG instantiation, storing input image
 SRAM_IMG sram_img (
-    .A(img_wr_addr),
+    .A(img_sram_wr_addr),
     .Dout_bus(dout_img_raw),
     .Din_bus(din_img),
     .clk(clk),
@@ -574,20 +575,61 @@ SRAM_IMG sram_img (
 );
 
 // TODO: SRAM_IMG control logic, including write data generation, address generation, and command generation
+// write buf and counter logic for sram_img
+integer i;
+always @(posedge clk or negedge rst_n) begin : img_sram_write_buf_cnt_addr_ctrl
+    if(!rst_n)begin
+        img_sram_write_buf <= 0;
+        img_sram_write_cnt <= 0;
+    end else begin
+        case(state)
+        LOAD_NEW_IMG:begin
+            
+            for(i=0;i<64;i=i+1) begin
+                if(i_valid) begin
+                    if(i==0) img_sram_write_buf[8*i +: 8] <= i_data;
+                    else img_sram_write_buf[8*i +: 8] <= img_sram_write_buf[8*(i-1) +: 8];
+                end
+            end
+            img_sram_write_cnt <= i_valid ? img_sram_write_cnt + 1 : img_sram_write_cnt;
+        end
+        default:begin
+            img_sram_write_buf <= 0;
+            img_sram_write_cnt <= 0;
+        end
+        endcase
+    end
+end
 
-// SRAM_TEMP instantiation, used for storing intermediate data
-SRAM256x128_WRAP sram_temp (
-    .A(temp_addr),
-    .Dout(temp_dout),
-    .Din(temp_din),
-    .clk(clk),
-    .WEB(temp_web),
-    .OE(temp_oe),
-    .CS(temp_cs)
-);
+always @(posedge clk or negedge rst_n) begin : img_sram_wr_addr_ctrl
+    if(!rst_n)begin
+        img_sram_wr_addr <= 0;
+    end else begin
+        case(state)
+        LOAD_NEW_IMG:begin
+            img_sram_wr_addr <= (img_sram_cmd == `WRITE) ? img_sram_wr_addr + 1 : img_sram_wr_addr;
+        end
+        default:begin
+            img_sram_wr_addr <= 0;
+        end
+        endcase
+    end
+end
 
-// TODO: SRAM_TEMP control logic, including write data generation, address generation, and command generation
-// may need to have write & read valid signals to interact with the Conv and LinearTransform modules
+always @(posedge clk or negedge rst_n) begin : img_sram_cmd_ctrl
+    if(!rst_n)begin
+        img_sram_cmd <= `STANDBY;
+    end else begin
+        case(state)
+        LOAD_NEW_IMG:begin
+            img_sram_cmd <= (img_sram_write_cnt >= 63) ? `WRITE : `STANDBY;
+        end
+        default:begin
+            img_sram_cmd <= `STANDBY;
+        end
+        endcase
+    end
+end
 
 // Unified SRAM Instantiation, storing ds_conv, us_conv, q/k/v projection, ffn weights
 SRAM64x128_WRAP sram_weight (
@@ -628,34 +670,35 @@ end
 // Command, Din, and Address updates
 always @(*) begin : weight_sram__din_ctrl
     din_weight = weight_sram_write_buf;
-    // if(weight_sram_write_cnt == write_threshold && 
-    //     (state == LOAD_DS_CONV_WEIGHT || state == LOAD_US_CONV_WEIGHT || state == LOAD_PROJ_WEIGHT))begin
-    //     weight_sram_cmd = `WRITE;
-    //     // Format data based on the current state
-    //     if (state == LOAD_PROJ_WEIGHT) begin
-    //         // 128-bit full payload
-    //         din_weight = {weight_sram_write_buf[123:0], i_weight}; //weight_sram_write_buf[127:0];
-    //     end else begin
-    //         // 72-bit payload (17 previous elements + current element), padded with 56 zeros
-    //         din_weight = (i_valid) ? {56'd0, weight_sram_write_buf[67:0], i_weight} : {56'd0, weight_sram_write_buf[71:0]}; //{56'd0, weight_sram_write_buf[71:0]};
-    //     end
-    // end else begin
-    //     weight_sram_cmd = `STANDBY;
-    //     din_weight = 0;
-    // end
 end
 
-always @(posedge clk or negedge rst_n) begin : weight_wr_addr_ctrl
+always @(posedge clk or negedge rst_n) begin : weight_sram_cmd_ctrl
     if (!rst_n) begin
-        weight_wr_addr <= 0;
+        // weight_wr_addr <= 0;
         weight_sram_cmd <= `STANDBY;
     end else if (weight_sram_write_cnt == write_threshold 
         && (state == LOAD_DS_CONV_WEIGHT || state == LOAD_US_CONV_WEIGHT || state == LOAD_PROJ_WEIGHT)) begin
-        weight_wr_addr <= weight_wr_addr + 1;
+        // weight_wr_addr <= weight_wr_addr + 1;
         weight_sram_cmd <= `WRITE;
     end else begin // TODO: we need to reset weight_wr_addr for future reads
         weight_sram_cmd <= `STANDBY;
-        weight_wr_addr <= weight_wr_addr;
+        // weight_wr_addr <= weight_wr_addr;
+    end
+end
+
+always @(posedge clk or negedge rst_n) begin : weight_sram_wr_addr_ctrl
+    if (!rst_n) begin
+        weight_wr_addr <= 0;
+        weight_sram_cmd <= `STANDBY;
+    end else begin
+        case(state)
+        LOAD_DS_CONV_WEIGHT, LOAD_US_CONV_WEIGHT, LOAD_PROJ_WEIGHT:begin
+            weight_wr_addr <= (weight_sram_cmd == `WRITE) ? weight_wr_addr+1 : weight_wr_addr;
+        end
+        default:begin
+            weight_wr_addr <= 0;
+        end
+        endcase 
     end
 end
 
@@ -681,7 +724,7 @@ always @(posedge clk or negedge rst_n) begin
     end else begin
         weight_input_done <= (weight_input_done || (!i_valid && main_counter >= 1311));
 
-        interpolate_mode <= (main_counter == 0 && i_valid && weight_input_done) ? i_iter : interpolate_mode;
+        interpolate_mode <= (main_counter == 0 && i_valid && weight_input_done) ? i_mode : interpolate_mode;
 
         if(main_counter == 0 && i_valid && weight_input_done) begin
             iter_counter <= i_iter;
@@ -690,6 +733,20 @@ always @(posedge clk or negedge rst_n) begin
         end
     end
 end
+
+// SRAM_TEMP instantiation, used for storing intermediate data
+SRAM256x128_WRAP sram_temp (
+    .A(temp_addr),
+    .Dout(temp_dout),
+    .Din(temp_din),
+    .clk(clk),
+    .WEB(temp_web),
+    .OE(temp_oe),
+    .CS(temp_cs)
+);
+
+// TODO: SRAM_TEMP control logic, including write data generation, address generation, and command generation
+// may need to have write & read valid signals to interact with the Conv and LinearTransform modules
 
 TFBlock tf_blk(
     .clk(clk),
