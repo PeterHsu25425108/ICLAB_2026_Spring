@@ -7,15 +7,55 @@
 // wrap the sram inside
 // Stores 64x64x8bit(unsigned) => Open up 4 banks of 128bitx64 for parallel W/R
 // or maybe we can divide it into 4 banks to allow accessing the entire row
-// each read gets 16x8bit
-module SRAM_IMG #(parameter WORD_LEN = 128)(
+// each read gets 16x8bit, and each write requires 64 i_image inputs
+module SRAM_IMG (
     input wire [5:0] A, // 64 words, W/R addr are shared among the 4 banks
-    output wire [4*WORD_LEN-1:0] Dout_bus,
-    input wire [4*WORD_LEN-1:0] Din_bus,
+    output wire [511:0] Dout_bus,
+    input wire [511:0] Din_bus,
     input wire clk ,
     input wire WEB ,
     input wire OE ,
     input wire CS 
+);
+
+SRAM64x128_WRAP sram_img_bank0 (
+    .A(A),
+    .Dout(Dout_bus[127:0]),
+    .Din(Din_bus[127:0]),
+    .clk(clk),
+    .WEB(WEB),
+    .OE(OE),
+    .CS(CS)
+);
+
+SRAM64x128_WRAP sram_img_bank1 (
+    .A(A),
+    .Dout(Dout_bus[255:128]),
+    .Din(Din_bus[255:128]),
+    .clk(clk),
+    .WEB(WEB),
+    .OE(OE),
+    .CS(CS)
+);
+
+SRAM64x128_WRAP sram_img_bank2 (
+    .A(A),
+    .Dout(Dout_bus[383:256]),
+    .Din(Din_bus[383:256]),
+    .clk(clk),
+    .WEB(WEB),
+    .OE(OE),
+    .CS(CS)
+);
+
+SRAM64x128_WRAP sram_img_bank3 (
+    .A(A),
+    .Dout(Dout_bus[511:384]),
+    .Din(Din_bus[511:384]),
+    .clk(clk),
+    .WEB(WEB),
+    .OE(OE),
+    .CS(CS)
 );
 
 endmodule
@@ -459,8 +499,25 @@ reg [2:0] weight_sram_cmd;
 // buffer the 32 weights for proj/ffn weight, and 18 weights for conv weight, then write to sram in one cycle when the buffer is full
 reg [4:0] weight_sram_write_cnt; // count the number of weights currently in the buffer
 reg [127:0] weight_sram_write_buf; // buffer for the weights to be written into sram, for conv weight, only the lower 72 bit are used
-
 assign {cs_weight, web_weight, oe_weight} = weight_sram_cmd;
+
+// SRAM_IMG IO
+reg [5:0] img_wr_addr;
+wire web_img, oe_img, cs_img;
+reg [2:0] img_sram_cmd;
+wire [511:0] dout_img_raw;
+reg [511:0] din_img;
+// store 64 i_image inputs before writing the entire row into sram
+// TODO: might be able to share this buf for read and write, since the read and write operations are separated in time
+reg [511:0] img_sram_write_buf;
+reg [5:0] img_sram_write_cnt; // count the number of i_image inputs currently in the buffer
+assign {cs_img, web_img, oe_img} = img_sram_cmd;
+
+//SRAM_TEMP IO
+reg [7:0] temp_addr;
+wire temp_web, temp_oe, temp_cs;
+reg [127:0] temp_din;
+wire [127:0] temp_dout;
 
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -504,6 +561,33 @@ always @(*) begin
         default: nxt_state = state;
     endcase
 end
+
+// SRAM_IMG instantiation, storing input image
+SRAM_IMG sram_img (
+    .A(img_wr_addr),
+    .Dout_bus(dout_img_raw),
+    .Din_bus(din_img),
+    .clk(clk),
+    .WEB(web_img),
+    .OE(oe_img),
+    .CS(cs_img)
+);
+
+// TODO: SRAM_IMG control logic, including write data generation, address generation, and command generation
+
+// SRAM_TEMP instantiation, used for storing intermediate data
+SRAM256x128_WRAP sram_temp (
+    .A(temp_addr),
+    .Dout(temp_dout),
+    .Din(temp_din),
+    .clk(clk),
+    .WEB(temp_web),
+    .OE(temp_oe),
+    .CS(temp_cs)
+);
+
+// TODO: SRAM_TEMP control logic, including write data generation, address generation, and command generation
+// may need to have write & read valid signals to interact with the Conv and LinearTransform modules
 
 // Unified SRAM Instantiation, storing ds_conv, us_conv, q/k/v projection, ffn weights
 SRAM64x128_WRAP sram_weight (
@@ -563,26 +647,10 @@ end
 always @(posedge clk or negedge rst_n) begin : weight_wr_addr_ctrl
     if (!rst_n) begin
         weight_wr_addr <= 0;
-        // weight_sram_cmd <= `STANDBY;
-        // din_weight <= 0;
-    end else if (/*i_valid && !weight_input_done*/weight_sram_write_cnt == write_threshold && (state == LOAD_DS_CONV_WEIGHT || state == LOAD_US_CONV_WEIGHT || state == LOAD_PROJ_WEIGHT)) begin
-        // Default to standby to prevent accidental writes
-        // weight_sram_cmd <= `STANDBY;
-        
-        // if (weight_sram_write_cnt == write_threshold) begin
-            // weight_sram_cmd <= `WRITE;
-            // Increment address automatically on every successful write
-            weight_wr_addr <= weight_wr_addr + 1;
-            
-            // Format data based on the current state
-            // if (state == LOAD_PROJ_WEIGHT) begin
-            //     // 128-bit full payload
-            //     din_weight <= {weight_sram_write_buf[123:0], i_weight}; //weight_sram_write_buf[127:0];
-            // end else begin
-            //     // 72-bit payload (17 previous elements + current element), padded with 56 zeros
-            //     din_weight <= (i_valid) ? {56'd0, weight_sram_write_buf[67:0], i_weight} : {56'd0, weight_sram_write_buf[71:0]}; //{56'd0, weight_sram_write_buf[71:0]};
-            // end
-        // end
+
+    end else if (weight_sram_write_cnt == write_threshold 
+        && (state == LOAD_DS_CONV_WEIGHT || state == LOAD_US_CONV_WEIGHT || state == LOAD_PROJ_WEIGHT)) begin
+        weight_wr_addr <= weight_wr_addr + 1;
     end else begin // TODO: we need to reset weight_wr_addr for future reads
         // weight_sram_cmd <= `STANDBY;
         weight_wr_addr <= weight_wr_addr;
