@@ -126,6 +126,62 @@ module SRAM256x128_WRAP(
 
 endmodule
 
+module SRAM_CTRL #(parameter WORD_LEN=128, ADDR_LEN=8)(
+    input clk,
+    input rst_n,
+    input [ADDR_LEN-1:0] addr,
+    input [WORD_LEN-1:0] data_in,
+    // sent by master
+    input read_req,
+    input write_req,
+    // input sent from sram
+    input [WORD_LEN-1:0] sram_DO,
+    
+    // send by this mod to master
+    output reg read_valid,
+    output reg [WORD_LEN-1:0] data_out,
+    // sent to sram
+    output [ADDR_LEN-1:0] sram_A,
+    output [2:0] sram_cmd,
+    output reg [WORD_LEN-1:0] sram_DI
+);
+
+reg read_buf_capture;
+
+// internal logic
+always @(posedge clk or negedge rst_n) begin : valid_sig_ctrl
+    if(!rst_n) begin
+        read_buf_capture <= 0;
+        read_valid <= 0;
+    end else begin
+        read_valid <= read_buf_capture;
+        read_buf_capture <= read_req;
+    end
+end
+
+always @(posedge clk or negedge rst_n) begin : data_out_ctrl
+    if(!rst_n) begin
+        data_out <= 0;
+    end else begin
+        data_out <= read_buf_capture ? sram_DO : data_out;
+    end
+end
+
+
+// SRAM interface
+assign sram_cmd = read_req ? `READ : (write_req ? `WRITE : `STANDBY);
+assign sram_A = addr;
+
+always @(posedge clk or negedge rst_n) begin
+    if(!rst_n) begin
+        sram_DI <= 0;
+    end else begin
+        sram_DI <= write_req ? data_in : sram_DI;
+    end
+end
+
+endmodule
+
 // the mac for a conv3x3, the input multiplexing should be handled by higher lvl modules
 // Postprocessing:
 // 1. (conv_output >>> 6) + 128
@@ -387,13 +443,15 @@ module ConvBlock(
     output reg [5:0] weight_read_addr,
     output  weight_read_req,
     input [127:0] weight_data_in, // directly connects to weight_sram_read_buf
+    input weight_read_valid,
     
     // SRAM_TEMP Interface
-    // these are for reading from sram_temp
+    // read data returned from sram_temp read buffer in DM
     input [127:0] temp_data_in,
-    // share read/write addr and req for sram_temp cuz they are separated in time
-    output reg [7:0] temp_wr_addr,
-    output reg temp_wr_req,
+    output reg [7:0] temp_read_addr,
+    output reg temp_read_req,
+    output reg [7:0] temp_write_addr,
+    output reg temp_write_req,
     
     // Top-level Control
     output reg ds_conv_done, // Tells FSM to switch to QKV_PROJ, high after all the 16 out chs are computed & stored into sram_temp
@@ -416,8 +474,8 @@ assign {weight_input_evench, weight_input_oddch} = weight_data_in[71:0];
 
 // indicate if the read value has been returned, they control whether to 
 // accept new values into the pipeline
-reg weight_r_valid, img_r_valid, temp_r_valid;
-reg nxt_weight_r_valid, nxt_img_r_valid, nxt_temp_r_valid;
+reg img_r_valid, temp_r_valid;
+reg nxt_img_r_valid, nxt_temp_r_valid;
 // count how many rounds or weight read have we done (max 8)
 reg [2:0] weight_read_cnt;
 
@@ -464,18 +522,14 @@ reg conv_mac_i_valid;
 always @(posedge clk or negedge rst_n) begin : conv_read_valids_ctrl
     if(!rst_n) begin
         img_r_valid <= 0;
-        weight_r_valid <= 0;
         temp_r_valid <= 0;
         nxt_img_r_valid <= 0;
-        nxt_weight_r_valid <= 0;
         nxt_temp_r_valid <= 0;
     end else begin
         img_r_valid <= nxt_img_r_valid;
-        weight_r_valid <= nxt_weight_r_valid;
         temp_r_valid <= nxt_temp_r_valid;
         nxt_img_r_valid <= img_read_req;
-        nxt_weight_r_valid <= weight_read_req;
-        nxt_temp_r_valid <=  (is_us_conv) && temp_wr_req; // we can reuse the temp_wr_req signal since the read and write operations to sram_temp are separated in time
+        nxt_temp_r_valid <=  (is_us_conv) && temp_read_req;
     end
 end
 assign weight_read_req = en && (weight_read_cnt <= 7) && !weight_allset;
@@ -503,7 +557,7 @@ always @(posedge clk or negedge rst_n) begin : weight_read_ctrl
             weight_read_addr <= weight_read_req ?  weight_read_addr+1 :  weight_read_addr; // increment the read address when we are requesting, so that the next value can be returned in the next cycle
             weight_read_cnt <= weight_read_cnt + weight_read_req; // increment the count when the read value is returned
             weight_allset <= (weight_read_cnt == 7) ? 1 : weight_allset; // we need to read 8 rows of weights to get the full 16 3x3 kernels for all output channels
-            if(weight_r_valid) begin
+            if(weight_read_valid) begin
                 // the 3x3 kernel weight of 2 output channels are stored in 1 row of sram, and each weight is 4 bit signed
                 // each ch's kernel weights are 72bit
                 // use shifting to store the weights
@@ -551,18 +605,26 @@ end
 // SRAM_TEMP interface control (do not start writing before weight_allset == 1)
 always @(posedge clk or negedge rst_n) begin
     if(!rst_n)begin
-        temp_wr_addr <= 0;
-        temp_wr_req <= 0;
+        temp_read_addr <= 0;
+        temp_read_req <= 0;
+        temp_write_addr <= 0;
+        temp_write_req <= 0;
     end else begin
         if(!en || !weight_allset)begin
-            temp_wr_addr <= 0;
-            temp_wr_req <= 0;
+            temp_read_addr <= 0;
+            temp_read_req <= 0;
+            temp_write_addr <= 0;
+            temp_write_req <= 0;
         end else if(is_us_conv) begin // read from sram_temp
-            temp_wr_req <= (temp_wr_addr == 255 && temp_r_valid) ? 0 : temp_wr_req; // stop requesting when we have read all the pixels we need, and the last read value is returned
-            temp_wr_addr <= temp_r_valid ? temp_wr_addr + 1 : temp_wr_addr; // increment the read address when the read value is returned, so that the next value can be returned in the next cycle
+            temp_read_req <= (temp_read_addr == 8'd255 && temp_r_valid) ? 0 : 1;
+            temp_read_addr <= temp_r_valid ? temp_read_addr + 1 : temp_read_addr;
+            temp_write_req <= 0;
+            temp_write_addr <= temp_write_addr;
         end else begin // write to sram_temp, when the conv output is ready (conv_mac_o_valid), we can start writing to sram_temp, and each write corresponds to 1 pixel of the output feature map, so we can increment the write address every time we write
-            temp_wr_req <= &conv_mac_o_valid; // when all MAC outputs are valid, we can write to sram_temp
-            temp_wr_addr <= temp_wr_req ? temp_wr_addr + 1 : temp_wr_addr; // increment the write address when we are writing, so that the next value can be written in the next cycle
+            temp_read_req <= 0;
+            temp_read_addr <= temp_read_addr;
+            temp_write_req <= &conv_mac_o_valid;
+            temp_write_addr <= temp_write_req ? temp_write_addr + 1 : temp_write_addr;
         end
     end
 end
@@ -749,7 +811,7 @@ always @(posedge clk or negedge rst_n) begin
             if(&conv_mac_o_valid) begin // when all MAC outputs are valid
                 // when we are writing the last pixel (255th) of the output feature map, we can signal the end of ds_conv here, 
                 // since the FSM can start the next stage as soon as the last pixel is written into sram_temp
-                if(temp_wr_addr==255 && temp_wr_req)begin
+                if(temp_write_addr==255 && temp_write_req)begin
                     ds_conv_done <= 1; // signal the end of ds_conv
                 end
                 
@@ -854,16 +916,16 @@ wire [4:0] write_threshold;
 assign write_threshold = (state == LOAD_PROJ_WEIGHT) ? 5'd31 : 5'd17;
 
 // SRAM_WEIGHT IO
-reg [5:0] weight_wr_addr;
 wire web_weight, oe_weight, cs_weight;
 wire [127:0] dout_weight_raw;
-reg [127:0] din_weight;
-reg [2:0] weight_sram_cmd;
 // write counter and buffer for weight input
 // buffer the 32 weights for proj/ffn weight, and 18 weights for conv weight, then write to sram in one cycle when the buffer is full
 reg [4:0] weight_sram_write_cnt; // count the number of weights currently in the buffer
-reg [127:0] weight_sram_write_buf, weight_sram_read_buf; // buffer for the weights to be written into sram, for conv weight, only the lower 72 bit are used
-assign {cs_weight, web_weight, oe_weight} = weight_sram_cmd;
+reg [127:0] weight_sram_write_buf; // buffer for the weights to be written into sram, for conv weight, only the lower 72 bit are used
+wire [127:0] weight_sram_read_buf;
+wire weight_sram_read_valid;
+wire weight_sram_read_req;
+wire [5:0] weight_sram_addr_in;
 
 // SRAM_WEIGHT_IO for weight loading phase, shared by both conv and proj/ffn weight loading
 reg [2:0] load_weight_cmd;
@@ -879,8 +941,7 @@ wire [511:0] din_img;
 // TODO: might be able to share this buf for read and write, since the read and write operations are separated in time
 reg [511:0] img_sram_write_buf, img_sram_read_buf;
 reg [5:0] img_sram_write_cnt; // count the number of i_image inputs currently in the buffer
-assign {cs_img, web_img, oe_img} = img_sram_cmd;
-assign din_img = img_sram_write_buf;
+
 
 // SRAM_IMG_IO for input loading phase
 reg [2:0] load_img_cmd;
@@ -891,7 +952,8 @@ wire [5:0] conv_img_read_addr;
 wire conv_img_read_req;
 wire [5:0] conv_weight_read_addr;
 wire conv_weight_read_req;
-reg weight_r_valid, weight_r_buf_capture;
+wire [7:0] conv_temp_read_addr;
+wire conv_temp_read_req;
 wire [7:0] conv_temp_write_addr;
 wire conv_temp_write_req;
 wire [127:0] conv_temp_write_data;
@@ -908,14 +970,36 @@ reg [7:0] temp_addr;
 wire temp_web, temp_oe, temp_cs;
 reg [127:0] temp_sram_write_buf, temp_sram_read_buf;
 wire [127:0] temp_dout, temp_din;
+reg [2:0] temp_sram_cmd;
+reg img_r_valid, img_r_buf_capture;
+reg temp_r_valid, temp_r_buf_capture;
+wire [5:0] weight_sram_read_A;
+wire [2:0] weight_sram_read_cmd;
+reg [5:0] weight_sram_A;
+reg [2:0] weight_sram_cmd;
+reg [127:0] weight_sram_DI;
 
+assign {cs_img, web_img, oe_img} = img_sram_cmd;
 
+assign weight_sram_read_req = (state == DS_CONV) && conv_weight_read_req;
+assign weight_sram_addr_in = (state == DS_CONV) ? conv_weight_read_addr : load_weight_addr;
+assign {cs_weight, web_weight, oe_weight} = weight_sram_cmd;
 
 always @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         state <= LOAD_DS_CONV_WEIGHT;
     end else begin
         state <= nxt_state;
+    end
+end
+
+always @(posedge clk or negedge rst_n) begin : img_read_valid_ctrl
+    if(!rst_n)begin
+        img_r_valid <= 0;
+        img_r_buf_capture <= 0;
+    end else begin
+        img_r_valid <= img_r_buf_capture;
+        img_r_buf_capture <= (state == DS_CONV) && conv_img_read_req;
     end
 end
 
@@ -993,7 +1077,7 @@ always @(posedge clk or negedge rst_n) begin
     end else begin
         case(state)
         DS_CONV:begin
-            if(conv_img_read_req) img_sram_read_buf <= dout_img_raw;
+            if(img_r_buf_capture) img_sram_read_buf <= dout_img_raw;
             else img_sram_read_buf <= img_sram_read_buf;
         end
         default:begin
@@ -1057,57 +1141,101 @@ end
 
 // Unified SRAM Instantiation, storing ds_conv, us_conv, q/k/v projection, ffn weights
 SRAM64x128_WRAP sram_weight (
-    .A(weight_wr_addr),
+    .A(weight_sram_A),
     .Dout(dout_weight_raw),
-    .Din(din_weight),
+    .Din(weight_sram_DI),
     .clk(clk),
     .WEB(web_weight),
     .OE(oe_weight),
     .CS(cs_weight)
 );
 
-// select the cmd and addr for sram_weight based on current state
-always @(*) begin : sram_weight_cmd_addr_select
+SRAM_CTRL #(
+    .WORD_LEN(128),
+    .ADDR_LEN(6)
+) sram_weight_ctrl (
+    .clk(clk),
+    .rst_n(rst_n),
+    .addr(weight_sram_addr_in),
+    .data_in(128'd0),
+    .read_req(weight_sram_read_req),
+    .write_req(1'b0),
+    .sram_DO(dout_weight_raw),
+    .read_valid(weight_sram_read_valid),
+    .data_out(weight_sram_read_buf),
+    .sram_A(weight_sram_read_A),
+    .sram_cmd(weight_sram_read_cmd),
+    .sram_DI()
+);
+
+// Keep old write timing (combinational Din during WRITE), and use SRAM_CTRL for DS_CONV read handshake only.
+always @(*) begin : sram_weight_cmd_addr_data_select
     case(state)
     LOAD_US_CONV_WEIGHT,
     LOAD_PROJ_WEIGHT,
-    LOAD_DS_CONV_WEIGHT:begin
+    LOAD_DS_CONV_WEIGHT: begin
         weight_sram_cmd = load_weight_cmd;
-        weight_wr_addr = load_weight_addr;
+        weight_sram_A = load_weight_addr;
+        weight_sram_DI = weight_sram_write_buf;
     end
-    DS_CONV:begin
-        // sram_weight is read by ConvBlock, the addr will be provided by ConvBlock
-        weight_sram_cmd = conv_weight_read_req ? `READ : `STANDBY;
-        weight_wr_addr = conv_weight_read_addr;
+    DS_CONV: begin
+        weight_sram_cmd = weight_sram_read_cmd;
+        weight_sram_A = weight_sram_read_A;
+        weight_sram_DI = weight_sram_write_buf;
     end
-    default:begin
+    default: begin
         weight_sram_cmd = `STANDBY;
-        weight_wr_addr = 0;
+        weight_sram_A = 0;
+        weight_sram_DI = weight_sram_write_buf;
     end
     endcase
 end
 
-always @(posedge clk or negedge rst_n) begin
+always @(posedge clk or negedge rst_n) begin : temp_read_valid_ctrl
     if(!rst_n)begin
-        weight_r_valid <= 0;
-        weight_r_buf_capture <= 0;
+        temp_r_valid <= 0;
+        temp_r_buf_capture <= 0;
     end else begin
-        weight_r_valid <= weight_r_buf_capture;
-        weight_r_buf_capture <= conv_weight_read_req;
+        temp_r_valid <= temp_r_buf_capture;
+        temp_r_buf_capture <= (state == US_CONV_UPDATE_IMG) && conv_temp_read_req;
     end
 end
 
-always @(posedge clk or negedge rst_n) begin : weight_sram_read_buf_ctrl
+always @(*) begin : sram_temp_cmd_addr_select
+    case(state)
+    DS_CONV:begin
+        temp_sram_cmd = conv_temp_write_req ? `WRITE : `STANDBY;
+        temp_addr = conv_temp_write_addr;
+    end
+    US_CONV_UPDATE_IMG:begin
+        temp_sram_cmd = conv_temp_read_req ? `READ : `STANDBY;
+        temp_addr = conv_temp_read_addr;
+    end
+    default:begin
+        temp_sram_cmd = `STANDBY;
+        temp_addr = 0;
+    end
+    endcase
+end
+
+always @(posedge clk or negedge rst_n) begin : temp_sram_buf_ctrl
     if(!rst_n)begin
-        weight_sram_read_buf <= 0;
+        temp_sram_write_buf <= 0;
+        temp_sram_read_buf <= 0;
     end else begin
         case(state)
         DS_CONV:begin
-            if(weight_r_buf_capture) weight_sram_read_buf <= dout_weight_raw;
-            else weight_sram_read_buf <= weight_sram_read_buf;
+            temp_sram_write_buf <= ds_out_data;
+            temp_sram_read_buf <= temp_sram_read_buf;
+        end
+        US_CONV_UPDATE_IMG:begin
+            temp_sram_write_buf <= temp_sram_write_buf;
+            if(temp_r_buf_capture) temp_sram_read_buf <= temp_dout;
+            else temp_sram_read_buf <= temp_sram_read_buf;
         end
         default:begin
-            weight_sram_read_buf <= 0;
+            temp_sram_write_buf <= temp_sram_write_buf;
+            temp_sram_read_buf <= 0;
         end
         endcase
     end
@@ -1147,12 +1275,6 @@ end
 // v weight: main_counter = 656~911
 // ffn weight: main_counter = 912~1167
 // us_conv weight: main_counter = 1168~1311
-
-// SRAM Command & Write Data Generation
-// Command, Din, and Address updates
-always @(*) begin : weight_sram__din_ctrl
-    din_weight = weight_sram_write_buf;
-end
 
 always @(posedge clk or negedge rst_n) begin : load_weight_cmd_ctrl
     if (!rst_n) begin
@@ -1247,9 +1369,12 @@ ConvBlock conv_blk(
     .weight_read_addr(conv_weight_read_addr),
     .weight_read_req(conv_weight_read_req),
     .weight_data_in(weight_sram_read_buf),
-    .temp_data_in(temp_dout),
-    .temp_wr_addr(conv_temp_write_addr),
-    .temp_wr_req(conv_temp_write_req),
+    .weight_read_valid(weight_sram_read_valid),
+    .temp_data_in(temp_sram_read_buf),
+    .temp_read_addr(conv_temp_read_addr),
+    .temp_read_req(conv_temp_read_req),
+    .temp_write_addr(conv_temp_write_addr),
+    .temp_write_req(conv_temp_write_req),
     .ds_conv_done(ds_conv_done),
     .us_out_valid(us_out_valid),
     .ds_out_data(ds_out_data),
