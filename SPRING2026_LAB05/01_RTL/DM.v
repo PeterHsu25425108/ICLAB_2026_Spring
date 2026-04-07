@@ -423,11 +423,10 @@ reg [2:0] weight_read_cnt;
 // each read returns 64 8bit pixels, we process them one by one
 reg [511:0] img_row_pixel_buf;
 // count how many rows of img have we read (max 64)
-// also serves as row counter
 reg [5:0] img_row_cnt;
 // count how many pixels in img_row_pixel_buf we have sent to the pipeline
-// also functions as col counter
-reg [5:0] img_col_cnt;
+// stride-4 shift on 64 pixels -> 16 shifts in total
+reg [3:0] img_shift_cnt;
 
 // shift regs for conv
 // up sampling: stride = 1
@@ -514,22 +513,21 @@ always @(posedge clk or negedge rst_n) begin : img_read_ctrl
         img_read_addr <= 0;
         img_read_req <= 0;
         img_row_cnt <= 0;
-        img_col_cnt <= 0;
+        
         img_row_pixel_buf <= 0;
     end else begin
         if(!en || !weight_allset)begin
             img_read_addr <= 0;
             img_read_req <= 0;
             img_row_cnt <= 0;
-            img_col_cnt <= 0;
+            
             img_row_pixel_buf <= 0;
         end else begin
             
             // we can start reading the image data once all the weights are read, and the MACs are ready to compute
-            img_read_req <= (img_read_addr == 63 && img_r_valid) ? 0 : img_read_req; // stop requesting when we have read all the rows we need, and the last read value is returned
+            img_read_req <= (img_read_addr == 63 && img_r_valid) ? 0 : (img_shift_cnt==63); // stop requesting when we have read all the rows we need, and the last read value is returned
             img_read_addr <= img_r_valid ? img_read_addr + 1 : img_read_addr; // increment the read address when the read value is returned, so that the next value can be returned in the next cycle
-            // TODO:  fix the following 3 update logics
-            // img_col_cnt 
+    
             img_row_cnt <= img_r_valid ? img_row_cnt + 1 : img_row_cnt; // increment the row count when the read value is returned
             img_row_pixel_buf <= img_r_valid ? img_data_in : img_row_pixel_buf; // update the pixel buffer with the new row of pixels when the read value is returned
         end
@@ -556,21 +554,31 @@ always @(posedge clk or negedge rst_n) begin
 end
 
 // down sampling shift reg control logic (stride = 4)
-always @(posedge clk or negedge rst_n) begin
+// read the first 4 elements in img_row_pixel_buf into ds_conv_sr
+// and img_row_pixel_buf will shift left 4 elements so the next 4 elements will be moved to the left end
+// and img_shift_cnt will be incremented by 4, when img_shift_cnt == 15, that means we will be sending the last 4 
+// at the nxt clk edge, so we have to input another 64 from the sram input
+always @(posedge clk or negedge rst_n) begin : img_row_pixel_buf_shift_logic
     if(!rst_n) begin
         ds_center_valid <= 0;
+        img_shift_cnt <= 0;
         for(integer i=0;i<131;i=i+1)begin
             ds_conv_sr[i] <= 0;
         end
     end else begin
         if(!en)begin
             ds_center_valid <= 0;
+            img_shift_cnt <= 0;
             for(integer i=0;i<131;i=i+1)begin
                 ds_conv_sr[i] <= 0;
             end
         end else begin
+            // accept inputs from sram_img
             // shift the shift reg every cycle, and update the center valid signal accordingly
             
+            if(!is_us_conv)begin
+                // img_shift_cnt <= 
+            end
         end
     end
 end
@@ -579,18 +587,22 @@ end
 always @(posedge clk or negedge rst_n) begin
     if(!rst_n) begin
         us_center_valid <= 0;
+        img_shift_cnt <= 0;
         for(integer i=0;i<35;i=i+1)begin
             us_conv_sr[i] <= 0;
         end
     end else begin
         if(!en)begin
             us_center_valid <= 0;
+            img_shift_cnt <= 0;
             for(integer i=0;i<35;i=i+1)begin
                 us_conv_sr[i] <= 0;
             end
         end else begin
+            // accept inputs from sram_temp
             // shift the shift reg every cycle, and update the center valid signal accordingly
             
+           
         end
     end
 end
