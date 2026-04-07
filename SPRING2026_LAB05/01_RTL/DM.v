@@ -456,7 +456,8 @@ module ConvBlock(
     output reg [5:0] img_read_addr,
     output reg img_read_req,
     input [511:0] img_data_in,  // A full 64-pixel row
-    
+    input img_read_valid,
+
     // SRAM_WEIGHT Interface
     output reg [5:0] weight_read_addr,
     output  weight_read_req,
@@ -471,6 +472,7 @@ module ConvBlock(
     output reg [7:0] temp_write_addr,
     output reg temp_write_req,
     input temp_write_valid,
+    input temp_read_valid,
     
     // Top-level Control
     output reg ds_conv_done, // Tells FSM to switch to QKV_PROJ, high after all the 16 out chs are computed & stored into sram_temp
@@ -493,8 +495,8 @@ assign {weight_input_evench, weight_input_oddch} = weight_data_in[71:0];
 
 // indicate if the read value has been returned, they control whether to 
 // accept new values into the pipeline
-reg img_r_valid, temp_r_valid;
-reg nxt_img_r_valid, nxt_temp_r_valid;
+// reg img_r_valid, temp_sram_read_valid;
+// reg nxt_img_r_valid, nxt_temp_sram_read_valid;
 // count how many rounds or weight read have we done (max 8)
 reg [2:0] weight_read_cnt;
 
@@ -505,6 +507,7 @@ reg [5:0] img_read_cnt;
 // count how many pixels in img_row_pixel_buf we have sent to the pipeline
 // stride-4 shift on 64 pixels -> 16 shifts in total
 reg [3:0] img_shift_cnt;
+reg img_pending; // has shifted all pixels in img_row_pixel_buf, still waiting for img_read_valid to be high to load the next row
 
 // shift regs for conv
 // up sampling: stride = 1
@@ -518,7 +521,7 @@ reg [127:0] us_3x3_window[0:15][0:8]; // to store the 3x3 window of the current 
 
 // down sampling: stride = 4
 // 64*2+2 = 130, each with 8 bit
-reg [7:0] ds_conv_sr[0:130];
+reg [7:0] ds_conv_sr[0:131];
 reg [65:0] ds_center_valid;
 // the row & col counter for ds_conv_sr, used to determine zero padding
 reg [5:0] ds_row_cnt, ds_col_cnt; // 64x64
@@ -538,19 +541,6 @@ wire [7:0] clip_all_ch_sum;
 // input valid signal for the macs
 reg conv_mac_i_valid;
 
-always @(posedge clk or negedge rst_n) begin : conv_read_valids_ctrl
-    if(!rst_n) begin
-        img_r_valid <= 0;
-        temp_r_valid <= 0;
-        nxt_img_r_valid <= 0;
-        nxt_temp_r_valid <= 0;
-    end else begin
-        img_r_valid <= nxt_img_r_valid;
-        temp_r_valid <= nxt_temp_r_valid;
-        nxt_img_r_valid <= img_read_req;
-        nxt_temp_r_valid <=  (is_us_conv) && temp_read_req;
-    end
-end
 assign weight_read_req = en && (weight_read_cnt <= 7) && !weight_allset;
 // SRAM_WEIGHT interface control
 always @(posedge clk or negedge rst_n) begin : weight_read_ctrl
@@ -600,23 +590,34 @@ always @(posedge clk or negedge rst_n) begin : img_read_ctrl
         img_read_addr <= 0;
         img_read_req <= 0;
         img_read_cnt <= 0;
-        
+        img_pending <= 0;
         img_row_pixel_buf <= 0;
     end else begin
         if(!en || !weight_allset)begin
             img_read_addr <= 0;
             img_read_req <= 0;
             img_read_cnt <= 0;
-            
+            img_pending <= 0;
             img_row_pixel_buf <= 0;
         end else begin
             
             // we can start reading the image data once all the weights are read, and the MACs are ready to compute
-            img_read_req <= (img_read_addr == 63 && img_r_valid) ? 0 : (img_shift_cnt==15); // stop requesting when we have read all the rows we need, and the last read value is returned
-            img_read_addr <= img_r_valid ? img_read_addr + 1 : img_read_addr; // increment the read address when the read value is returned, so that the next value can be returned in the next cycle
-    
-            img_read_cnt <= img_r_valid ? img_read_cnt + 1 : img_read_cnt; // increment the row count when the read value is returned
-            img_row_pixel_buf <= img_r_valid ? img_data_in : img_row_pixel_buf; // update the pixel buffer with the new row of pixels when the read value is returned
+            img_read_req <= (img_read_addr == 63 && img_read_valid) ? 0 : (img_shift_cnt==15); // stop requesting when we have read all the rows we need, and the last read value is returned
+            img_read_addr <= img_read_valid ? img_read_addr + 1 : img_read_addr; // increment the read address when the read value is returned, so that the next value can be returned in the next cycle
+            if(img_pending)begin
+                img_pending <= !img_read_valid;
+            end else begin
+                img_pending <= (img_shift_cnt==15);
+            end
+
+            img_read_cnt <= img_read_valid ? img_read_cnt + 1 : img_read_cnt; // increment the row count when the read value is returned
+             // update the pixel buffer with the new row of pixels when the read value is returned
+             if(img_read_valid) begin
+                img_row_pixel_buf <= img_data_in;
+             end else begin
+                // shift for 4 steps if img_pending == 0
+                img_row_pixel_buf <= !img_pending ? {img_row_pixel_buf[479:0], {4{8'b0}}} : img_row_pixel_buf;
+             end
         end
     end
 end
@@ -635,8 +636,8 @@ always @(posedge clk or negedge rst_n) begin
             temp_write_addr <= 0;
             temp_write_req <= 0;
         end else if(is_us_conv) begin // read from sram_temp
-            temp_read_req <= (temp_read_addr == 8'd255 && temp_r_valid) ? 0 : 1;
-            temp_read_addr <= temp_r_valid ? temp_read_addr + 1 : temp_read_addr;
+            temp_read_req <= (temp_read_addr == 8'd255 && temp_read_valid) ? 0 : 1;
+            temp_read_addr <= temp_read_valid ? temp_read_addr + 1 : temp_read_addr;
             temp_write_req <= 0;
             temp_write_addr <= temp_write_addr;
         end else begin // write to sram_temp, when the conv output is ready (conv_mac_o_valid), we can start writing to sram_temp, and each write corresponds to 1 pixel of the output feature map, so we can increment the write address every time we write
@@ -670,9 +671,17 @@ always @(posedge clk or negedge rst_n) begin : img_row_pixel_buf_shift_logic
         end else begin
             // accept inputs from sram_img
             // shift the shift reg every cycle, and update the center valid signal accordingly
-            
             if(!is_us_conv)begin
-                img_shift_cnt <= img_r_valid ? 0 : img_shift_cnt+1;
+                img_shift_cnt <= img_read_valid ? 0 : img_shift_cnt+1;
+                if(!img_pending)begin
+                    ds_conv_sr[3] <= img_row_pixel_buf[511:504];
+                    ds_conv_sr[2] <= img_row_pixel_buf[503:496];
+                    ds_conv_sr[1] <= img_row_pixel_buf[495:488];
+                    ds_conv_sr[0] <= img_row_pixel_buf[487:480];
+                    for(integer i=4;i<132;i=i+1)begin
+                        ds_conv_sr[i] <= ds_conv_sr[i-4];
+                    end
+                end
             end
         end
     end
@@ -1165,7 +1174,7 @@ reg [127:0] temp_sram_write_buf;
 wire [127:0] temp_sram_read_buf;
 wire [127:0] temp_dout, temp_din;
 wire [2:0] temp_sram_cmd;
-wire temp_r_valid;
+wire temp_sram_read_valid;
 wire temp_r_buf_capture;
 wire [5:0] temp_sram_read_A;
 wire [2:0] temp_sram_read_cmd;
@@ -1459,7 +1468,7 @@ SRAM_CTRL #(
     .read_req(temp_sram_read_req_sel),
     .write_req(temp_sram_write_req_sel),
     .sram_DO(temp_dout),
-    .read_valid(temp_r_valid),
+    .read_valid(temp_sram_read_valid),
     .write_valid(temp_sram_write_valid),
     .data_out(temp_sram_read_buf),
     .sram_A(temp_addr),
@@ -1487,6 +1496,7 @@ ConvBlock conv_blk(
     .img_read_addr(conv_img_read_addr),
     .img_read_req(conv_img_read_req),
     .img_data_in(img_sram_read_buf),
+    .img_read_valid(img_sram_read_valid),
     .weight_read_addr(conv_weight_read_addr),
     .weight_read_req(conv_weight_read_req),
     .weight_data_in(weight_sram_read_buf),
@@ -1497,6 +1507,7 @@ ConvBlock conv_blk(
     .temp_write_addr(conv_temp_write_addr),
     .temp_write_req(conv_temp_write_req),
     .temp_write_valid(conv_temp_write_valid_mux),
+    .temp_read_valid(temp_sram_read_valid),
     .ds_conv_done(ds_conv_done),
     .us_out_valid(us_out_valid),
     .ds_out_data(ds_out_data),
