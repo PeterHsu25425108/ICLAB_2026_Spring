@@ -385,7 +385,7 @@ module ConvBlock(
     
     // SRAM_WEIGHT Interface
     output reg [5:0] weight_read_addr,
-    output reg weight_read_req,
+    output  weight_read_req,
     input [127:0] weight_data_in, // directly connects to weight_sram_read_buf
     
     // SRAM_TEMP Interface
@@ -417,27 +417,35 @@ assign {weight_input_evench, weight_input_oddch} = weight_data_in[71:0];
 // indicate if the read value has been returned, they control whether to 
 // accept new values into the pipeline
 reg weight_r_valid, img_r_valid, temp_r_valid;
+reg nxt_weight_r_valid, nxt_img_r_valid, nxt_temp_r_valid;
 // count how many rounds or weight read have we done (max 8)
 reg [2:0] weight_read_cnt;
 
 // each read returns 64 8bit pixels, we process them one by one
 reg [511:0] img_row_pixel_buf;
 // count how many rows of img have we read (max 64)
-reg [5:0] img_row_cnt;
+reg [5:0] img_read_cnt;
 // count how many pixels in img_row_pixel_buf we have sent to the pipeline
 // stride-4 shift on 64 pixels -> 16 shifts in total
 reg [3:0] img_shift_cnt;
 
 // shift regs for conv
 // up sampling: stride = 1
-// 16*2+3 = 35, each with 128bit
+// 16*2+3 = 35, ach with 128bite
 // {ch15, ch14, ..., ch0}, each ch data is 8bit, total 128 bit for each ch data to allow parallel access to 16 pixels in the same channel
 reg [127:0] us_conv_sr [0:34];
 reg [17:0] us_center_valid;
+// the row & col counter for us_conv_sr, used to determine zero padding
+reg [3:0] us_row_cnt, us_col_cnt;// 16x16 
+reg [127:0] us_3x3_window[0:15][0:8]; // to store the 3x3 window of the current pixel for all 16 channels, used as the input of the MACs
+
 // down sampling: stride = 4
 // 64*2+2 = 130, each with 8 bit
 reg [7:0] ds_conv_sr[0:130];
 reg [65:0] ds_center_valid;
+// the row & col counter for ds_conv_sr, used to determine zero padding
+reg [5:0] ds_row_cnt, ds_col_cnt; // 64x64
+reg [7:0] ds_3x3_window[0:8]; // to store the 3x3 window of the current pixel, used as the input of the MACs
 
 // final IOs of MACs
 reg [71:0] conv_mac_i_data[0:15];
@@ -458,18 +466,24 @@ always @(posedge clk or negedge rst_n) begin : conv_read_valids_ctrl
         img_r_valid <= 0;
         weight_r_valid <= 0;
         temp_r_valid <= 0;
+        nxt_img_r_valid <= 0;
+        nxt_weight_r_valid <= 0;
+        nxt_temp_r_valid <= 0;
     end else begin
-        img_r_valid <= img_read_req;
-        weight_r_valid <= weight_read_req;
-        temp_r_valid <=  (is_us_conv) && temp_wr_req; // we can reuse the temp_wr_req signal since the read and write operations to sram_temp are separated in time
+        img_r_valid <= nxt_img_r_valid;
+        weight_r_valid <= nxt_weight_r_valid;
+        temp_r_valid <= nxt_temp_r_valid;
+        nxt_img_r_valid <= img_read_req;
+        nxt_weight_r_valid <= weight_read_req;
+        nxt_temp_r_valid <=  (is_us_conv) && temp_wr_req; // we can reuse the temp_wr_req signal since the read and write operations to sram_temp are separated in time
     end
 end
-
+assign weight_read_req = en && (weight_read_cnt <= 7) && !weight_allset;
 // SRAM_WEIGHT interface control
 always @(posedge clk or negedge rst_n) begin : weight_read_ctrl
     if(!rst_n)begin
         weight_read_addr <= 0;
-        weight_read_req <= 0;
+        // weight_read_req <= 0;
         weight_allset <= 0;
         weight_read_cnt <= 0;
         for(integer i=0;i<16;i=i+1)begin
@@ -478,16 +492,16 @@ always @(posedge clk or negedge rst_n) begin : weight_read_ctrl
     end else begin
         if(!en)begin
             weight_read_addr <= weight_read_addr_offset;
-            weight_read_req <= 0;
+            // weight_read_req <= 0;
             weight_allset <= 0;
             weight_read_cnt <= 0;
             for(integer i=0;i<16;i=i+1)begin
                 conv_weight[i] <= 0;
             end
         end else begin
-            weight_read_req <= !weight_allset; // keep requesting until all weights are read
-            weight_read_addr <= weight_read_req ? weight_read_addr + 1 : weight_read_addr; // increment the read address when we are requesting, so that the next value can be returned in the next cycle
-            weight_read_cnt <= weight_read_cnt + weight_r_valid; // increment the count when the read value is returned
+            // weight_read_req <= (weight_read_cnt != 7) && !weight_allset; // keep requesting until all weights are read
+            weight_read_addr <= weight_read_req ?  weight_read_addr+1 :  weight_read_addr; // increment the read address when we are requesting, so that the next value can be returned in the next cycle
+            weight_read_cnt <= weight_read_cnt + weight_read_req; // increment the count when the read value is returned
             weight_allset <= (weight_read_cnt == 7) ? 1 : weight_allset; // we need to read 8 rows of weights to get the full 16 3x3 kernels for all output channels
             if(weight_r_valid) begin
                 // the 3x3 kernel weight of 2 output channels are stored in 1 row of sram, and each weight is 4 bit signed
@@ -512,23 +526,23 @@ always @(posedge clk or negedge rst_n) begin : img_read_ctrl
     if(!rst_n)begin
         img_read_addr <= 0;
         img_read_req <= 0;
-        img_row_cnt <= 0;
+        img_read_cnt <= 0;
         
         img_row_pixel_buf <= 0;
     end else begin
         if(!en || !weight_allset)begin
             img_read_addr <= 0;
             img_read_req <= 0;
-            img_row_cnt <= 0;
+            img_read_cnt <= 0;
             
             img_row_pixel_buf <= 0;
         end else begin
             
             // we can start reading the image data once all the weights are read, and the MACs are ready to compute
-            img_read_req <= (img_read_addr == 63 && img_r_valid) ? 0 : (img_shift_cnt==63); // stop requesting when we have read all the rows we need, and the last read value is returned
+            img_read_req <= (img_read_addr == 63 && img_r_valid) ? 0 : (img_shift_cnt==15); // stop requesting when we have read all the rows we need, and the last read value is returned
             img_read_addr <= img_r_valid ? img_read_addr + 1 : img_read_addr; // increment the read address when the read value is returned, so that the next value can be returned in the next cycle
     
-            img_row_cnt <= img_r_valid ? img_row_cnt + 1 : img_row_cnt; // increment the row count when the read value is returned
+            img_read_cnt <= img_r_valid ? img_read_cnt + 1 : img_read_cnt; // increment the row count when the read value is returned
             img_row_pixel_buf <= img_r_valid ? img_data_in : img_row_pixel_buf; // update the pixel buffer with the new row of pixels when the read value is returned
         end
     end
@@ -577,7 +591,7 @@ always @(posedge clk or negedge rst_n) begin : img_row_pixel_buf_shift_logic
             // shift the shift reg every cycle, and update the center valid signal accordingly
             
             if(!is_us_conv)begin
-                // img_shift_cnt <= 
+                img_shift_cnt <= img_r_valid ? 0 : img_shift_cnt+1;
             end
         end
     end
@@ -600,14 +614,13 @@ always @(posedge clk or negedge rst_n) begin
             end
         end else begin
             // accept inputs from sram_temp
-            // shift the shift reg every cycle, and update the center valid signal accordingly
             
            
         end
     end
 end
 // MAC input selection
-genvar i;
+genvar i, j;
 
 always @(*) begin : mac_input_valid_selection
     if(!en)begin
@@ -621,19 +634,63 @@ always @(*) begin : mac_input_valid_selection
     end
 end
 
+// TODO: zero padding logic using the row & col counters
+wire us_top_bound, us_bot_bound, us_left_bound, us_right_bound;
+wire ds_top_bound, ds_bot_bound, ds_left_bound, ds_right_bound;
+assign us_top_bound = (us_row_cnt == 0);
+assign us_bot_bound = (us_row_cnt == 15);
+assign us_left_bound = (us_col_cnt == 0);
+assign us_right_bound = (us_col_cnt == 15);
+assign ds_top_bound = (ds_row_cnt == 0);
+assign ds_bot_bound = (ds_row_cnt == 63);
+assign ds_left_bound = (ds_col_cnt == 0);
+assign ds_right_bound = (ds_col_cnt == 63);
+generate
+for(i=0;i<16;i=i+1)begin
+    always @(*) begin : us_conv_zero_padding_logic
+        us_3x3_window[i][0] = (us_top_bound || us_left_bound) ? 0 : us_conv_sr[i][127:120]; // top-left
+        us_3x3_window[i][1] = (us_top_bound) ? 0 : us_conv_sr[i][119:112]; // top-center
+        us_3x3_window[i][2] = (us_top_bound || us_right_bound) ? 0 : us_conv_sr[i][111:104]; // top-right
+        us_3x3_window[i][3] = (us_left_bound) ? 0 : us_conv_sr[i][103:96]; // mid-left
+        us_3x3_window[i][4] = us_conv_sr[i][95:88]; // mid-center
+        us_3x3_window[i][5] = (us_right_bound) ? 0 : us_conv_sr[i][87:80]; // mid-right
+        us_3x3_window[i][6] = (us_bot_bound || us_left_bound) ? 0 : us_conv_sr[i][79:72]; // bot-left
+        us_3x3_window[i][7] = (us_bot_bound) ? 0 : us_conv_sr[i][71:64]; // bot-center
+        us_3x3_window[i][8] = (us_bot_bound || us_right_bound) ? 0 : us_conv_sr[i][63:56]; // bot-right
+    end
+end
+
+// TODO: zero padding logic for ds_conv using ds_row_cnt and ds_col_cnt
+always @(*) begin
+    ds_3x3_window[0] = (ds_top_bound || ds_left_bound) ? 0 : ds_conv_sr[0]; // top-left
+    ds_3x3_window[1] = (ds_top_bound) ? 0 : ds_conv_sr[1]; // top-center
+    ds_3x3_window[2] = (ds_top_bound || ds_right_bound) ? 0 : ds_conv_sr[2]; // top-right
+    ds_3x3_window[3] = (ds_left_bound) ? 0 : ds_conv_sr[16]; // mid-left
+    ds_3x3_window[4] = ds_conv_sr[17]; // mid-center
+    ds_3x3_window[5] = (ds_right_bound) ? 0 : ds_conv_sr[18]; // mid-right
+    ds_3x3_window[6] = (ds_bot_bound || ds_left_bound) ? 0 : ds_conv_sr[32]; // bot-left
+    ds_3x3_window[7] = (ds_bot_bound) ? 0 : ds_conv_sr[33]; // bot-center
+    ds_3x3_window[8] = (ds_bot_bound || ds_right_bound) ? 0 : ds_conv_sr[34]; // bot-right
+end
+
+endgenerate
+
+
+
+
 generate
     for(i=0;i<15;i=i+1)begin
+        for(j=0;j<9;j=j+1)begin
         always @(*) begin : mac_input_data_selection
-            if(is_us_conv)begin
-                // TODO: need to select the 
-                conv_mac_i_data[i] = {us_conv_sr[34][8*i +: 8], us_conv_sr[33][8*i +: 8], us_conv_sr[32][8*i +: 8],
-                                     us_conv_sr[31][8*i +: 8], us_conv_sr[30][8*i +: 8], us_conv_sr[29][8*i +: 8], 
-                                     us_conv_sr[28][8*i +: 8], us_conv_sr[27][8*i +: 8], us_conv_sr[26][8*i +: 8]};
+            if(!en)begin
+                conv_mac_i_data[i][8*j +: 8] = 0;
+            end else if(is_us_conv)begin
+                conv_mac_i_data[i][8*j +: 8] = us_3x3_window[i][j];
             end else begin
-                conv_mac_i_data[i] = {ds_conv_sr[130], ds_conv_sr[129], ds_conv_sr[128],
-                                     ds_conv_sr[66], ds_conv_sr[65], ds_conv_sr[64], 
-                                     ds_conv_sr[2], ds_conv_sr[1], ds_conv_sr[0]};
+                conv_mac_i_data[i][8*j +: 8] = ds_3x3_window[j];
             end
+
+        end
         end
     end
 endgenerate
@@ -834,6 +891,7 @@ wire [5:0] conv_img_read_addr;
 wire conv_img_read_req;
 wire [5:0] conv_weight_read_addr;
 wire conv_weight_read_req;
+reg weight_r_valid, weight_r_buf_capture;
 wire [7:0] conv_temp_write_addr;
 wire conv_temp_write_req;
 wire [127:0] conv_temp_write_data;
@@ -1029,13 +1087,23 @@ always @(*) begin : sram_weight_cmd_addr_select
     endcase
 end
 
+always @(posedge clk or negedge rst_n) begin
+    if(!rst_n)begin
+        weight_r_valid <= 0;
+        weight_r_buf_capture <= 0;
+    end else begin
+        weight_r_valid <= weight_r_buf_capture;
+        weight_r_buf_capture <= conv_weight_read_req;
+    end
+end
+
 always @(posedge clk or negedge rst_n) begin : weight_sram_read_buf_ctrl
     if(!rst_n)begin
         weight_sram_read_buf <= 0;
     end else begin
         case(state)
         DS_CONV:begin
-            if(conv_weight_read_req) weight_sram_read_buf <= dout_weight_raw;
+            if(weight_r_buf_capture) weight_sram_read_buf <= dout_weight_raw;
             else weight_sram_read_buf <= weight_sram_read_buf;
         end
         default:begin
@@ -1056,7 +1124,7 @@ always @(posedge clk or negedge rst_n) begin : weight_sram_write_buf_cnt_ctrl
         LOAD_PROJ_WEIGHT,
         LOAD_US_CONV_WEIGHT: begin
             if (i_valid && !weight_input_done) begin
-                weight_sram_write_buf <= {weight_sram_write_buf[123:0], i_weight};
+                weight_sram_write_buf <= {weight_sram_write_buf[123:0], i_weight} & (state == LOAD_PROJ_WEIGHT ? {128{1'b1}} : {{56{1'b0}},{72{1'b1}}});
 
                 if (weight_sram_write_cnt == write_threshold) begin
                     weight_sram_write_cnt <= 0;
