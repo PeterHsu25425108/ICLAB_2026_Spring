@@ -65,7 +65,7 @@ reg output_mode;
 // to preserve input order, we should input {nodes[0], nodes[1], ...m nodes[7]} as IN_character to SORT_IP
 // index: 6 and 7 are the 2 smallest, and 7 will become the new subtree root while 6 will be assigned weight=7
 reg [3:0] nodes [0:7]; 
-reg [3:0] nxt_nodes [0:7];
+// reg [3:0] nxt_nodes [0:7];
 
 // stored the huffman code of each input char (in input order)
 reg [6:0] huff_code [0:7]; // index: 0->A, 1->B...7->V
@@ -194,7 +194,7 @@ generate
                     // discard nodes[6], set highest weight
                     nxt_weights[idx] = 5'd31;
                 end else if(idx==7)begin
-                    nxt_weights[idx] = nxt_weights[6] + nxt_weights[7];
+                    nxt_weights[idx] = char_weights[6] + char_weights[7];
                 end else begin
                     nxt_weights[idx] = char_weights[idx];
                 end
@@ -236,7 +236,7 @@ SORT_IP #(.IP_WIDTH(8)) sorter(
 // place pipeline regs at the sorter outputs
 generate
     for(idx=0;idx<8;idx=idx+1)begin
-        always @(*) begin : unpack_and_pipeline_sorter_outputs
+        always @(posedge clk or negedge rst_n) begin : unpack_and_pipeline_sorter_outputs
             if(!rst_n)begin
                 sorted_char[idx] <= 0;
             end else begin
@@ -256,7 +256,7 @@ always @(posedge clk or negedge rst_n) begin : code_len_ctrl
         if(state==MERGE)begin
             // once a subtree root is merged, we have to increment the code_len of all leaf nodes under this subtree
             for(i=0;i<8;i=i+1)begin // i: orig char idx, A, B ... V
-                if(root_idx[i] == nodes[6] || root_idx[i] == nodes[7])begin
+                if(root_idx[i] == sorted_char[6] || root_idx[i] == sorted_char[7])begin
                     code_len[i] <= code_len[i] + 1;
                 end
             end
@@ -280,9 +280,9 @@ always @(posedge clk or negedge rst_n) begin : huff_code_ctrl
         end
     end else if(state == MERGE) begin
         for(i=0;i<8;i=i+1)begin // i: orig char idx, A, B ... V
-            if(root_idx[i] == nodes[6])begin // bigger, insert 0
+            if(root_idx[i] == sorted_char[6])begin // bigger, insert 0
                 huff_code[i][code_len[i]] <= 0;
-            end else if(root_idx[i] == nodes[7])begin // smaller, insert 1
+            end else if(root_idx[i] == sorted_char[7])begin // smaller, insert 1
                 huff_code[i][code_len[i]] <= 1;
             end
         end
@@ -325,17 +325,17 @@ always @(posedge clk or negedge rst_n) begin : root_idx_ctrl
         root_idx[O] <= O;
         root_idx[V] <= V;
     end else if(state == WAIT_INPUT) begin
-        nodes[A] <= A;
-        nodes[B] <= B;
-        nodes[C] <= C;
-        nodes[E] <= E;
-        nodes[I] <= I;
-        nodes[L] <= L;
-        nodes[O] <= O;
-        nodes[V] <= V;
+        root_idx[A] <= A;
+        root_idx[B] <= B;
+        root_idx[C] <= C;
+        root_idx[E] <= E;
+        root_idx[I] <= I;
+        root_idx[L] <= L;
+        root_idx[O] <= O;
+        root_idx[V] <= V;
     end else if(state==MERGE)begin
         for(i=0;i<8;i=i+1)begin // i: orig char idx, A, B ... V
-            if(root_idx[i] == nodes[6] || root_idx[i] == nodes[7])begin
+            if(root_idx[i] == sorted_char[6] || root_idx[i] == sorted_char[7])begin
                 root_idx[i] <= root_idx[7];
             end
         end
