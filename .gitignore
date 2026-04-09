@@ -5,22 +5,37 @@
 !*.md
 # except these
 !.gitignore
-!SPRING2026_LAB*/**
-# ignore these
-SPRING2026_LAB*/02_SYN/*
-!SPRING2026_LAB*/02_SYN/syn.log
-SPRING2026_LAB*/03_GATE/
-SPRING2026_LAB*/09_SUBMIT/
-# for SPRING2026_LAB*/00_TESTBED and SPRING2026_LAB*/01_RTL, track only .v, .py, .cpp, .txt files
-SPRING2026_LAB*/00_TESTBED/*
-!SPRING2026_LAB*/00_TESTBED/**/*.v
-!SPRING2026_LAB*/00_TESTBED/**/*.py
-!SPRING2026_LAB*/00_TESTBED/**/*.cpp
-!SPRING2026_LAB*/00_TESTBED/**/*.txt
-SPRING2026_LAB*/01_RTL/*
-!SPRING2026_LAB*/01_RTL/**/*.v
-!SPRING2026_LAB*/01_RTL/**/*.py
-!SPRING2026_LAB*/01_RTL/**/*.cpp
-!SPRING2026_LAB*/01_RTL/**/*.txt
-SPRING2026_LAB*/Memory/
-SPRING2026_LAB*/Memory*/
+
+# Generic stage rules anywhere in the tree.
+# 02_SYN: ignore all generated files, but keep synthesis log.
+**/02_SYN/*
+!**/02_SYN/syn.log
+
+# 03_GATE and 09_SUBMIT: fully ignored.
+**/03_GATE/
+**/09_SUBMIT/
+
+# 00_TESTBED and 02_RTL: track only source/text artifacts.
+**/00_TESTBED/*
+!**/00_TESTBED/**/*.v
+!**/00_TESTBED/**/*.py
+!**/00_TESTBED/**/*.cpp
+!**/00_TESTBED/**/*.txt
+
+**/01_RTL/*
+!**/01_RTL/**/*.v
+!**/01_RTL/**/*.py
+!**/01_RTL/**/*.cpp
+!**/01_RTL/**/*.txt
+
+**/02_RTL/*
+!**/02_RTL/**/*.v
+!**/02_RTL/**/*.py
+!**/02_RTL/**/*.cpp
+!**/02_RTL/**/*.txt
+
+# Ignore common memory dumps/artifacts.
+**/Memory/
+**/Memory*/
+
+
