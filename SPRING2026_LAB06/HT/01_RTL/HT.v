@@ -229,7 +229,7 @@ end
 
 SORT_IP #(.IP_WIDTH(8)) sorter(
     .IN_character({nodes[0], nodes[1], nodes[2], nodes[3], nodes[4], nodes[5], nodes[6], nodes[7]}),
-    .raw_sort_out(raw_sort_out),
+    .OUT_character(raw_sort_out),
     .IN_weight({char_weights[0], char_weights[1], char_weights[2], char_weights[3], char_weights[4], char_weights[5], char_weights[6], char_weights[7]})
 );
 
