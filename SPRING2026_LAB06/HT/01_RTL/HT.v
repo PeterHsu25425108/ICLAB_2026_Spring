@@ -42,7 +42,7 @@ parameter V = 7;
 input clk, rst_n, in_valid, out_mode;
 input [2:0] in_weight;
 
-output reg out_code;
+output out_code;
 output out_valid;
 
 // ===============================================================
@@ -53,19 +53,19 @@ reg [1:0] state, nxt_state;
 
 // input storage order (0->7): A->B->C->E->I->L->O->V
 // the weight of each input characters
-// indexed by nodes[2:0]
-reg [4:0] char_weights [0:7];
-// the updated weights, computed at MERGE, sent to char_weights ffs at SORT
-reg [4:0] nxt_weights [0:7];
+// indexed by merge_nodes[2:0]
+reg [4:0] merge_weights [0:7];
+// the updated weights, computed at MERGE, sent to merge_weights ffs at SORT
+reg [4:0] nxt_merge_weights [0:7];
 
 // store the output mode
 reg output_mode;
 
 // the index of each input characters and the root of subtrees (formed by merging)
-// to preserve input order, we should input {nodes[0], nodes[1], ...m nodes[7]} as IN_character to SORT_IP
+// to preserve input order, we should input {merge_nodes[0], merge_nodes[1], ...m merge_nodes[7]} as IN_character to SORT_IP
 // index: 6 and 7 are the 2 smallest, and 7 will become the new subtree root while 6 will be assigned weight=7
-reg [3:0] nodes [0:7]; 
-// reg [3:0] nxt_nodes [0:7];
+reg [3:0] merge_nodes [0:7]; 
+// reg [3:0] nxt_merge_nodes [0:7];
 
 // stored the huffman code of each input char (in input order)
 reg [6:0] huff_code [0:7]; // index: 0->A, 1->B...7->V
@@ -75,8 +75,8 @@ reg [6:0] huff_code [0:7]; // index: 0->A, 1->B...7->V
 // reach 0 -> end output of this char, increment main_cnt
 reg [2:0] code_len [0:7]; // index: 0->A, 1->B...7->V
 
-// store the index of the A, B, ... V's subtree roots in nodes
-// ex: A's subtree root is nodes[root_idx[0]]
+// store the index of the A, B, ... V's subtree roots in sorted_nodess
+// ex: A's subtree root is sorted_nodes[root_idx[0]]
 reg [2:0] root_idx [0:7]; // index: 0->A, 1->B...7->V
 
 // state == WAIT_INPUT: count the number of input weight stored
@@ -94,7 +94,8 @@ reg [2:0] out_char_idx;
 wire [31:0] raw_sort_out;
 
 // pipelined output char from sorter
-reg [3:0] sorted_char [0:7];
+reg [3:0] sorted_nodes [0:7];
+reg [3:0] nxt_sorted_nodes [0:7];
 
 integer i, j;
 genvar idx;
@@ -128,7 +129,7 @@ always @(posedge clk or negedge rst_n) begin : main_cnt_ctrl
 end
 always @(*) begin
     if(state == OUTPUT)begin
-        if(out_mode)begin // ILOVE
+        if(!output_mode)begin // ILOVE
             case(main_cnt)
             3'd0: out_char_idx = I;
             3'd1: out_char_idx = L;
@@ -172,7 +173,7 @@ always @(*) begin : state_transistion
                 nxt_state = OUTPUT;
             end
         end
-        default: nxt_state <= WAIT_INPUT;
+        default: nxt_state = WAIT_INPUT;
     endcase
 
 end
@@ -185,62 +186,64 @@ always @(posedge clk or negedge rst_n) begin : state_seq
     end
 end
 
-generate
-    for(idx=0;idx<8;idx=idx+1)begin
-        always @(*) begin : nxt_weight_logic
-            // when main_cnt==6, nxt_weight might overflow but it doesn't matter
-            if(state == MERGE /*&& main_cnt <= 6*/)begin
-                if(idx==6)begin
-                    // discard nodes[6], set highest weight
-                    nxt_weights[idx] = 5'd31;
-                end else if(idx==7)begin
-                    nxt_weights[idx] = char_weights[6] + char_weights[7];
-                end else begin
-                    nxt_weights[idx] = char_weights[idx];
-                end
-            end else begin
-                nxt_weights[idx] = char_weights[idx];
-            end
+// TODO: seperate weight storage and the reordered weight sent to sorter to prevent confusion
+always @(*) begin : nxt_merge_weights_logic
+    // default hold behavior
+    for(i=0;i<8;i=i+1)begin
+        nxt_merge_weights[i] = merge_weights[i];
+    end
+
+    if(state == MERGE)begin
+        nxt_merge_weights[sorted_nodes[6]] = 31;
+        nxt_merge_weights[sorted_nodes[7]] = merge_weights[sorted_nodes[7]] + merge_weights[sorted_nodes[6]];
+        
+    end else if(state == WAIT_INPUT && in_valid)begin // load in_weight
+        nxt_merge_weights[7] = in_weight;
+        for(i=0;i<7;i=i+1)begin
+            nxt_merge_weights[i] = merge_weights[i+1];
         end
     end
-endgenerate
+end
 
 
 always @(posedge clk or negedge rst_n) begin : char_weight_and_output_mode_ctrl
     if(!rst_n)begin
         output_mode <= 0;
         for(i=0;i<8;i=i+1)begin
-            char_weights[i] <= 0;
+            merge_weights[i] <= 0;
         end
-    end else if(state == WAIT_INPUT) begin // load input values into char_weights and output_mode
-        output_mode <= (in_valid && main_cnt==0) ? out_mode : output_mode;
-        if(in_valid)begin
-            char_weights[7] <= in_weight;
-            for(i=0;i<7;i=i+1)begin
-                char_weights[i] <= char_weights[i+1];
-            end
-        end
-    end else if(state == MERGE)begin // update cahr_weights when merging
-        for(i=0;i<7;i=i+1)begin
-                char_weights[i] <= nxt_weights[i];
+    end else begin
+        // capture mode at the first valid input cycle
+        output_mode <= (state == WAIT_INPUT && in_valid && main_cnt==0) ? out_mode : output_mode;
+        for(i=0;i<8;i=i+1)begin
+            merge_weights[i] <= nxt_merge_weights[i];
         end
     end
 end
 
 SORT_IP #(.IP_WIDTH(8)) sorter(
-    .IN_character({nodes[0], nodes[1], nodes[2], nodes[3], nodes[4], nodes[5], nodes[6], nodes[7]}),
+    .IN_character({merge_nodes[0], merge_nodes[1], merge_nodes[2], merge_nodes[3], merge_nodes[4], merge_nodes[5], merge_nodes[6], merge_nodes[7]}),
     .OUT_character(raw_sort_out),
-    .IN_weight({char_weights[0], char_weights[1], char_weights[2], char_weights[3], char_weights[4], char_weights[5], char_weights[6], char_weights[7]})
+    .IN_weight({merge_weights[0], merge_weights[1], merge_weights[2], merge_weights[3], merge_weights[4], merge_weights[5], merge_weights[6], merge_weights[7]})
 );
+
+// combinationally unpack sorter output to next-state array (order preserved)
+generate
+    for(idx=0;idx<8;idx=idx+1)begin
+        always @(*) begin : nxt_sorted_nodes_unpack
+            nxt_sorted_nodes[7-idx] = raw_sort_out[4*idx+3:4*idx];
+        end
+    end
+endgenerate
 
 // place pipeline regs at the sorter outputs
 generate
     for(idx=0;idx<8;idx=idx+1)begin
-        always @(posedge clk or negedge rst_n) begin : unpack_and_pipeline_sorter_outputs
+        always @(posedge clk or negedge rst_n) begin : pipeline_sorter_outputs
             if(!rst_n)begin
-                sorted_char[idx] <= 0;
+                sorted_nodes[idx] <= 0;
             end else begin
-                sorted_char[idx] <= raw_sort_out[4*idx+3:4*idx];
+                sorted_nodes[idx] <= nxt_sorted_nodes[idx];
             end
         end
     end
@@ -254,9 +257,9 @@ always @(posedge clk or negedge rst_n) begin : code_len_ctrl
         end
     end else begin
         if(state==MERGE)begin
-            // once a subtree root is merged, we have to increment the code_len of all leaf nodes under this subtree
+            // once a subtree root is merged, we have to increment the code_len of all leaf merge_nodes under this subtree
             for(i=0;i<8;i=i+1)begin // i: orig char idx, A, B ... V
-                if(root_idx[i] == sorted_char[6] || root_idx[i] == sorted_char[7])begin
+                if(root_idx[i] == sorted_nodes[6] || root_idx[i] == sorted_nodes[7])begin
                     code_len[i] <= code_len[i] + 1;
                 end
             end
@@ -280,40 +283,41 @@ always @(posedge clk or negedge rst_n) begin : huff_code_ctrl
         end
     end else if(state == MERGE) begin
         for(i=0;i<8;i=i+1)begin // i: orig char idx, A, B ... V
-            if(root_idx[i] == sorted_char[6])begin // bigger, insert 0
+            if(root_idx[i] == sorted_nodes[6])begin // bigger, insert 0
                 huff_code[i][code_len[i]] <= 0;
-            end else if(root_idx[i] == sorted_char[7])begin // smaller, insert 1
+            end else if(root_idx[i] == sorted_nodes[7])begin // smaller, insert 1
                 huff_code[i][code_len[i]] <= 1;
             end
         end
     end
 end
 
-always @(posedge clk or negedge rst_n) begin : nodes_ctrl
+always @(posedge clk or negedge rst_n) begin : merge_nodes_ctrl
     if(!rst_n)begin
-        nodes[A] <= A;
-        nodes[B] <= B;
-        nodes[C] <= C;
-        nodes[E] <= E;
-        nodes[I] <= I;
-        nodes[L] <= L;
-        nodes[O] <= O;
-        nodes[V] <= V;
+        merge_nodes[A] <= A;
+        merge_nodes[B] <= B;
+        merge_nodes[C] <= C;
+        merge_nodes[E] <= E;
+        merge_nodes[I] <= I;
+        merge_nodes[L] <= L;
+        merge_nodes[O] <= O;
+        merge_nodes[V] <= V;
     end else if(state == WAIT_INPUT) begin
-        nodes[A] <= A;
-        nodes[B] <= B;
-        nodes[C] <= C;
-        nodes[E] <= E;
-        nodes[I] <= I;
-        nodes[L] <= L;
-        nodes[O] <= O;
-        nodes[V] <= V;
+        merge_nodes[A] <= A;
+        merge_nodes[B] <= B;
+        merge_nodes[C] <= C;
+        merge_nodes[E] <= E;
+        merge_nodes[I] <= I;
+        merge_nodes[L] <= L;
+        merge_nodes[O] <= O;
+        merge_nodes[V] <= V;
     end else if(state == MERGE) begin
-        // discard nodes[6] cuz it will be merged with nodes[7]
-        nodes[6] <= 4'b1111;
+        // discard merge_nodes[sorted_nodes[6]] cuz it will be merged with merge_nodes[7]
+        // merge_nodes[sorted_nodes[6]] <= 15;
     end
 end
 
+// root_idx stores indexes of the original input order, so does sorted_nodes
 always @(posedge clk or negedge rst_n) begin : root_idx_ctrl
     if(!rst_n)begin
         root_idx[A] <= A;
@@ -335,29 +339,30 @@ always @(posedge clk or negedge rst_n) begin : root_idx_ctrl
         root_idx[V] <= V;
     end else if(state==MERGE)begin
         for(i=0;i<8;i=i+1)begin // i: orig char idx, A, B ... V
-            if(root_idx[i] == sorted_char[6] || root_idx[i] == sorted_char[7])begin
-                root_idx[i] <= root_idx[7];
+            if(root_idx[i] == sorted_nodes[6] || root_idx[i] == sorted_nodes[7])begin
+                root_idx[i] <= sorted_nodes[7];
             end
         end
     end
 end
 
 assign out_valid = (state == OUTPUT);
-always @(posedge clk or negedge rst_n) begin : output_ctrl
-    if(!rst_n)begin
-        out_code <= 0;
-        // out_valid <= 0;
-    end else begin
-        if(state == OUTPUT)begin
-            out_code <= huff_code[out_char_idx][code_len[out_char_idx]-1];
+assign out_code = (state == OUTPUT) ? huff_code[out_char_idx][code_len[out_char_idx]-1] : 0;
+// always @(posedge clk or negedge rst_n) begin : output_ctrl
+//     if(!rst_n)begin
+//         out_code <= 0;
+//         // out_valid <= 0;
+//     end else begin
+//         if(state == OUTPUT)begin
+//             out_code <= huff_code[out_char_idx][code_len[out_char_idx]-1];
             
-        end else begin
-            out_code <= 0;
-            // out_valid <= 0;
-        end
+//         end else begin
+//             out_code <= 0;
+//             // out_valid <= 0;
+//         end
 
-    end
-end
+//     end
+// end
 
 
 endmodule
