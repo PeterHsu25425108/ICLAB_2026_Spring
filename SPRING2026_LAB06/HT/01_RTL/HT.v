@@ -65,7 +65,7 @@ reg output_mode;
 // to preserve input order, we should input {merge_nodes[0], merge_nodes[1], ...m merge_nodes[7]} as IN_character to SORT_IP
 // index: 6 and 7 are the 2 smallest, and 7 will become the new subtree root while 6 will be assigned weight=7
 reg [3:0] merge_nodes [0:7]; 
-// reg [3:0] nxt_merge_nodes [0:7];
+reg [3:0] nxt_merge_nodes [0:7];
 
 // stored the huffman code of each input char (in input order)
 reg [6:0] huff_code [0:7]; // index: 0->A, 1->B...7->V
@@ -97,13 +97,16 @@ wire [31:0] raw_sort_out;
 reg [3:0] sorted_nodes [0:7];
 reg [3:0] nxt_sorted_nodes [0:7];
 
-reg [2:0] order [0:7];
-reg [2:0] nxt_order [0:7];
-integer k;
-reg [2:0] keep_cnt;
+// reg [2:0] order [0:7];
+// reg [2:0] nxt_order [0:7];
+// integer k;
+// reg [2:0] keep_cnt;
 
-wire [31:0] sort_in_char;
-wire [39:0] sort_in_weight;
+// wire [31:0] sort_in_char;
+// wire [39:0] sort_in_weight;
+
+reg [4:0] w6, w7;
+reg [2:0] keep_cnt;
 
 integer i, j;
 genvar idx;
@@ -133,37 +136,6 @@ always @(posedge clk or negedge rst_n) begin : main_cnt_ctrl
         end
         default: main_cnt <= 0;
     endcase
-    end
-end
-
-always @(*) begin
-    for(k=0; k<8; k=k+1) nxt_order[k] = order[k];
-
-    if (state == WAIT_INPUT) begin
-        // reload the original order
-        for(k=0; k<8; k=k+1) nxt_order[k] = k;
-    end else if (state == MERGE) begin
-        keep_cnt = 0;
-        // keep the surviving nodes, maintain their original relative priority (including original chars and old subtrees)
-        for (k=0; k<8; k=k+1) begin
-            if (order[k] != sorted_nodes[6] && order[k] != sorted_nodes[7]) begin
-                nxt_order[keep_cnt] = order[k];
-                keep_cnt = keep_cnt + 1;
-            end
-        end
-        // append the new subtree root to the end of the order
-        nxt_order[6] = sorted_nodes[7];
-        
-        // the discarded node sorted_nodes[6] will be assigned weight=7 and become the smallest, so put it at the end of the order as well
-        nxt_order[7] = sorted_nodes[6];
-    end
-end
-
-always @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-        for(k=0; k<8; k=k+1) order[k] <= k;
-    end else begin
-        for(k=0; k<8; k=k+1) order[k] <= nxt_order[k];
     end
 end
 
@@ -228,20 +200,47 @@ end
 
 // TODO: seperate weight storage and the reordered weight sent to sorter to prevent confusion
 always @(*) begin : nxt_merge_weights_logic
-    // default hold behavior
-    for(i=0;i<8;i=i+1)begin
+    // Default: hold current values
+    for(i=0; i<8; i=i+1) begin
         nxt_merge_weights[i] = merge_weights[i];
+        nxt_merge_nodes[i]   = merge_nodes[i];
     end
+    w6 = 0; 
+    w7 = 0;
 
-    if(state == MERGE)begin
-        nxt_merge_weights[sorted_nodes[6]] = 31;
-        nxt_merge_weights[sorted_nodes[7]] = merge_weights[sorted_nodes[7]] + merge_weights[sorted_nodes[6]];
-        
-    end else if(state == WAIT_INPUT && in_valid)begin // load in_weight
+    if (state == WAIT_INPUT && in_valid) begin
+        // Shift in new weights
         nxt_merge_weights[7] = in_weight;
-        for(i=0;i<7;i=i+1)begin
+        for(i=0; i<7; i=i+1) begin
             nxt_merge_weights[i] = merge_weights[i+1];
         end
+        // Note: merge_nodes remains unchanged during WAIT_INPUT
+    end else if (state == MERGE) begin
+        // 1. Extract weights of the two nodes to be merged
+        for(i=0; i<8; i=i+1) begin
+            if (merge_nodes[i] == sorted_nodes[6]) w6 = merge_weights[i];
+            if (merge_nodes[i] == sorted_nodes[7]) w7 = merge_weights[i];
+        end
+
+        // 2. Compress the array: shift surviving nodes to the front
+        // This preserves their relative priority for the stable sort
+        keep_cnt = 0;
+        for(i=0; i<8; i=i+1) begin
+            if (merge_nodes[i] != sorted_nodes[6] && merge_nodes[i] != sorted_nodes[7]) begin
+                nxt_merge_nodes[keep_cnt]   = merge_nodes[i];
+                nxt_merge_weights[keep_cnt] = merge_weights[i];
+                keep_cnt = keep_cnt + 1;
+            end
+        end
+
+        // 3. Append the new subtree to the end of the valid elements (index 6)
+        // Reuse sorted_nodes[7] as the ID for the new subtree
+        nxt_merge_nodes[6]   = sorted_nodes[7];
+        nxt_merge_weights[6] = w6 + w7;
+
+        // 4. Invalidate the discarded node and move it to the last position (index 7)
+        nxt_merge_nodes[7]   = 4'd15;
+        nxt_merge_weights[7] = 5'd31;
     end
 end
 
@@ -261,20 +260,22 @@ always @(posedge clk or negedge rst_n) begin : char_weight_and_output_mode_ctrl
     end
 end
 
-assign sort_in_char = {
-    {1'b0, order[0]}, {1'b0, order[1]}, {1'b0, order[2]}, {1'b0, order[3]},
-    {1'b0, order[4]}, {1'b0, order[5]}, {1'b0, order[6]}, {1'b0, order[7]}
-};
+// assign sort_in_char = {
+//     {1'b0, order[0]}, {1'b0, order[1]}, {1'b0, order[2]}, {1'b0, order[3]},
+//     {1'b0, order[4]}, {1'b0, order[5]}, {1'b0, order[6]}, {1'b0, order[7]}
+// };
 
-assign sort_in_weight = {
-    merge_weights[order[0]], merge_weights[order[1]], merge_weights[order[2]], merge_weights[order[3]],
-    merge_weights[order[4]], merge_weights[order[5]], merge_weights[order[6]], merge_weights[order[7]]
-};
+// assign sort_in_weight = {
+//     merge_weights[order[0]], merge_weights[order[1]], merge_weights[order[2]], merge_weights[order[3]],
+//     merge_weights[order[4]], merge_weights[order[5]], merge_weights[order[6]], merge_weights[order[7]]
+// };
 
 SORT_IP #(.IP_WIDTH(8)) sorter(
-    .IN_character(sort_in_char),
+    .IN_character({merge_nodes[0], merge_nodes[1], merge_nodes[2], merge_nodes[3],
+                    merge_nodes[4], merge_nodes[5], merge_nodes[6], merge_nodes[7]}),
     .OUT_character(raw_sort_out),
-    .IN_weight(sort_in_weight)
+    .IN_weight({merge_weights[0], merge_weights[1], merge_weights[2], merge_weights[3],
+                merge_weights[4], merge_weights[5], merge_weights[6], merge_weights[7]})
 );
 
 // combinationally unpack sorter output to next-state array (order preserved)
@@ -343,27 +344,29 @@ always @(posedge clk or negedge rst_n) begin : huff_code_ctrl
 end
 
 always @(posedge clk or negedge rst_n) begin : merge_nodes_ctrl
-    if(!rst_n)begin
-        merge_nodes[A] <= A;
-        merge_nodes[B] <= B;
-        merge_nodes[C] <= C;
-        merge_nodes[E] <= E;
-        merge_nodes[I] <= I;
-        merge_nodes[L] <= L;
-        merge_nodes[O] <= O;
-        merge_nodes[V] <= V;
-    end else if(state == WAIT_INPUT) begin
-        merge_nodes[A] <= A;
-        merge_nodes[B] <= B;
-        merge_nodes[C] <= C;
-        merge_nodes[E] <= E;
-        merge_nodes[I] <= I;
-        merge_nodes[L] <= L;
-        merge_nodes[O] <= O;
-        merge_nodes[V] <= V;
-    end else if(state == MERGE) begin
-        // discard merge_nodes[sorted_nodes[6]] cuz it will be merged with merge_nodes[7]
-        // merge_nodes[sorted_nodes[6]] <= 15;
+    if(!rst_n) begin
+        merge_nodes[0] <= 0;
+        merge_nodes[1] <= 1;
+        merge_nodes[2] <= 2;
+        merge_nodes[3] <= 3;
+        merge_nodes[4] <= 4;
+        merge_nodes[5] <= 5;
+        merge_nodes[6] <= 6;
+        merge_nodes[7] <= 7;
+    end else if (state == WAIT_INPUT) begin
+        // Lock IDs 0~7 to align with the shifting weights
+        merge_nodes[0] <= 0;
+        merge_nodes[1] <= 1;
+        merge_nodes[2] <= 2;
+        merge_nodes[3] <= 3;
+        merge_nodes[4] <= 4;
+        merge_nodes[5] <= 5;
+        merge_nodes[6] <= 6;
+        merge_nodes[7] <= 7;
+    end else begin
+        for(i=0; i<8; i=i+1) begin
+            merge_nodes[i] <= nxt_merge_nodes[i];
+        end
     end
 end
 
