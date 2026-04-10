@@ -5,7 +5,7 @@
 //***********************************************************************************************
 //###############################################################################################
 
-module SORT_IP #(parameter IP_WIDTH = 3)(
+module SORT_IP #(parameter IP_WIDTH = 8)(
     //Input signals
     IN_character, IN_weight,
     //Output signals

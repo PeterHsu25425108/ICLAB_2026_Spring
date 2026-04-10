@@ -10,7 +10,7 @@
 `include "SORT_IP.v"
 //synopsys translate_on
 
-module SORT_IP_demo #(parameter IP_WIDTH = 3)(
+module SORT_IP_demo #(parameter IP_WIDTH = 8)(
 	//Input signals
 	IN_character, IN_weight,
 	//Output signals

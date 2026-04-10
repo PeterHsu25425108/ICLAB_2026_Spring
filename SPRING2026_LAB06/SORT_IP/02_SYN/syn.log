@@ -142,6 +142,26 @@ OUT_character[8]
 OUT_character[9]
 OUT_character[10]
 OUT_character[11]
+OUT_character[12]
+OUT_character[13]
+OUT_character[14]
+OUT_character[15]
+OUT_character[16]
+OUT_character[17]
+OUT_character[18]
+OUT_character[19]
+OUT_character[20]
+OUT_character[21]
+OUT_character[22]
+OUT_character[23]
+OUT_character[24]
+OUT_character[25]
+OUT_character[26]
+OUT_character[27]
+OUT_character[28]
+OUT_character[29]
+OUT_character[30]
+OUT_character[31]
 
 Information: Checking pulse_clock_cell_type...
 
@@ -158,8 +178,7 @@ set_fix_multiple_port_nets -all -buffer_constants [get_designs *]
 # set_fix_hold [all_clocks]
 compile_ultra
 Information: Performing power optimization. (PWR-850)
-Analyzing: "/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ss1p62v125c.db"
-Library analysis succeeded.
+Alib files are up-to-date.
 Information: Running optimization using a maximum of 8 cores. (OPT-1500)
 Information: Evaluating DesignWare library utilization. (UISN-27)
 
@@ -179,7 +198,7 @@ Information: Evaluating DesignWare library utilization. (UISN-27)
 | Design Information                                      | Value                                  |
 ====================================================================================================
 | Number of Scenarios                                     | 0                                      |
-| Leaf Cell Count                                         | 21                                     |
+| Leaf Cell Count                                         | 221                                    |
 | Number of User Hierarchies                              | 0                                      |
 | Sequential Cell Count                                   | 0                                      |
 | Macro Count                                             | 0                                      |
@@ -187,7 +206,7 @@ Information: Evaluating DesignWare library utilization. (UISN-27)
 | Number of Path Groups                                   | 1                                      |
 | Number of VT class                                      | 0                                      |
 | Number of Clocks                                        | 0                                      |
-| Number of Dont Touch cells                              | 11                                     |
+| Number of Dont Touch cells                              | 131                                    |
 | Number of Dont Touch nets                               | 0                                      |
 | Number of size only cells                               | 0                                      |
 | Design with UPF Data                                    | false                                  |
@@ -234,13 +253,13 @@ Information: There is no timing violation in design SORT_IP. Delay-based auto_un
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER  
   --------- --------- --------- --------- --------- ------------------------- ---------
-    0:00:26    1006.2      0.00       0.0       0.0                           48594.8867
-    0:00:26    1006.2      0.00       0.0       0.0                           48594.8867
+    0:00:28   11446.1      0.00       0.0       0.0                           542256.1250
+    0:00:28   11446.1      0.00       0.0       0.0                           542256.1250
 
   Beginning Constant Register Removal
   -----------------------------------
-    0:00:26    1006.2      0.00       0.0       0.0                           48594.8867
-    0:00:26    1006.2      0.00       0.0       0.0                           48594.8867
+    0:00:28   11571.1      0.00       0.0       0.0                           557181.1250
+    0:00:28   11571.1      0.00       0.0       0.0                           557181.1250
 
   Beginning Global Optimizations
   ------------------------------
@@ -280,39 +299,39 @@ Information: There is no timing violation in design SORT_IP. Delay-based auto_un
 
   Beginning Delay Optimization
   ----------------------------
-    0:00:27    1006.2      0.00       0.0       0.0                           48594.8867
-    0:00:27    1006.2      0.00       0.0       0.0                           48594.8867
-    0:00:27    1006.2      0.00       0.0       0.0                           48594.8867
-    0:00:27    1006.2      0.00       0.0       0.0                           48594.8867
-    0:00:27    1006.2      0.00       0.0       0.0                           48594.8867
-    0:00:27    1006.2      0.00       0.0       0.0                           48594.8867
+    0:00:28   11296.2      0.00       0.0       0.0                           534728.1875
+    0:00:28   11296.2      0.00       0.0       0.0                           534728.1875
+    0:00:28   11296.2      0.00       0.0       0.0                           534728.1875
+    0:00:28   11296.2      0.00       0.0       0.0                           534728.1875
+    0:00:29   11314.9      0.00       0.0       0.0                           535463.7500
+    0:00:29   11314.9      0.00       0.0       0.0                           535463.7500
 
   Beginning WLM Backend Optimization
   --------------------------------------
-    0:00:27    1006.2      0.00       0.0       0.0                           48594.8867
-    0:00:27    1006.2      0.00       0.0       0.0                           48594.8867
-    0:00:27    1006.2      0.00       0.0       0.0                           48594.8867
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
+    0:00:29   11314.9      0.00       0.0       0.0                           535402.6250
+    0:00:29   11314.9      0.00       0.0       0.0                           535402.6250
+    0:00:29   11314.9      0.00       0.0       0.0                           535402.6250
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
 
 
   Beginning Leakage Power Optimization  (max_leakage_power 0)
@@ -322,7 +341,7 @@ Information: There is no timing violation in design SORT_IP. Delay-based auto_un
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER  
   --------- --------- --------- --------- --------- ------------------------- ---------
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
   Global Optimization (Phase 29)
   Global Optimization (Phase 30)
   Global Optimization (Phase 31)
@@ -333,44 +352,44 @@ Information: There is no timing violation in design SORT_IP. Delay-based auto_un
   Global Optimization (Phase 36)
   Global Optimization (Phase 37)
   Global Optimization (Phase 38)
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
 
                                   TOTAL                                                
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER  
   --------- --------- --------- --------- --------- ------------------------- ---------
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
-    0:00:27    1006.2      0.00       0.0       0.0                           43312.0938
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
 Loading db file '/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ss1p62v125c.db'
 Loading db file '/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ff1p98vm40c.db'
 Loading db file '/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_t33_generic_io_ss1p62v125c.db'
@@ -395,7 +414,7 @@ Warning: There is no defined clock in the design. (PWR-80)
 report_design  >  Report/$DESIGN\.design
 report_resource >  Report/$DESIGN\.resource
 report_timing -max_paths 3 >  Report/$DESIGN\.timing
-report_area >  Report/$DESIGN\.area
+report_area -hierarchy -designware >  Report/$DESIGN\.area
 report_power > Report/$DESIGN\.power
 # report_clock > Report/$DESIGN\.clock
 report_port >  Report/$DESIGN\.port
@@ -448,29 +467,29 @@ report_area
 Report : area
 Design : SORT_IP
 Version: T-2022.03
-Date   : Thu Apr  9 00:04:15 2026
+Date   : Fri Apr 10 21:54:22 2026
 ****************************************
 
 Library(s) Used:
 
     fsa0m_a_generic_core_ss1p62v125c (File: /RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ss1p62v125c.db)
 
-Number of ports:                           39
-Number of nets:                            82
-Number of cells:                           55
-Number of combinational cells:             55
+Number of ports:                          104
+Number of nets:                           729
+Number of cells:                          657
+Number of combinational cells:            657
 Number of sequential cells:                 0
 Number of macros/black boxes:               0
-Number of buf/inv:                          7
-Number of references:                       8
+Number of buf/inv:                        130
+Number of references:                      18
 
-Combinational area:               1006.185591
-Buf/Inv area:                       43.747200
+Combinational area:              11277.403146
+Buf/Inv area:                      812.447991
 Noncombinational area:               0.000000
 Macro/Black Box area:                0.000000
 Net Interconnect area:      undefined  (Wire load has zero net area)
 
-Total cell area:                  1006.185591
+Total cell area:                 11277.403146
 Total area:                 undefined
 1
 report_timing 
@@ -482,15 +501,15 @@ Report : timing
         -max_paths 1
 Design : SORT_IP
 Version: T-2022.03
-Date   : Thu Apr  9 00:04:15 2026
+Date   : Fri Apr 10 21:54:22 2026
 ****************************************
 
 Operating Conditions: WCCOM   Library: fsa0m_a_generic_core_ss1p62v125c
 Wire Load Model Mode: top
 
-  Startpoint: IN_weight[0]
+  Startpoint: IN_weight[5]
               (input port)
-  Endpoint: OUT_character[7]
+  Endpoint: OUT_character[12]
             (output port)
   Path Group: (none)
   Path Type: max
@@ -502,36 +521,71 @@ Wire Load Model Mode: top
   Point                                    Incr       Path
   -----------------------------------------------------------
   input external delay                     0.00       0.00 f
-  IN_weight[0] (in)                        0.00       0.00 f
-  U74/O (INV1S)                            0.20       0.20 r
-  U75/O (ND2S)                             0.11       0.31 f
-  U76/O (MAO222S)                          0.43       0.74 f
-  U77/O (MAO222S)                          0.44       1.18 f
-  U78/O (NR2)                              0.15       1.33 r
-  U79/O (NR2)                              0.09       1.42 f
-  U81/O (MAO222S)                          1.03       2.45 f
-  U84/O (INV1S)                            0.60       3.05 r
-  U85/O (OAI22S)                           0.19       3.23 f
-  U86/O (AN2S)                             0.29       3.52 f
-  U88/O (MAO222S)                          0.43       3.95 f
-  U89/O (MAO222S)                          0.44       4.40 f
-  U90/O (MAO222S)                          0.48       4.87 f
-  U93/O (MOAI1S)                           1.28       6.15 r
-  U94/O (NR2)                              0.44       6.59 f
-  U112/O (NR2)                             0.45       7.04 r
-  U115/O (AO222S)                          0.92       7.96 r
-  OUT_character[7] (out)                   0.00       7.96 r
-  data arrival time                                   7.96
+  IN_weight[5] (in)                        0.00       0.00 f
+  U685/O (OR2B1S)                          0.30       0.30 f
+  U686/O (MAO222S)                         0.41       0.71 f
+  U688/O (MAO222S)                         0.36       1.07 f
+  U689/O (MAO222S)                         0.43       1.50 f
+  U691/O (MAO222S)                         1.00       2.50 f
+  U692/O (INV1S)                           0.91       3.41 r
+  U779/O (AOI22S)                          0.31       3.72 f
+  U780/O (OR2S)                            0.35       4.07 f
+  U781/O (MAO222S)                         0.43       4.50 f
+  U782/O (MAO222S)                         0.44       4.94 f
+  U783/O (MAO222S)                         0.44       5.38 f
+  U784/O (MAO222S)                         1.15       6.53 f
+  U785/O (ND2S)                            0.99       7.53 r
+  U788/O (OA222S)                          0.60       8.13 r
+  U789/O (INV1S)                           0.13       8.27 f
+  U790/O (MAO222S)                         0.41       8.68 f
+  U793/O (MAO222S)                         0.33       9.01 f
+  U796/O (MAO222S)                         0.36       9.37 f
+  U797/O (MAO222S)                         0.77      10.14 f
+  U864/O (ND2S)                            0.57      10.71 r
+  U869/O (OA222S)                          0.55      11.26 r
+  U870/O (OR2S)                            0.21      11.48 r
+  U871/O (MAO222S)                         0.25      11.73 r
+  U872/O (MAO222S)                         0.25      11.98 r
+  U873/O (MAO222S)                         0.25      12.23 r
+  U874/O (MAO222S)                         0.85      13.08 r
+  U1047/O (INV1S)                          0.69      13.77 f
+  U1048/O (ND2S)                           0.72      14.49 r
+  U1053/O (OA222S)                         0.57      15.06 r
+  U1054/O (OR2S)                           0.21      15.27 r
+  U1055/O (MAO222S)                        0.25      15.52 r
+  U1056/O (MAO222S)                        0.25      15.78 r
+  U1057/O (MAO222S)                        0.24      16.02 r
+  U1058/O (MAO222S)                        1.03      17.05 r
+  U1060/O (ND2S)                           0.65      17.70 f
+  U1063/O (OA222S)                         0.79      18.49 f
+  U1064/O (OR2S)                           0.31      18.81 f
+  U1065/O (MAO222S)                        0.43      19.23 f
+  U1067/O (MAO222S)                        0.45      19.68 f
+  U1068/O (MAO222S)                        0.44      20.12 f
+  U1069/O (MAO222S)                        0.82      20.94 f
+  U1150/O (OR2S)                           0.61      21.55 f
+  U1154/O (OA222S)                         0.43      21.98 f
+  U1157/O (MAO222S)                        0.46      22.43 f
+  U1159/O (MAO222S)                        0.45      22.88 f
+  U1160/O (MAO222S)                        0.44      23.32 f
+  U1161/O (MAO222S)                        0.70      24.03 f
+  U1162/O (ND2S)                           0.38      24.40 r
+  U1165/O (OAI22S)                         0.32      24.73 f
+  U1190/O (AOI22S)                         0.31      25.04 r
+  U1194/O (ND3S)                           0.56      25.60 f
+  OUT_character[12] (out)                  0.00      25.60 f
+  data arrival time                                  25.60
   -----------------------------------------------------------
   (Path is unconstrained)
 
 
 1
 exit
-Memory usage for this session 412 Mbytes.
-Memory usage for this session including child processes 528 Mbytes.
-CPU usage for this session 122 seconds ( 0.03 hours ).
-Elapsed time for this session 126 seconds ( 0.04 hours ).
+
+Memory usage for this session 415 Mbytes.
+Memory usage for this session including child processes 541 Mbytes.
+CPU usage for this session 35 seconds ( 0.01 hours ).
+Elapsed time for this session 36 seconds ( 0.01 hours ).
 
 Thank you...
 

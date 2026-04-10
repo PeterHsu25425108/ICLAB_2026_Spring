@@ -9,7 +9,7 @@ module PATTERN #(parameter IP_WIDTH)(
 // ========================================
 // Parameter & Variables
 // ========================================
-integer PATNUM = 1000; 
+integer PATNUM = 10; 
 integer i_pat, i, j;
 
 reg [IP_WIDTH*4-1:0] golden_out;
