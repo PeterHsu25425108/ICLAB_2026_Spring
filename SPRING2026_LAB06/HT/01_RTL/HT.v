@@ -42,8 +42,8 @@ parameter V = 7;
 input clk, rst_n, in_valid, out_mode;
 input [2:0] in_weight;
 
-output out_code;
-output out_valid;
+output reg out_code;
+output reg out_valid;
 
 // ===============================================================
 // Reg & Wire Declaration
@@ -87,6 +87,8 @@ reg [2:0] root_idx [0:7]; // index: 0->A, 1->B...7->V
 reg [2:0] main_cnt;
 // the index of the char being output
 reg [2:0] out_char_idx;
+reg [2:0] nxt_char;
+reg nxt_out_code;
 
 // SORT_IP IO wires (IP_WIDTH=8)
 // wire [31:0] IN_character;
@@ -308,17 +310,14 @@ always @(posedge clk or negedge rst_n) begin : code_len_ctrl
         end
     end else begin
         if(state==MERGE)begin
-            // once a subtree root is merged, we have to increment the code_len of all leaf merge_nodes under this subtree
-            for(i=0;i<8;i=i+1)begin // i: orig char idx, A, B ... V
+            for(i=0;i<8;i=i+1)begin
                 if(root_idx[i] == sorted_nodes[6] || root_idx[i] == sorted_nodes[7])begin
                     code_len[i] <= code_len[i] + 1;
                 end
             end
         end else if(state == OUTPUT)begin
-            // decrement itself to indicate sendng one bit
             code_len[out_char_idx] <= (code_len[out_char_idx]==0) ? 0 : code_len[out_char_idx]-1;
         end else if(state == WAIT_INPUT)begin
-            // clear all code_len
             for(i=0;i<8;i=i+1)begin
                 code_len[i] <= 0;
             end
@@ -335,13 +334,21 @@ always @(posedge clk or negedge rst_n) begin : huff_code_ctrl
     end else if(state == MERGE) begin
         for(i=0;i<8;i=i+1)begin // i: orig char idx, A, B ... V
             if(root_idx[i] == sorted_nodes[6])begin // bigger, insert 0
-                huff_code[i][code_len[i]] <= 0;
+                huff_code[i] <= {1'b0, huff_code[i][6:1]};
+                // huff_code[i][code_len[i]] <= 0;
             end else if(root_idx[i] == sorted_nodes[7])begin // smaller, insert 1
-                huff_code[i][code_len[i]] <= 1;
+                // huff_code[i][code_len[i]] <= 1;
+                huff_code[i] <= {1'b1, huff_code[i][6:1]};
             end
+        end
+    end else if (state == OUTPUT) begin
+        // OUTPUT: shift left to output the next bit at the MSB position
+        if (code_len[out_char_idx] != 0) begin
+            huff_code[out_char_idx] <= {huff_code[out_char_idx][5:0], 1'b0};
         end
     end
 end
+
 
 always @(posedge clk or negedge rst_n) begin : merge_nodes_ctrl
     if(!rst_n) begin
@@ -399,8 +406,87 @@ always @(posedge clk or negedge rst_n) begin : root_idx_ctrl
     end
 end
 
-assign out_valid = (state == OUTPUT);
-assign out_code = (state == OUTPUT) ? huff_code[out_char_idx][code_len[out_char_idx]-1] : 0;
+// forwarding logic for huff_code[I][6] at the first cycle of OUTPUT state
+reg forward_out_code;
+always @(*) begin : forward_out_code_logic
+    if(root_idx[I] == sorted_nodes[6]) forward_out_code = 0;
+    else if(root_idx[I] == sorted_nodes[7]) forward_out_code = 1;
+    else forward_out_code = huff_code[I][6];
+end
+
+always @(posedge clk or negedge rst_n) begin : output_ctrl
+    if(!rst_n) begin
+        out_valid <= 1'b0;
+        out_code  <= 1'b0;
+    end else begin
+        if(nxt_state == OUTPUT) begin
+            out_valid <= 1'b1;
+            out_code  <= nxt_out_code;
+        end else begin
+            out_valid <= 1'b0;
+            out_code  <= 1'b0;
+        end
+    end
+end
+
+// Predict the character to be output in the next cycle
+always @(*) begin : nxt_char_logic
+    if (state == MERGE && nxt_state == OUTPUT) begin
+        nxt_char = I;
+    end else if (state == OUTPUT && nxt_state == OUTPUT) begin
+        if (code_len[out_char_idx] == 1) begin
+            // Move to next character
+            if (!output_mode) begin // ILOVE
+                case(main_cnt)
+                    3'd0: nxt_char = L;
+                    3'd1: nxt_char = O;
+                    3'd2: nxt_char = V;
+                    3'd3: nxt_char = E;
+                    default: nxt_char = I;
+                endcase
+            end else begin // ICLAB
+                case(main_cnt)
+                    3'd0: nxt_char = C;
+                    3'd1: nxt_char = L;
+                    3'd2: nxt_char = A;
+                    3'd3: nxt_char = B;
+                    default: nxt_char = I;
+                endcase
+            end
+        end else begin
+            // Continue current character
+            nxt_char = out_char_idx;
+        end
+    end else begin
+        nxt_char = I;
+    end
+end
+
+// Determine the exact bit for the next cycle
+always @(*) begin : nxt_out_code_logic
+    if (state == MERGE && nxt_state == OUTPUT) begin
+        // The very first bit is computed directly from the current merge
+        if (root_idx[I] == sorted_nodes[6]) nxt_out_code = 1'b0;
+        else if (root_idx[I] == sorted_nodes[7]) nxt_out_code = 1'b1;
+        else nxt_out_code = huff_code[I][6]; // Fallback
+    end else if (state == OUTPUT) begin
+        if (nxt_char == out_char_idx) begin
+            // Continuing same char: it will shift left at this posedge, 
+            // so the next bit to latch is at [5]
+            nxt_out_code = huff_code[nxt_char][5];
+        end else begin
+            // Starting new char: it does not shift at this posedge, 
+            // so the first bit to latch is at [6]
+            nxt_out_code = huff_code[nxt_char][6];
+        end
+    end else begin
+        nxt_out_code = 1'b0;
+    end
+end
+
+// assign out_valid = (state == OUTPUT);
+// assign out_code = (state == OUTPUT) ? huff_code[out_char_idx][6] : 1'b0;
+// assign out_code = (state == OUTPUT) ? huff_code[out_char_idx][code_len[out_char_idx]-1] : 0;
 // always @(posedge clk or negedge rst_n) begin : output_ctrl
 //     if(!rst_n)begin
 //         out_code <= 0;
