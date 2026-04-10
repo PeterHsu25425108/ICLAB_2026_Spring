@@ -11,8 +11,8 @@ Initializing gui preferences from file  /RAID2/COURSE/2026_Spring/iclab/iclab067
 #======================================================
 #  Global Parameters
 #======================================================
-set DESIGN "SORT_IP"
-SORT_IP
+set DESIGN "SORT_IP_demo"
+SORT_IP_demo
 set CYCLE 20.0
 20.0
 set INPUT_DLY [expr 0.5*$CYCLE]
@@ -27,7 +27,7 @@ set hdlin_auto_save_templates TRUE
 TRUE
 analyze -f sverilog $DESIGN\.v 
 Running PRESTO HDLC
-Compiling source file ../01_RTL/SORT_IP.v
+Compiling source file ../01_RTL/SORT_IP_demo.v
 Presto compilation completed successfully.
 Loading db file '/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ss1p62v125c.db'
 Loading db file '/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ff1p98vm40c.db'
@@ -45,22 +45,25 @@ Loading db file '/usr/cad/synopsys/synthesis/2022.03/libraries/syn/standard.sldb
   Loading link library 'fsa0m_a_t33_generic_io_tt1p8v25c'
   Loading link library 'gtech'
 Running PRESTO HDLC
-Presto compilation completed successfully. (SORT_IP)
+Presto compilation completed successfully. (SORT_IP_demo)
 Elaborated 1 design.
-Current design is now 'SORT_IP'.
+Current design is now 'SORT_IP_demo'.
+Information: Building the design 'SORT_IP' instantiated from design 'SORT_IP_demo' with
+        the parameters "IP_WIDTH=8". (HDL-193)
+Presto compilation completed successfully. (SORT_IP_IP_WIDTH8)
 1
 # (B-2) read_sverilog
 #read_sverilog $DESIGN\.v
 # (B-3) set current design
 current_design $DESIGN
-Current design is 'SORT_IP'.
-{SORT_IP}
+Current design is 'SORT_IP_demo'.
+{SORT_IP_demo}
 link
 
-  Linking design 'SORT_IP'
+  Linking design 'SORT_IP_demo'
   Using the following designs and libraries:
   --------------------------------------------------------------------------
-  SORT_IP                     /RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB06/SORT_IP/02_SYN/SORT_IP.db
+  * (2 designs)               /RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB06/SORT_IP/02_SYN/SORT_IP_demo.db, etc
   fsa0m_a_generic_core_ss1p62v125c (library) /RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ss1p62v125c.db
   fsa0m_a_generic_core_ff1p98vm40c (library) /RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ff1p98vm40c.db
   fsa0m_a_t33_generic_io_ss1p62v125c (library) /RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_t33_generic_io_ss1p62v125c.db
@@ -199,7 +202,7 @@ Information: Evaluating DesignWare library utilization. (UISN-27)
 ====================================================================================================
 | Number of Scenarios                                     | 0                                      |
 | Leaf Cell Count                                         | 221                                    |
-| Number of User Hierarchies                              | 0                                      |
+| Number of User Hierarchies                              | 1                                      |
 | Sequential Cell Count                                   | 0                                      |
 | Macro Count                                             | 0                                      |
 | Number of Power Domains                                 | 0                                      |
@@ -216,7 +219,7 @@ Information: Evaluating DesignWare library utilization. (UISN-27)
 | set_fix_multiple_port_nets                              | -all -buffer_constants                 |
 ====================================================================================================
 Information: Sequential output inversion is enabled.  SVF file must be used for formal verification. (OPT-1208)
-  Simplifying Design 'SORT_IP'
+  Simplifying Design 'SORT_IP_demo'
 
   Loading target library 'fsa0m_a_generic_core_ff1p98vm40c'
   Loading target library 'fsa0m_a_t33_generic_io_ss1p62v125c'
@@ -225,18 +228,19 @@ Loaded alib file './alib-52/fsa0m_a_generic_core_ss1p62v125c.db.alib'
 Loaded alib file './alib-52/fsa0m_a_generic_core_ff1p98vm40c.db.alib'
 Loaded alib file './alib-52/fsa0m_a_t33_generic_io_ss1p62v125c.db.alib' (placeholder)
 Loaded alib file './alib-52/fsa0m_a_t33_generic_io_tt1p8v25c.db.alib' (placeholder)
-Warning: Operating condition WCCOM set on design SORT_IP has different process,
+Warning: Operating condition WCCOM set on design SORT_IP_demo has different process,
 voltage and temperatures parameters than the parameters at which target library 
 fsa0m_a_generic_core_ff1p98vm40c is characterized. Delays may be inaccurate as a result. (OPT-998)
   Building model 'DW01_NAND2'
-Information: Ungrouping 0 of 1 hierarchies before Pass 1 (OPT-775)
+Information: Ungrouping hierarchy I_SORT_IP before Pass 1 (OPT-776)
+Information: Ungrouping 1 of 2 hierarchies before Pass 1 (OPT-775)
 Information: State dependent leakage is now switched from on to off.
 
   Beginning Pass 1 Mapping
   ------------------------
-  Processing 'SORT_IP'
- Implement Synthetic for 'SORT_IP'.
-Information: Added key list 'DesignWare' to design 'SORT_IP'. (DDB-72)
+  Processing 'SORT_IP_demo'
+ Implement Synthetic for 'SORT_IP_demo'.
+Information: Added key list 'DesignWare' to design 'SORT_IP_demo'. (DDB-72)
 
   Updating timing information
 Information: Updating design information... (UID-85)
@@ -247,7 +251,7 @@ Information: The target library(s) contains cell(s), other than black boxes, tha
 
   Beginning Mapping Optimizations  (Ultra High effort)
   -------------------------------
-Information: There is no timing violation in design SORT_IP. Delay-based auto_ungroup will not be performed. (OPT-780)
+Information: There is no timing violation in design SORT_IP_demo. Delay-based auto_ungroup will not be performed. (OPT-780)
 
                                   TOTAL                                                
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE 
@@ -299,10 +303,10 @@ Information: There is no timing violation in design SORT_IP. Delay-based auto_un
 
   Beginning Delay Optimization
   ----------------------------
-    0:00:28   11296.2      0.00       0.0       0.0                           534728.1875
-    0:00:28   11296.2      0.00       0.0       0.0                           534728.1875
-    0:00:28   11296.2      0.00       0.0       0.0                           534728.1875
-    0:00:28   11296.2      0.00       0.0       0.0                           534728.1875
+    0:00:29   11296.2      0.00       0.0       0.0                           534728.1875
+    0:00:29   11296.2      0.00       0.0       0.0                           534728.1875
+    0:00:29   11296.2      0.00       0.0       0.0                           534728.1875
+    0:00:29   11296.2      0.00       0.0       0.0                           534728.1875
     0:00:29   11314.9      0.00       0.0       0.0                           535463.7500
     0:00:29   11314.9      0.00       0.0       0.0                           535463.7500
 
@@ -355,34 +359,34 @@ Information: There is no timing violation in design SORT_IP. Delay-based auto_un
     0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
     0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
     0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
 
                                   TOTAL                                                
    ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE 
     TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER  
   --------- --------- --------- --------- --------- ------------------------- ---------
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
-    0:00:29   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
+    0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
     0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
     0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
     0:00:30   11277.4      0.00       0.0       0.0                           472038.4062
@@ -447,13 +451,13 @@ change_names -hierarchy -rules name_rule
 set verilogout_higher_designs_first true
 true
 write -format verilog -output Netlist/$DESIGN\_SYN.v -hierarchy
-Writing verilog file '/RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB06/SORT_IP/02_SYN/Netlist/SORT_IP_SYN.v'.
+Writing verilog file '/RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB06/SORT_IP/02_SYN/Netlist/SORT_IP_demo_SYN.v'.
 1
 write -format ddc     -hierarchy -output $DESIGN\_SYN.ddc
-Writing ddc file 'SORT_IP_SYN.ddc'.
+Writing ddc file 'SORT_IP_demo_SYN.ddc'.
 1
 write_sdf -version 3.0 -context verilog -load_delay cell Netlist/$DESIGN\_SYN.sdf -significant_digits 6
-Information: Writing timing information to file '/RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB06/SORT_IP/02_SYN/Netlist/SORT_IP_SYN.sdf'. (WT-3)
+Information: Writing timing information to file '/RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB06/SORT_IP/02_SYN/Netlist/SORT_IP_demo_SYN.sdf'. (WT-3)
 Information: Updating design information... (UID-85)
 1
 write_sdc Netlist/$DESIGN\_SYN.sdc
@@ -465,9 +469,9 @@ report_area
  
 ****************************************
 Report : area
-Design : SORT_IP
+Design : SORT_IP_demo
 Version: T-2022.03
-Date   : Fri Apr 10 21:54:22 2026
+Date   : Sat Apr 11 00:18:54 2026
 ****************************************
 
 Library(s) Used:
@@ -499,9 +503,9 @@ Report : timing
         -path full
         -delay max
         -max_paths 1
-Design : SORT_IP
+Design : SORT_IP_demo
 Version: T-2022.03
-Date   : Fri Apr 10 21:54:22 2026
+Date   : Sat Apr 11 00:18:54 2026
 ****************************************
 
 Operating Conditions: WCCOM   Library: fsa0m_a_generic_core_ss1p62v125c
@@ -516,7 +520,7 @@ Wire Load Model Mode: top
 
   Des/Clust/Port     Wire Load Model       Library
   ------------------------------------------------
-  SORT_IP            enG5K                 fsa0m_a_generic_core_ss1p62v125c
+  SORT_IP_demo       enG5K                 fsa0m_a_generic_core_ss1p62v125c
 
   Point                                    Incr       Path
   -----------------------------------------------------------
@@ -583,9 +587,9 @@ Wire Load Model Mode: top
 exit
 
 Memory usage for this session 415 Mbytes.
-Memory usage for this session including child processes 541 Mbytes.
-CPU usage for this session 35 seconds ( 0.01 hours ).
-Elapsed time for this session 36 seconds ( 0.01 hours ).
+Memory usage for this session including child processes 543 Mbytes.
+CPU usage for this session 37 seconds ( 0.01 hours ).
+Elapsed time for this session 37 seconds ( 0.01 hours ).
 
 Thank you...
 

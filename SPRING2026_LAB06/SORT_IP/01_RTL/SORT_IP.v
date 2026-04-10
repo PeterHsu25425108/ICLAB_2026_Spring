@@ -1,85 +1,87 @@
 //###############################################################################################
-//***********************************************************************************************
 //    File Name   : SORT_IP.v
-//    Module Name : SORT_TP
-//***********************************************************************************************
+//    Module Name : SORT_IP
+//    Description : Parallel Rank Sort (Stable Sort, MSB Priority)
 //###############################################################################################
 
 module SORT_IP #(parameter IP_WIDTH = 8)(
-    //Input signals
-    IN_character, IN_weight,
-    //Output signals
-    OUT_character
+    input  [IP_WIDTH*4-1:0] IN_character,
+    input  [IP_WIDTH*5-1:0] IN_weight,
+    output [IP_WIDTH*4-1:0] OUT_character
 );
-
-// ======================================================
-// Input & Output Declaration
-// ======================================================
-input  [IP_WIDTH*4-1:0] IN_character;
-input  [IP_WIDTH*5-1:0] IN_weight;
-
-output [IP_WIDTH*4-1:0] OUT_character;
 
 // ======================================================
 // Wire & Reg Declaration
 // ======================================================
-wire [3:0] char_id [0:IP_WIDTH-1];
-wire [4:0] char_w  [0:IP_WIDTH-1];
-wire [8:0] char_w_id [0:IP_WIDTH-1]; 
+wire [4:0] weight  [0:IP_WIDTH-1];
+wire [3:0] char_in [0:IP_WIDTH-1];
+wire       win     [0:IP_WIDTH-1][0:IP_WIDTH-1];
+reg  [2:0] rank    [0:IP_WIDTH-1];
+reg  [3:0] sorted_char [0:IP_WIDTH-1];
 
-wire [8:0] stage_data [0:IP_WIDTH-1][0:IP_WIDTH-1]; 
-wire [8:0] insert_target [0:IP_WIDTH-1];
-
-// ======================================================
-// Design start
-// ======================================================
-
+integer x, y, k, m;
 genvar i, j;
+
+// ======================================================
+// Design Start
+// ======================================================
+
+// 1. Unpack inputs: Index 0 maps to MSB, Index IP_WIDTH-1 maps to LSB
 generate
-    // Unpack inputs, concatenate for comparison, and assign outputs
-    for(i=0; i<IP_WIDTH; i=i+1) begin: unpack_inputs_and_outputs
-        assign char_id[i]   = IN_character[4*i+3:4*i];
-        assign char_w[i]    = IN_weight[5*i+4:5*i];
-        
-        // Combine weight and id. Weight is MSB so it is compared first.
-        assign char_w_id[i] = {char_w[i], char_id[i]};
-        
-        // Only output the 4-bit character from the final stage
-        assign OUT_character[4*i+3:4*i] = stage_data[IP_WIDTH-1][/*IP_WIDTH-1-*/i][3:0];
+    for (i = 0; i < IP_WIDTH; i = i + 1) begin : UNPACK
+        assign weight[i]  = IN_weight[5*(IP_WIDTH-1-i)+4 : 5*(IP_WIDTH-1-i)];
+        assign char_in[i] = IN_character[4*(IP_WIDTH-1-i)+3 : 4*(IP_WIDTH-1-i)];
     end
 endgenerate
 
-// Initialize the first stage with the initial array
+// 2. Stage 1: Comparators (Win/Loss matrix)
 generate
-	for (i = 0; i < IP_WIDTH; i = i + 1) begin
-		assign stage_data[0][i] = char_w_id[i];
-	end
-endgenerate
-
-generate
-    for (i = 1; i < IP_WIDTH; i = i + 1) begin : STAGE
-        
-        // Grab the current element to insert directly from the prepared array
-        assign insert_target[i] = char_w_id[i];
-
-        for (j = 0; j < IP_WIDTH; j = j + 1) begin : MUX_LOGIC
-            if (j == 0) begin
-                // Head position: compare full 9 bits using >
-                assign stage_data[i][j] = (insert_target[i][8:4] < stage_data[i-1][0][8:4]) ? insert_target[i] : stage_data[i-1][0];
-            end 
-            else if (j == i) begin
-                // Tail position
-                assign stage_data[i][j] = (insert_target[i][8:4] < stage_data[i-1][j-1][8:4]) ? stage_data[i-1][j-1] : insert_target[i];
-            end 
-            else if(j > 0 && j < i) begin
-                // Middle positions
-                assign stage_data[i][j] = (insert_target[i][8:4] < stage_data[i-1][j-1][8:4]) ? stage_data[i-1][j-1] : 
-                                          ((insert_target[i][8:4] < stage_data[i-1][j][8:4])  ? insert_target[i]     : stage_data[i-1][j]);
+    for (i = 0; i < IP_WIDTH; i = i + 1) begin : CMP_ROW
+        for (j = 0; j < IP_WIDTH; j = j + 1) begin : CMP_COL
+            if (i == j) begin
+                assign win[i][j] = 1'b0; // Cannot beat itself
+            end else if (i < j) begin
+                // Element i is closer to MSB than element j
+                // Standard Stable Sort: MSB-side wins tie-breaker
+                assign win[i][j] = (weight[i] >= weight[j]);
             end else begin
-                // Pass through
-                assign stage_data[i][j] = stage_data[i-1][j];
+                // Element i is closer to LSB than element j
+                // Must be strictly greater to win
+                assign win[i][j] = (weight[i] > weight[j]);
             end
         end
+    end
+endgenerate
+
+// 3. Stage 2: Rank calculation (Adder Tree)
+// Calculate how many elements the current element beats
+always @(*) begin
+    for (x = 0; x < IP_WIDTH; x = x + 1) begin
+        rank[x] = 3'd0;
+        for (y = 0; y < IP_WIDTH; y = y + 1) begin
+            rank[x] = rank[x] + win[x][y];
+        end
+    end
+end
+
+// 4. Stage 3: Output Routing (Crossbar MUX)
+// Assign characters to their sorted positions based on rank
+always @(*) begin
+    for (k = 0; k < IP_WIDTH; k = k + 1) begin
+        sorted_char[k] = 4'd0; // Default value
+        for (m = 0; m < IP_WIDTH; m = m + 1) begin
+            // Highest rank (IP_WIDTH-1) goes to k=0 (MSB side of output)
+            if (rank[m] == (IP_WIDTH - 1 - k)) begin
+                sorted_char[k] = char_in[m];
+            end
+        end
+    end
+end
+
+// 5. Pack outputs: Index 0 maps to MSB, Index IP_WIDTH-1 maps to LSB
+generate
+    for (i = 0; i < IP_WIDTH; i = i + 1) begin : PACK_OUT
+        assign OUT_character[4*(IP_WIDTH-1-i)+3 : 4*(IP_WIDTH-1-i)] = sorted_char[i];
     end
 endgenerate
 
