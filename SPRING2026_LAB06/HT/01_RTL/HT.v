@@ -97,6 +97,14 @@ wire [31:0] raw_sort_out;
 reg [3:0] sorted_nodes [0:7];
 reg [3:0] nxt_sorted_nodes [0:7];
 
+reg [2:0] order [0:7];
+reg [2:0] nxt_order [0:7];
+integer k;
+reg [2:0] keep_cnt;
+
+wire [31:0] sort_in_char;
+wire [39:0] sort_in_weight;
+
 integer i, j;
 genvar idx;
 // ===============================================================
@@ -127,6 +135,38 @@ always @(posedge clk or negedge rst_n) begin : main_cnt_ctrl
     endcase
     end
 end
+
+always @(*) begin
+    for(k=0; k<8; k=k+1) nxt_order[k] = order[k];
+
+    if (state == WAIT_INPUT) begin
+        // reload the original order
+        for(k=0; k<8; k=k+1) nxt_order[k] = k;
+    end else if (state == MERGE) begin
+        keep_cnt = 0;
+        // keep the surviving nodes, maintain their original relative priority (including original chars and old subtrees)
+        for (k=0; k<8; k=k+1) begin
+            if (order[k] != sorted_nodes[6] && order[k] != sorted_nodes[7]) begin
+                nxt_order[keep_cnt] = order[k];
+                keep_cnt = keep_cnt + 1;
+            end
+        end
+        // append the new subtree root to the end of the order
+        nxt_order[6] = sorted_nodes[7];
+        
+        // the discarded node sorted_nodes[6] will be assigned weight=7 and become the smallest, so put it at the end of the order as well
+        nxt_order[7] = sorted_nodes[6];
+    end
+end
+
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+        for(k=0; k<8; k=k+1) order[k] <= k;
+    end else begin
+        for(k=0; k<8; k=k+1) order[k] <= nxt_order[k];
+    end
+end
+
 always @(*) begin
     if(state == OUTPUT)begin
         if(!output_mode)begin // ILOVE
@@ -221,10 +261,20 @@ always @(posedge clk or negedge rst_n) begin : char_weight_and_output_mode_ctrl
     end
 end
 
+assign sort_in_char = {
+    {1'b0, order[0]}, {1'b0, order[1]}, {1'b0, order[2]}, {1'b0, order[3]},
+    {1'b0, order[4]}, {1'b0, order[5]}, {1'b0, order[6]}, {1'b0, order[7]}
+};
+
+assign sort_in_weight = {
+    merge_weights[order[0]], merge_weights[order[1]], merge_weights[order[2]], merge_weights[order[3]],
+    merge_weights[order[4]], merge_weights[order[5]], merge_weights[order[6]], merge_weights[order[7]]
+};
+
 SORT_IP #(.IP_WIDTH(8)) sorter(
-    .IN_character({merge_nodes[0], merge_nodes[1], merge_nodes[2], merge_nodes[3], merge_nodes[4], merge_nodes[5], merge_nodes[6], merge_nodes[7]}),
+    .IN_character(sort_in_char),
     .OUT_character(raw_sort_out),
-    .IN_weight({merge_weights[0], merge_weights[1], merge_weights[2], merge_weights[3], merge_weights[4], merge_weights[5], merge_weights[6], merge_weights[7]})
+    .IN_weight(sort_in_weight)
 );
 
 // combinationally unpack sorter output to next-state array (order preserved)
