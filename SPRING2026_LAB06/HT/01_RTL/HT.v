@@ -66,17 +66,9 @@ reg output_mode;
 reg [2:0] merge_nodes [0:7]; 
 reg [2:0] nxt_merge_nodes [0:7];
 
-// stored the huffman code of each input char (in input order)
-reg [6:0] huff_code [0:7]; // index: 0->A, 1->B...7->V
-
-// the length of the huffman code of each input char (in input order)
-// serve as a counter, represent how many more bits are yet to be output
-// reach 0 -> end output of this char, increment main_cnt
-reg [2:0] code_len [0:7]; // index: 0->A, 1->B...7->V
-
-// store the index of the A, B, ... V's subtree roots in current sorted nodes
-// ex: A's subtree root is curr_sorted_nodes[root_idx[0]]
-reg [2:0] root_idx [0:7]; // index: 0->A, 1->B...7->V
+reg [6:0] huff_code [0:4];
+reg [2:0] code_len  [0:4];
+reg [2:0] root_idx  [0:4];
 
 // state == WAIT_INPUT: count the number of input weight stored
 // state == OUTPUT: count the number of encoded str that has been output
@@ -109,29 +101,30 @@ reg [4:0] w6, w7;
 reg [2:0] keep_cnt;
 
 // Shared compare signals against current merge targets from sorter
-wire [7:0] root_eq6, root_eq7, root_hit67, root_neq6, root_neq7;
+wire [4:0] root_eq6, root_eq7, root_hit67;
 wire [7:0] merge_eq6, merge_eq7, merge_hit67, merge_keep67, merge_neq6, merge_neq7;
 
 integer i;
 genvar idx;
 
 generate
-    for(idx=0; idx<8; idx=idx+1) begin : shared_cmp_signals
-        assign root_eq6[idx]  = (root_idx[idx]  == curr_sorted_nodes[6][2:0]);
-        assign root_eq7[idx]  = (root_idx[idx]  == curr_sorted_nodes[7][2:0]);
+    for(idx=0; idx<5; idx=idx+1) begin : root_cmp_signals
+        assign root_eq6[idx]  = (root_idx[idx] == curr_sorted_nodes[6][2:0]);
+        assign root_eq7[idx]  = (root_idx[idx] == curr_sorted_nodes[7][2:0]);
+    end
 
+    for(idx=0; idx<8; idx=idx+1) begin : merge_cmp_signals
         assign merge_eq6[idx]  = (merge_nodes[idx] == curr_sorted_nodes[6][2:0]);
         assign merge_eq7[idx]  = (merge_nodes[idx] == curr_sorted_nodes[7][2:0]);
     end
-endgenerate
 
-assign root_hit67   = root_eq6 | root_eq7;
-assign root_neq6    = ~root_eq6;
-assign root_neq7    = ~root_eq7;
+endgenerate
+assign root_hit67 = root_eq6 | root_eq7;
 assign merge_hit67  = merge_eq6 | merge_eq7;
 assign merge_keep67 = ~merge_hit67;
 assign merge_neq6   = ~merge_eq6;
 assign merge_neq7   = ~merge_eq7;
+
 
 // ===============================================================
 // Design
@@ -152,38 +145,38 @@ always @(posedge clk or negedge rst_n) begin : main_cnt_ctrl
         end
         OUTPUT: begin
             // increment when we finish outputing an encoded string
-            main_cnt <= code_len[out_char_idx]==1 ? main_cnt + 1 : main_cnt;
+            main_cnt <= code_len[main_cnt]==1 ? main_cnt + 1 : main_cnt;
         end
         default: main_cnt <= 0;
     endcase
     end
 end
 
-always @(*) begin
-    if(state == OUTPUT)begin
-        if(!output_mode)begin // ILOVE
-            case(main_cnt)
-            3'd0: out_char_idx = I;
-            3'd1: out_char_idx = L;
-            3'd2: out_char_idx = O;
-            3'd3: out_char_idx = V;
-            3'd4: out_char_idx = E;
-            default: out_char_idx = 0;
-            endcase
-        end else begin // ICLAB
-            case(main_cnt)
-            3'd0: out_char_idx = I;
-            3'd1: out_char_idx = C;
-            3'd2: out_char_idx = L;
-            3'd3: out_char_idx = A;
-            3'd4: out_char_idx = B;
-            default: out_char_idx = 0;
-            endcase
-        end
-    end else begin
-        out_char_idx = 0;
-    end
-end
+// always @(*) begin
+//     if(state == OUTPUT)begin
+//         if(!output_mode)begin // ILOVE
+//             case(main_cnt)
+//             3'd0: out_char_idx = I;
+//             3'd1: out_char_idx = L;
+//             3'd2: out_char_idx = O;
+//             3'd3: out_char_idx = V;
+//             3'd4: out_char_idx = E;
+//             default: out_char_idx = 0;
+//             endcase
+//         end else begin // ICLAB
+//             case(main_cnt)
+//             3'd0: out_char_idx = I;
+//             3'd1: out_char_idx = C;
+//             3'd2: out_char_idx = L;
+//             3'd3: out_char_idx = A;
+//             3'd4: out_char_idx = B;
+//             default: out_char_idx = 0;
+//             endcase
+//         end
+//     end else begin
+//         out_char_idx = 0;
+//     end
+// end
 
 
 always @(*) begin : state_transistion
@@ -196,7 +189,7 @@ always @(*) begin : state_transistion
         end
         OUTPUT: begin
             // when we have output the last bit of the fifth char
-            if(main_cnt==4 && code_len[out_char_idx]==1)begin
+            if(main_cnt==4 && code_len[main_cnt]==1)begin
                 nxt_state = WAIT_INPUT;
             end else begin 
                 nxt_state = OUTPUT;
@@ -305,20 +298,20 @@ endgenerate
 
 always @(posedge clk or negedge rst_n) begin : code_len_ctrl
     if(!rst_n)begin
-        for(i=0;i<8;i=i+1)begin
+        for(i=0;i<5;i=i+1)begin
             code_len[i] <= 0;
         end
     end else begin
         if(state==MERGE)begin
-            for(i=0;i<8;i=i+1)begin
+            for(i=0;i<5;i=i+1)begin
                 if(root_hit67[i])begin
                     code_len[i] <= code_len[i] + 1;
                 end
             end
-        end else if(state == OUTPUT)begin
-            code_len[out_char_idx] <= (code_len[out_char_idx]==0) ? 0 : code_len[out_char_idx]-1;
+        end else if(state == OUTPUT) begin
+            code_len[main_cnt] <= (code_len[main_cnt]==0) ? 0 : code_len[main_cnt]-1;
         end else if(state == WAIT_INPUT)begin
-            for(i=0;i<8;i=i+1)begin
+            for(i=0;i<5;i=i+1)begin
                 code_len[i] <= 0;
             end
         end
@@ -332,7 +325,7 @@ always @(posedge clk or negedge rst_n) begin : huff_code_ctrl
             huff_code[i] <= 0;
         end
     end else if(state == MERGE) begin
-        for(i=0;i<8;i=i+1)begin // i: orig char idx, A, B ... V
+        for(i=0;i<5;i=i+1)begin // i: orig char idx, A, B ... V
             // if(root_eq6[i])begin // bigger, insert 0
             //     // huff_code[i] <= {1'b0, huff_code[i][6:1]};
             //     huff_code[i][code_len[i]] <= 0;
@@ -375,37 +368,26 @@ end
 
 // root_idx stores indexes of the original input order, so does curr_sorted_nodes
 always @(posedge clk or negedge rst_n) begin : root_idx_ctrl
-    if(!rst_n)begin
-        root_idx[A] <= A;
-        root_idx[B] <= B;
-        root_idx[C] <= C;
-        root_idx[E] <= E;
-        root_idx[I] <= I;
-        root_idx[L] <= L;
-        root_idx[O] <= O;
-        root_idx[V] <= V;
-    end else if(state == WAIT_INPUT) begin
-        root_idx[A] <= A;
-        root_idx[B] <= B;
-        root_idx[C] <= C;
-        root_idx[E] <= E;
-        root_idx[I] <= I;
-        root_idx[L] <= L;
-        root_idx[O] <= O;
-        root_idx[V] <= V;
-    end else if(state==MERGE)begin
-        for(i=0;i<8;i=i+1)begin // i: orig char idx, A, B ... V
-            if(root_hit67[i])begin
+    if(!rst_n) begin
+        for(i=0; i<5; i=i+1) root_idx[i] <= 0;
+    end else if (state == WAIT_INPUT) begin
+        root_idx[0] <= 3'd4; // I
+        root_idx[1] <= output_mode ? 3'd2 : 3'd5; // C(2) or L(5)
+        root_idx[2] <= output_mode ? 3'd5 : 3'd6; // L(5) or O(6)
+        root_idx[3] <= output_mode ? 3'd0 : 3'd7; // A(0) or V(7)
+        root_idx[4] <= output_mode ? 3'd1 : 3'd3; // B(1) or E(3)
+    end else if (state == MERGE) begin
+        for(i=0; i<5; i=i+1) begin 
+            if(root_hit67[i]) begin
                 root_idx[i] <= curr_sorted_nodes[7];
             end
         end
     end
 end
 
-always @(*) begin
+always @(*) begin : output_logic
     out_valid = (state == OUTPUT);
-    // out_code = (state == OUTPUT) ? huff_code[out_char_idx][6] : 1'b0;
-    out_code = (state == OUTPUT) ? huff_code[out_char_idx][code_len[out_char_idx]-1] : 1'b0;
+    out_code  = (state == OUTPUT) ? huff_code[main_cnt][code_len[main_cnt]-1] : 1'b0;
 end
 
 
