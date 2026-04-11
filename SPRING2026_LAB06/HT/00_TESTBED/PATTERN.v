@@ -1,4 +1,4 @@
-`define CYCLE_TIME 6.0
+`define CYCLE_TIME 20.0
 
 module PATTERN(
     output reg        clk,
