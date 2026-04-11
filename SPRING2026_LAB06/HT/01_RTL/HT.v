@@ -304,7 +304,8 @@ SORT_IP #(.IP_WIDTH(8)) sorter(
     .IN_weight({merge_weights[0], merge_weights[1], merge_weights[2], merge_weights[3],
                 merge_weights[4], merge_weights[5], merge_weights[6], merge_weights[7]})
 );
-
+ 
+ 
 // combinationally unpack sorter output (order preserved)
 generate
     for(idx=0;idx<8;idx=idx+1)begin
