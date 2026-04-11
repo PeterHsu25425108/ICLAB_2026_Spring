@@ -13,12 +13,12 @@ Initializing gui preferences from file  /RAID2/COURSE/2026_Spring/iclab/iclab067
 #======================================================
 set DESIGN "HT"
 HT
-set CYCLE 6.0
-6.0
+set CYCLE 6.1
+6.1
 set INPUT_DLY [expr 0.5*$CYCLE]
-3.0
+3.05
 set OUTPUT_DLY [expr 0.5*$CYCLE]
-3.0
+3.05
 #======================================================
 #  Read RTL Code
 #======================================================
@@ -50,26 +50,45 @@ Loading db file '/usr/cad/synopsys/synthesis/2022.03/libraries/syn/standard.sldb
   Loading link library 'fsa0m_a_t33_generic_io_tt1p8v25c'
   Loading link library 'gtech'
 Running PRESTO HDLC
+Warning:  ../01_RTL/HT.v:298: signed to unsigned conversion occurs. (VER-318)
+Warning:  ../01_RTL/HT.v:299: signed to unsigned conversion occurs. (VER-318)
 
-Statistics for case statements in always block at line 132 in file
+Statistics for case statements in always block at line 167 in file
         '../01_RTL/HT.v'
 ===============================================
 |           Line           |  full/ parallel  |
 ===============================================
-|           136            |    auto/auto     |
+|           107            |     auto/no      |
 ===============================================
 
-Statistics for case statements in always block at line 182 in file
+Statistics for case statements in always block at line 177 in file
         '../01_RTL/HT.v'
 ===============================================
 |           Line           |  full/ parallel  |
 ===============================================
-|           183            |    auto/auto     |
+|           181            |    auto/auto     |
 ===============================================
-Warning:  ../01_RTL/HT.v:374: Out of bounds bit select huff_code[5], valid bounds are [0:4]. (ELAB-312)
+
+Statistics for case statements in always block at line 227 in file
+        '../01_RTL/HT.v'
+===============================================
+|           Line           |  full/ parallel  |
+===============================================
+|           228            |    auto/auto     |
+===============================================
+
+Statistics for case statements in always block at line 274 in file
+        '../01_RTL/HT.v'
+===============================================
+|           Line           |  full/ parallel  |
+===============================================
+|           124            |    auto/auto     |
+|           140            |    auto/auto     |
+===============================================
+Warning:  ../01_RTL/HT.v:382: Out of bounds bit select huff_code[5], valid bounds are [0:4]. (ELAB-312)
 
 Inferred memory devices in process
-        in routine HT line 132 in file
+        in routine HT line 177 in file
                 '../01_RTL/HT.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -78,7 +97,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine HT line 203 in file
+        in routine HT line 248 in file
                 '../01_RTL/HT.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -87,7 +106,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine HT line 306 in file
+        in routine HT line 314 in file
                 '../01_RTL/HT.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -97,7 +116,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine HT line 348 in file
+        in routine HT line 356 in file
                 '../01_RTL/HT.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -106,7 +125,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine HT line 371 in file
+        in routine HT line 379 in file
                 '../01_RTL/HT.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -115,7 +134,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine HT line 395 in file
+        in routine HT line 403 in file
                 '../01_RTL/HT.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -125,7 +144,7 @@ Inferred memory devices in process
 ===============================================================================
 
 Inferred memory devices in process
-        in routine HT line 423 in file
+        in routine HT line 431 in file
                 '../01_RTL/HT.v'.
 ===============================================================================
 |    Register Name    |   Type    | Width | Bus | MB | AR | AS | SR | SS | ST |
@@ -137,9 +156,8 @@ Elaborated 1 design.
 Current design is now 'HT'.
 Information: Building the design 'SORT_IP' instantiated from design 'HT' with
         the parameters "IP_WIDTH=8". (HDL-193)
+Warning:  ../01_RTL/SORT_IP.v:74: signed to unsigned conversion occurs. (VER-318)
 Presto compilation completed successfully. (SORT_IP_IP_WIDTH8)
-Information: Building the design 'CAS'. (HDL-193)
-Presto compilation completed successfully. (CAS)
 1
 # (B-3) set current design
 current_design $DESIGN
@@ -150,7 +168,7 @@ link
   Linking design 'HT'
   Using the following designs and libraries:
   --------------------------------------------------------------------------
-  * (3 designs)               /RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB06/HT/02_SYN/HT.db, etc
+  * (2 designs)               /RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB06/HT/02_SYN/HT.db, etc
   fsa0m_a_generic_core_ss1p62v125c (library) /RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ss1p62v125c.db
   fsa0m_a_generic_core_ff1p98vm40c (library) /RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ff1p98vm40c.db
   fsa0m_a_t33_generic_io_ss1p62v125c (library) /RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_t33_generic_io_ss1p62v125c.db
@@ -217,12 +235,13 @@ set_max_fanout          10      [all_inputs]
 report_clock -skew clk
 Information: Checking out the license 'DesignWare'. (SEC-104)
 Information: Updating design information... (UID-85)
+Warning: Design 'HT' contains 1 high-fanout nets. A fanout number of 1000 will be used for delay calculations involving these nets. (TIM-134)
  
 ****************************************
 Report : clock_skew
 Design : HT
 Version: T-2022.03
-Date   : Sat Apr 11 23:54:07 2026
+Date   : Sun Apr 12 00:42:33 2026
 ****************************************
 
                  Rise      Fall  Min Rise  Min fall        Uncertainty
@@ -281,15 +300,15 @@ Information: Evaluating DesignWare library utilization. (UISN-27)
 | Design Information                                      | Value                                  |
 ====================================================================================================
 | Number of Scenarios                                     | 0                                      |
-| Leaf Cell Count                                         | 1089                                   |
-| Number of User Hierarchies                              | 20                                     |
+| Leaf Cell Count                                         | 1692                                   |
+| Number of User Hierarchies                              | 1                                      |
 | Sequential Cell Count                                   | 135                                    |
 | Macro Count                                             | 0                                      |
 | Number of Power Domains                                 | 0                                      |
 | Number of Path Groups                                   | 2                                      |
 | Number of VT class                                      | 0                                      |
 | Number of Clocks                                        | 1                                      |
-| Number of Dont Touch cells                              | 221                                    |
+| Number of Dont Touch cells                              | 520                                    |
 | Number of Dont Touch nets                               | 1                                      |
 | Number of size only cells                               | 0                                      |
 | Design with UPF Data                                    | false                                  |
@@ -300,440 +319,7 @@ Information: Evaluating DesignWare library utilization. (UISN-27)
 ====================================================================================================
 Information: Sequential output inversion is enabled.  SVF file must be used for formal verification. (OPT-1208)
 
-Information: There are 143 potential problems in your design. Please run 'check_design' for more information. (LINT-99)
+Information: There are 45 potential problems in your design. Please run 'check_design' for more information. (LINT-99)
 
-Information: Uniquified 19 instances of design 'CAS'. (OPT-1056)
   Simplifying Design 'HT'
-
-  Loading target library 'fsa0m_a_generic_core_ff1p98vm40c'
-  Loading target library 'fsa0m_a_t33_generic_io_ss1p62v125c'
-  Loading target library 'fsa0m_a_t33_generic_io_tt1p8v25c'
-Loaded alib file './alib-52/fsa0m_a_generic_core_ss1p62v125c.db.alib'
-Loaded alib file './alib-52/fsa0m_a_generic_core_ff1p98vm40c.db.alib'
-Loaded alib file './alib-52/fsa0m_a_t33_generic_io_ss1p62v125c.db.alib' (placeholder)
-Loaded alib file './alib-52/fsa0m_a_t33_generic_io_tt1p8v25c.db.alib' (placeholder)
-Warning: Operating condition WCCOM set on design HT has different process,
-voltage and temperatures parameters than the parameters at which target library 
-fsa0m_a_generic_core_ff1p98vm40c is characterized. Delays may be inaccurate as a result. (OPT-998)
-  Building model 'DW01_NAND2'
-Information: Ungrouping hierarchy sorter before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c1_0 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c6_2 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c6_1 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c6_0 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c5_1 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c5_0 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c4_3 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c4_2 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c4_1 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c4_0 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c3_1 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c3_0 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c2_3 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c2_2 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c2_1 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c2_0 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c1_3 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c1_2 before Pass 1 (OPT-776)
-Information: Ungrouping hierarchy sorter/c1_1 before Pass 1 (OPT-776)
-Information: Ungrouping 20 of 21 hierarchies before Pass 1 (OPT-775)
-Information: State dependent leakage is now switched from on to off.
-
-  Beginning Pass 1 Mapping
-  ------------------------
-  Processing 'HT'
-Information: Added key list 'DesignWare' to design 'HT'. (DDB-72)
- Implement Synthetic for 'HT'.
-
-  Updating timing information
-Information: Updating design information... (UID-85)
-Information: The library cell 'TIE1' in the library 'fsa0m_a_generic_core_ss1p62v125c' is not characterized for internal power. (PWR-536)
-Information: The library cell 'TIE0' in the library 'fsa0m_a_generic_core_ss1p62v125c' is not characterized for internal power. (PWR-536)
-Information: The library cell 'BHD1' in the library 'fsa0m_a_generic_core_ss1p62v125c' is not characterized for internal power. (PWR-536)
-Information: The target library(s) contains cell(s), other than black boxes, that are not characterized for internal power. (PWR-24)
-
-  Beginning Mapping Optimizations  (Ultra High effort)
-  -------------------------------
-  Mapping Optimization (Phase 1)
-  Mapping Optimization (Phase 2)
-  Mapping Optimization (Phase 3)
-  Mapping Optimization (Phase 4)
-  Mapping Optimization (Phase 5)
-  Mapping Optimization (Phase 6)
-  Mapping Optimization (Phase 7)
-  Mapping Optimization (Phase 8)
-
-                                  TOTAL                                                            
-   ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE   MIN DELAY 
-    TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER      COST    
-  --------- --------- --------- --------- --------- ------------------------- --------- -----------
-    0:00:39   52234.2      2.31     180.1       0.0                           3675174.0000      0.00  
-    0:00:39   52202.9      2.31     180.2       0.0                           3672722.7500      0.00  
-
-  Beginning Constant Register Removal
-  -----------------------------------
-    0:00:39   52315.4      2.31     180.0       0.0                           3685546.2500      0.00  
-    0:00:39   52315.4      2.31     180.0       0.0                           3685546.2500      0.00  
-
-  Beginning Global Optimizations
-  ------------------------------
-  Numerical Synthesis (Phase 1)
-  Numerical Synthesis (Phase 2)
-  Global Optimization (Phase 1)
-  Global Optimization (Phase 2)
-  Global Optimization (Phase 3)
-  Global Optimization (Phase 4)
-  Global Optimization (Phase 5)
-  Global Optimization (Phase 6)
-  Global Optimization (Phase 7)
-  Global Optimization (Phase 8)
-  Global Optimization (Phase 9)
-  Global Optimization (Phase 10)
-  Global Optimization (Phase 11)
-  Global Optimization (Phase 12)
-  Global Optimization (Phase 13)
-  Global Optimization (Phase 14)
-  Global Optimization (Phase 15)
-  Global Optimization (Phase 16)
-  Global Optimization (Phase 17)
-  Global Optimization (Phase 18)
-  Global Optimization (Phase 19)
-  Global Optimization (Phase 20)
-  Global Optimization (Phase 21)
-  Global Optimization (Phase 22)
-  Global Optimization (Phase 23)
-  Global Optimization (Phase 24)
-  Global Optimization (Phase 25)
-  Global Optimization (Phase 26)
-  Global Optimization (Phase 27)
-  Global Optimization (Phase 28)
-  Global Optimization (Phase 29)
-  Global Optimization (Phase 30)
-  Global Optimization (Phase 31)
-
-  Beginning Isolate Ports
-  -----------------------
-
-  Beginning Delay Optimization
-  ----------------------------
-    0:00:40   33107.3      3.54     308.6       0.0                           2095745.2500      0.00  
-    0:00:41   37166.4      1.79     181.7       0.0                           2409715.7500      0.00  
-    0:00:41   37166.4      1.79     181.7       0.0                           2409715.7500      0.00  
-    0:00:41   37200.7      1.79     185.1       0.0                           2414386.0000      0.00  
-    0:00:41   37200.7      1.79     185.1       0.0                           2414386.0000      0.00  
-    0:00:42   37200.7      1.79     185.1       0.0                           2414386.0000      0.00  
-
-  Beginning WLM Backend Optimization
-  --------------------------------------
-    0:00:42   36610.2      1.76     185.6       0.0                           2361271.2500      0.00  
-    0:00:42   36935.1      1.73     170.9       0.0                           2381579.7500      0.00  
-    0:00:42   36935.1      1.73     170.9       0.0                           2381579.7500      0.00  
-    0:00:43   37032.0      1.73     170.8       0.0                           2383535.5000      0.00  
-    0:00:43   37032.0      1.73     170.8       0.0                           2383535.5000      0.00  
-    0:00:44   38888.1      1.67     167.1      13.9                           2517375.5000      0.00  
-    0:00:44   38888.1      1.67     167.1      13.9                           2517375.5000      0.00  
-    0:00:44   39041.3      1.65     164.3      13.9                           2532161.0000      0.00  
-    0:00:44   39041.3      1.65     164.3      13.9                           2532161.0000      0.00  
-    0:00:45   41156.7      1.59     157.1      13.9                           2692167.5000      0.00  
-    0:00:45   41156.7      1.59     157.1      13.9                           2692167.5000      0.00  
-    0:00:47   43765.9      1.32     132.8      14.3                           2906673.5000      0.00  
-    0:00:47   43765.9      1.32     132.8      14.3                           2906673.5000      0.00  
-    0:00:47   43765.9      1.32     132.8      14.3                           2906673.5000      0.00  
-    0:00:47   43765.9      1.32     132.8      14.3                           2906673.5000      0.00  
-    0:00:47   43765.9      1.32     132.8      14.3                           2906673.5000      0.00  
-    0:00:47   43765.9      1.32     132.8      14.3                           2906673.5000      0.00  
-    0:00:48   43765.9      1.32     132.8      14.3                           2906673.5000      0.00  
-    0:00:48   43765.9      1.32     132.8      14.3                           2906673.5000      0.00  
-    0:00:48   43765.9      1.32     132.8      14.3                           2906673.5000      0.00  
-    0:00:48   43765.9      1.32     132.8      14.3                           2906673.5000      0.00  
-    0:00:48   43765.9      1.32     132.8      14.3                           2906673.5000      0.00  
-
-
-  Beginning Design Rule Fixing  (max_transition)  (max_capacitance)
-  ----------------------------
-
-                                  TOTAL                                                            
-   ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE   MIN DELAY 
-    TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER      COST    
-  --------- --------- --------- --------- --------- ------------------------- --------- -----------
-    0:00:48   43765.9      1.32     132.8      14.3                           2906673.5000      0.00  
-  Global Optimization (Phase 32)
-  Global Optimization (Phase 33)
-  Global Optimization (Phase 34)
-    0:00:49   43834.7      1.53     158.1       0.0 merge_weights_reg[5][3]/D 2901611.7500      0.00  
-    0:00:49   43875.3      1.51     155.9       0.0                           2904857.7500      0.00  
-    0:00:51   44515.9      1.46     150.3       0.0                           2952120.7500      0.00  
-
-
-  Beginning Leakage Power Optimization  (max_leakage_power 0)
-  ------------------------------------
-
-                                  TOTAL                                                            
-   ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE   MIN DELAY 
-    TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER      COST    
-  --------- --------- --------- --------- --------- ------------------------- --------- -----------
-    0:00:51   44515.9      1.46     150.3       0.0                           2952120.7500      0.00  
-  Global Optimization (Phase 35)
-  Global Optimization (Phase 36)
-  Global Optimization (Phase 37)
-  Global Optimization (Phase 38)
-  Global Optimization (Phase 39)
-  Global Optimization (Phase 40)
-  Global Optimization (Phase 41)
-  Global Optimization (Phase 42)
-  Global Optimization (Phase 43)
-  Global Optimization (Phase 44)
-  Global Optimization (Phase 45)
-  Global Optimization (Phase 46)
-  Global Optimization (Phase 47)
-  Global Optimization (Phase 48)
-  Global Optimization (Phase 49)
-  Global Optimization (Phase 50)
-    0:00:52   42862.9      1.18     117.5       0.0 merge_weights_reg[5][0]/D 2801792.0000      0.00  
-    0:00:53   42916.0      1.15     113.5       0.0                           2805051.5000      0.00  
-    0:00:53   42991.0      1.16     113.4       0.0                           2809854.5000      0.00  
-    0:00:53   42991.0      1.16     113.4       0.0                           2809854.5000      0.00  
-    0:00:54   43206.6      1.16     111.7       0.0                           2830417.0000      0.00  
-    0:00:54   43206.6      1.16     111.7       0.0                           2830417.0000      0.00  
-    0:00:54   43206.6      1.16     111.7       0.0                           2830368.7500      0.00  
-    0:00:54   43206.6      1.16     111.7       0.0                           2830368.7500      0.00  
-    0:00:54   43278.5      1.16     112.1       0.0                           2835951.7500      0.00  
-    0:00:54   43278.5      1.16     112.1       0.0                           2835951.7500      0.00  
-    0:00:55   43191.0      1.15     112.1       0.0                           2825996.5000      0.00  
-    0:00:55   43191.0      1.15     112.1       0.0                           2825996.5000      0.00  
-    0:00:57   44606.5      1.08     106.2       0.0                           2951027.0000      0.00  
-    0:00:57   44606.5      1.08     106.2       0.0                           2951027.0000      0.00  
-    0:00:57   44540.9      1.09     106.2       0.0                           2942526.7500      0.00  
-    0:00:57   44540.9      1.09     106.2       0.0                           2942526.7500      0.00  
-    0:00:58   44706.5      1.07     104.7       0.0                           2958486.0000      0.00  
-    0:00:58   44706.5      1.07     104.7       0.0                           2958486.0000      0.00  
-    0:00:58   44706.5      1.07     104.7       0.0                           2958486.0000      0.00  
-    0:00:58   44706.5      1.07     104.7       0.0                           2958486.0000      0.00  
-    0:00:58   44706.5      1.07     104.7       0.0                           2958486.0000      0.00  
-    0:00:58   44706.5      1.07     104.7       0.0                           2958486.0000      0.00  
-    0:00:59   44706.5      1.07     104.7       0.0                           2958486.0000      0.00  
-
-                                  TOTAL                                                            
-   ELAPSED            WORST NEG   SETUP    DESIGN                              LEAKAGE   MIN DELAY 
-    TIME      AREA      SLACK     COST    RULE COST         ENDPOINT            POWER      COST    
-  --------- --------- --------- --------- --------- ------------------------- --------- -----------
-    0:00:59   44706.5      1.34     136.8       6.5                           2958486.0000      0.00  
-    0:00:59   42841.0      1.30     127.4       6.5                           2815756.5000      0.00  
-    0:01:00   43256.6      1.25     122.7       6.5                           2857838.0000      0.00  
-    0:01:00   43256.6      1.25     122.7       6.5                           2857838.0000      0.00  
-    0:01:00   43497.2      1.26     122.6       6.5                           2884618.5000      0.00  
-    0:01:00   43737.8      1.23     121.4       0.0 merge_nodes_reg[4][1]/D   2907900.7500      0.00  
-    0:01:01   44115.9      1.21     115.9       0.0 merge_weights_reg[5][4]/D 2940229.5000      0.00  
-    0:01:01   44475.3      1.19     114.4       0.0 merge_weights_reg[4][3]/D 2971351.2500      0.00  
-    0:01:01   44490.9      1.19     114.4       0.0                           2972768.2500      0.00  
-    0:01:02   45237.7      1.16     112.9       0.0                           3030646.7500      0.00  
-    0:01:02   45237.7      1.16     112.9       0.0                           3030646.7500      0.00  
-    0:01:02   45575.2      1.16     111.0       0.0                           3050466.5000      0.00  
-    0:01:03   45575.2      1.16     111.0       0.0                           3050466.5000      0.00  
-    0:01:03   45600.2      1.16     111.0       0.0                           3053381.5000      0.00  
-    0:01:03   44156.5      1.16     108.5       0.0                           2912998.5000      0.00  
-Loading db file '/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ss1p62v125c.db'
-Loading db file '/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ff1p98vm40c.db'
-Loading db file '/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_t33_generic_io_ss1p62v125c.db'
-Loading db file '/RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_t33_generic_io_tt1p8v25c.db'
-
-
-Note: Symbol # after min delay cost means estimated hold TNS across all active scenarios 
-
-
-  Optimization Complete
-  ---------------------
-  Loading target library 'fsa0m_a_generic_core_ff1p98vm40c'
-  Loading target library 'fsa0m_a_t33_generic_io_ss1p62v125c'
-  Loading target library 'fsa0m_a_t33_generic_io_tt1p8v25c'
-Information: State dependent leakage is now switched from off to on.
-Information: Propagating switching activity (low effort zero delay simulation). (PWR-6)
-1
-#======================================================
-#  Output Reports
-#======================================================
-report_design  >  Report/$DESIGN\.design
-report_resource >  Report/$DESIGN\.resource
-report_timing -max_paths 3 >  Report/$DESIGN\.timing
-report_area -hierarchy -designware >  Report/$DESIGN\.area
-report_power > Report/$DESIGN\.power
-report_clock > Report/$DESIGN\.clock
-report_port >  Report/$DESIGN\.port
-report_power >  Report/$DESIGN\.power
-#report_reference > Report/$DESIGN\.reference
-#======================================================
-#  Change Naming Rule
-#======================================================
-set bus_inference_style "%s\[%d\]"
-%s[%d]
-set bus_naming_style "%s\[%d\]"
-%s[%d]
-set hdlout_internal_busses true
-true
-change_names -hierarchy -rule verilog
-1
-define_name_rules name_rule -allowed "a-z A-Z 0-9 _" -max_length 255 -type cell
-1
-define_name_rules name_rule -allowed "a-z A-Z 0-9 _[]" -max_length 255 -type net
-1
-define_name_rules name_rule -map {{"\\*cell\\*" "cell"}}
-1
-define_name_rules name_rule -case_insensitive
-1
-change_names -hierarchy -rules name_rule
-1
-#======================================================
-#  Output Results
-#======================================================
-set verilogout_higher_designs_first true
-true
-write -format verilog -output Netlist/$DESIGN\_SYN.v -hierarchy
-Writing verilog file '/RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB06/HT/02_SYN/Netlist/HT_SYN.v'.
-1
-write -format ddc     -hierarchy -output $DESIGN\_SYN.ddc
-Writing ddc file 'HT_SYN.ddc'.
-1
-write_sdf -version 3.0 -context verilog -load_delay cell Netlist/$DESIGN\_SYN.sdf -significant_digits 6
-Information: Writing timing information to file '/RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB06/HT/02_SYN/Netlist/HT_SYN.sdf'. (WT-3)
-Information: Updating design information... (UID-85)
-1
-write_sdc Netlist/$DESIGN\_SYN.sdc
-1
-#======================================================
-#  Finish and Quit
-#======================================================
-report_area
- 
-****************************************
-Report : area
-Design : HT
-Version: T-2022.03
-Date   : Sat Apr 11 23:55:14 2026
-****************************************
-
-Library(s) Used:
-
-    fsa0m_a_generic_core_ss1p62v125c (File: /RAID2/COURSE/BackUp/2023_Spring/iclab/iclabta01/UMC018_CBDK/CIC/SynopsysDC/db/fsa0m_a_generic_core_ss1p62v125c.db)
-
-Number of ports:                            9
-Number of nets:                          1775
-Number of cells:                         1747
-Number of combinational cells:           1612
-Number of sequential cells:               135
-Number of macros/black boxes:               0
-Number of buf/inv:                        453
-Number of references:                     108
-
-Combinational area:              35697.715102
-Buf/Inv area:                     5752.756759
-Noncombinational area:            8458.833488
-Macro/Black Box area:                0.000000
-Net Interconnect area:      undefined  (Wire load has zero net area)
-
-Total cell area:                 44156.548590
-Total area:                 undefined
-1
-report_timing 
- 
-****************************************
-Report : timing
-        -path full
-        -delay max
-        -max_paths 1
-Design : HT
-Version: T-2022.03
-Date   : Sat Apr 11 23:55:14 2026
-****************************************
-
-Operating Conditions: WCCOM   Library: fsa0m_a_generic_core_ss1p62v125c
-Wire Load Model Mode: top
-
-  Startpoint: merge_weights_reg_0__4_
-              (rising edge-triggered flip-flop clocked by clk)
-  Endpoint: merge_weights_reg_4__3_
-            (rising edge-triggered flip-flop clocked by clk)
-  Path Group: clk
-  Path Type: max
-
-  Des/Clust/Port     Wire Load Model       Library
-  ------------------------------------------------
-  HT                 enG10K                fsa0m_a_generic_core_ss1p62v125c
-
-  Point                                                   Incr       Path
-  --------------------------------------------------------------------------
-  clock clk (rise edge)                                   0.00       0.00
-  clock network delay (ideal)                             0.00       0.00
-  merge_weights_reg_0__4_/CK (QDFFRBP)                    0.00       0.00 r
-  merge_weights_reg_0__4_/Q (QDFFRBP)                     0.46       0.46 f
-  U1909/O (INV4)                                          0.08       0.55 r
-  U1691/O (ND2F)                                          0.09       0.64 f
-  U1712/O (ND3HT)                                         0.10       0.74 r
-  U1619/O (ND3HT)                                         0.14       0.88 f
-  U1622/O (INV4)                                          0.09       0.97 r
-  U1620/O (ND2F)                                          0.10       1.07 f
-  U1623/O (INV12)                                         0.15       1.22 r
-  U1402/OB (MXL2HP)                                       0.18       1.40 r
-  U1607/O (NR2F)                                          0.10       1.50 f
-  U1609/O (MOAI1HP)                                       0.14       1.64 r
-  U1673/O (ND3HT)                                         0.13       1.77 f
-  U1222/O (ND3HT)                                         0.16       1.94 r
-  U1221/OB (MXL2H)                                        0.25       2.19 r
-  U1152/O (INV3)                                          0.09       2.28 f
-  U1931/O (NR2F)                                          0.14       2.42 r
-  U1287/O (INV3)                                          0.08       2.50 f
-  U1286/O (AOI13HT)                                       0.20       2.70 r
-  U2027/OB (MXL2H)                                        0.27       2.97 r
-  U2026/O (NR2F)                                          0.12       3.10 f
-  U1757/O (NR2T)                                          0.13       3.23 r
-  U1238/O (ND2T)                                          0.08       3.31 f
-  U1979/O (ND2F)                                          0.11       3.42 r
-  U1903/OB (MXL2HP)                                       0.14       3.55 r
-  U1680/O (ND3HT)                                         0.14       3.69 f
-  U1268/O (ND3HT)                                         0.15       3.84 r
-  U2140/O (INV4)                                          0.06       3.90 f
-  U2141/O (NR2F)                                          0.20       4.10 r
-  U1632/O (ND3P)                                          0.18       4.28 f
-  U1368/O (OAI22S)                                        0.25       4.53 r
-  U1761/O (NR2T)                                          0.14       4.67 f
-  U1373/O (ND3HT)                                         0.14       4.81 r
-  U1906/O (XOR2H)                                         0.17       4.98 r
-  U1616/O (ND3HT)                                         0.16       5.14 f
-  U1497/O (BUF4CK)                                        0.20       5.34 f
-  U1694/O (ND3HT)                                         0.09       5.43 r
-  U1627/O (ND3HT)                                         0.17       5.61 f
-  U1236/O (XNR2HT)                                        0.20       5.81 f
-  U1235/O (ND2F)                                          0.11       5.91 r
-  U1306/O (ND2F)                                          0.07       5.98 f
-  U1292/O (ND2F)                                          0.14       6.13 r
-  U1291/O (ND3HT)                                         0.14       6.27 f
-  U1343/O (INV3CK)                                        0.11       6.38 r
-  U2276/O (NR2F)                                          0.07       6.45 f
-  U2277/O (NR2F)                                          0.16       6.61 r
-  U1282/O (ND2)                                           0.12       6.72 f
-  U1992/O (ND3)                                           0.17       6.89 r
-  merge_weights_reg_4__3_/D (QDFFRBP)                     0.00       6.89 r
-  data arrival time                                                  6.89
-
-  clock clk (rise edge)                                   6.00       6.00
-  clock network delay (ideal)                             0.00       6.00
-  clock uncertainty                                      -0.10       5.90
-  merge_weights_reg_4__3_/CK (QDFFRBP)                    0.00       5.90 r
-  library setup time                                     -0.16       5.74
-  data required time                                                 5.74
-  --------------------------------------------------------------------------
-  data required time                                                 5.74
-  data arrival time                                                 -6.89
-  --------------------------------------------------------------------------
-  slack (VIOLATED)                                                  -1.16
-
-
-1
-exit
-
-Memory usage for this session 446 Mbytes.
-Memory usage for this session including child processes 772 Mbytes.
-CPU usage for this session 203 seconds ( 0.06 hours ).
-Elapsed time for this session 71 seconds ( 0.02 hours ).
-
-Thank you...
 

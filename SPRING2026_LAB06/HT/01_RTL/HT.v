@@ -92,20 +92,63 @@ wire [3:0] curr_sorted_nodes [0:7];
 // reg [2:0] order [0:7];
 // reg [2:0] nxt_order [0:7];
 // integer k;
-// reg [2:0] keep_cnt;
-
-// wire [31:0] sort_in_char;
-// wire [39:0] sort_in_weight;
-
 wire [4:0] w6, w7;
-reg [2:0] keep_cnt;
-wire [1:0] drop_cnt [0:7];
 // Shared compare signals against current merge targets from sorter
 wire [4:0] root_eq6, root_eq7, root_hit67;
-wire [7:0] merge_eq6, merge_eq7, merge_hit67, merge_keep67, merge_neq6, merge_neq7;
+wire [7:0] merge_eq6, merge_eq7, merge_hit67;
+wire [2:0] drop_pos6, drop_pos7, drop_pos_lo, drop_pos_hi, drop_pos_hi_m1;
 
 integer i;
 genvar idx;
+
+function [2:0] pick_pos8;
+    input [7:0] hit_mask;
+    begin
+        case (1'b1)
+            hit_mask[0]: pick_pos8 = 3'd0;
+            hit_mask[1]: pick_pos8 = 3'd1;
+            hit_mask[2]: pick_pos8 = 3'd2;
+            hit_mask[3]: pick_pos8 = 3'd3;
+            hit_mask[4]: pick_pos8 = 3'd4;
+            hit_mask[5]: pick_pos8 = 3'd5;
+            hit_mask[6]: pick_pos8 = 3'd6;
+            hit_mask[7]: pick_pos8 = 3'd7;
+            default:     pick_pos8 = 3'd0;
+        endcase
+    end
+endfunction
+
+function [2:0] node_at;
+    input [2:0] idx_sel;
+    begin
+        case (idx_sel)
+            3'd0: node_at = merge_nodes[0];
+            3'd1: node_at = merge_nodes[1];
+            3'd2: node_at = merge_nodes[2];
+            3'd3: node_at = merge_nodes[3];
+            3'd4: node_at = merge_nodes[4];
+            3'd5: node_at = merge_nodes[5];
+            3'd6: node_at = merge_nodes[6];
+            default: node_at = merge_nodes[7];
+        endcase
+    end
+endfunction
+
+function [4:0] weight_at;
+    input [2:0] idx_sel;
+    begin
+        case (idx_sel)
+            3'd0: weight_at = merge_weights[0];
+            3'd1: weight_at = merge_weights[1];
+            3'd2: weight_at = merge_weights[2];
+            3'd3: weight_at = merge_weights[3];
+            3'd4: weight_at = merge_weights[4];
+            3'd5: weight_at = merge_weights[5];
+            3'd6: weight_at = merge_weights[6];
+            default: weight_at = merge_weights[7];
+        endcase
+    end
+endfunction
 
 generate
     for(idx=0; idx<5; idx=idx+1) begin : root_cmp_signals
@@ -121,9 +164,11 @@ generate
 endgenerate
 assign root_hit67 = root_eq6 | root_eq7;
 assign merge_hit67  = merge_eq6 | merge_eq7;
-assign merge_keep67 = ~merge_hit67;
-assign merge_neq6   = ~merge_eq6;
-assign merge_neq7   = ~merge_eq7;
+assign drop_pos6 = pick_pos8(merge_eq6);
+assign drop_pos7 = pick_pos8(merge_eq7);
+assign drop_pos_lo = (drop_pos6 < drop_pos7) ? drop_pos6 : drop_pos7;
+assign drop_pos_hi = (drop_pos6 < drop_pos7) ? drop_pos7 : drop_pos6;
+assign drop_pos_hi_m1 = drop_pos_hi - 3'd1;
 
 
 // ===============================================================
@@ -226,15 +271,6 @@ assign w7 = ({5{merge_eq7[0]}} & merge_weights[0]) |
      ({5{merge_eq7[6]}} & merge_weights[6]) |
      ({5{merge_eq7[7]}} & merge_weights[7]);
 
-assign drop_cnt[0] = 2'd0;
-assign drop_cnt[1] = {1'b0, merge_hit67[0]};
-assign drop_cnt[2] = drop_cnt[1] + {1'b0, merge_hit67[1]};
-assign drop_cnt[3] = drop_cnt[2] + {1'b0, merge_hit67[2]};
-assign drop_cnt[4] = drop_cnt[3] + {1'b0, merge_hit67[3]};
-assign drop_cnt[5] = drop_cnt[4] + {1'b0, merge_hit67[4]};
-assign drop_cnt[6] = drop_cnt[5] + {1'b0, merge_hit67[5]};
-assign drop_cnt[7] = drop_cnt[6] + {1'b0, merge_hit67[6]};
-
 always @(*) begin : nxt_merge_weights_logic
     // Default: hold current values
     for(i=0; i<8; i=i+1) begin
@@ -258,37 +294,9 @@ always @(*) begin : nxt_merge_weights_logic
         //     if (merge_eq7[i]) w7 = merge_weights[i];
         // end
 
-        // 2. Compress the array: shift surviving nodes to the front
-        // This preserves their relative priority for the stable sort
-        // keep_cnt = 0;
-        // for(i=0; i<8; i=i+1) begin
-        //     if (merge_keep67[i]) begin
-        //         nxt_merge_nodes[keep_cnt]   = merge_nodes[i];
-        //         nxt_merge_weights[keep_cnt] = merge_weights[i];
-        //         keep_cnt = keep_cnt + 1;
-        //     end
-        // end
-        for(i=0; i<8; i=i+1) begin
-            nxt_merge_nodes[i]   = merge_nodes[i];
-            nxt_merge_weights[i] = merge_weights[i];
-        end 
-
         for(i=0; i<6; i=i+1) begin
-            // stay at the same position
-            if (merge_keep67[i] && drop_cnt[i] == 2'd0) begin
-                nxt_merge_nodes[i]   = merge_nodes[i];
-                nxt_merge_weights[i] = merge_weights[i];
-            end
-            // shift 1 position from the right
-            else if (merge_keep67[i+1] && drop_cnt[i+1] == 2'd1) begin
-                nxt_merge_nodes[i]   = merge_nodes[i+1];
-                nxt_merge_weights[i] = merge_weights[i+1];
-            end
-            // shift 2 positions from the right
-            else begin
-                nxt_merge_nodes[i]   = merge_nodes[i+2];
-                nxt_merge_weights[i] = merge_weights[i+2];
-            end
+            nxt_merge_nodes[i]   = node_at(i + ((i >= drop_pos_lo) ? 3'd1 : 3'd0) + ((i >= drop_pos_hi_m1) ? 3'd1 : 3'd0));
+            nxt_merge_weights[i] = weight_at(i + ((i >= drop_pos_lo) ? 3'd1 : 3'd0) + ((i >= drop_pos_hi_m1) ? 3'd1 : 3'd0));
         end
 
         // 3. Append the new subtree to the end of the valid elements (index 6)
