@@ -97,7 +97,7 @@ wire [3:0] curr_sorted_nodes [0:7];
 // wire [31:0] sort_in_char;
 // wire [39:0] sort_in_weight;
 
-reg [4:0] w6, w7;
+wire [4:0] w6, w7;
 reg [2:0] keep_cnt;
 
 // Shared compare signals against current merge targets from sorter
@@ -208,15 +208,32 @@ always @(posedge clk or negedge rst_n) begin : state_seq
     end
 end
 
-// TODO: seperate weight storage and the reordered weight sent to sorter to prevent confusion
+assign w6 = ({5{merge_eq6[0]}} & merge_weights[0]) |
+     ({5{merge_eq6[1]}} & merge_weights[1]) |
+     ({5{merge_eq6[2]}} & merge_weights[2]) |
+     ({5{merge_eq6[3]}} & merge_weights[3]) |
+     ({5{merge_eq6[4]}} & merge_weights[4]) |
+     ({5{merge_eq6[5]}} & merge_weights[5]) |
+     ({5{merge_eq6[6]}} & merge_weights[6]) |
+     ({5{merge_eq6[7]}} & merge_weights[7]);
+
+assign w7 = ({5{merge_eq7[0]}} & merge_weights[0]) |
+     ({5{merge_eq7[1]}} & merge_weights[1]) |
+     ({5{merge_eq7[2]}} & merge_weights[2]) |
+     ({5{merge_eq7[3]}} & merge_weights[3]) |
+     ({5{merge_eq7[4]}} & merge_weights[4]) |
+     ({5{merge_eq7[5]}} & merge_weights[5]) |
+     ({5{merge_eq7[6]}} & merge_weights[6]) |
+     ({5{merge_eq7[7]}} & merge_weights[7]);
+
 always @(*) begin : nxt_merge_weights_logic
     // Default: hold current values
     for(i=0; i<8; i=i+1) begin
         nxt_merge_weights[i] = merge_weights[i];
         nxt_merge_nodes[i]   = merge_nodes[i];
     end
-    w6 = 0; 
-    w7 = 0;
+    // w6 = 0; 
+    // w7 = 0;
 
     if (state == WAIT_INPUT && in_valid) begin
         // Shift in new weights
@@ -227,10 +244,10 @@ always @(*) begin : nxt_merge_weights_logic
         // Note: merge_nodes remains unchanged during WAIT_INPUT
     end else if (state == MERGE) begin
         // 1. Extract weights of the two nodes to be merged
-        for(i=0; i<8; i=i+1) begin
-            if (merge_eq6[i]) w6 = merge_weights[i];
-            if (merge_eq7[i]) w7 = merge_weights[i];
-        end
+        // for(i=0; i<8; i=i+1) begin
+        //     if (merge_eq6[i]) w6 = merge_weights[i];
+        //     if (merge_eq7[i]) w7 = merge_weights[i];
+        // end
 
         // 2. Compress the array: shift surviving nodes to the front
         // This preserves their relative priority for the stable sort
