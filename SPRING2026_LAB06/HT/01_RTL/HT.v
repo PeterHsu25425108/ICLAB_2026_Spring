@@ -334,18 +334,18 @@ always @(posedge clk or negedge rst_n) begin : huff_code_ctrl
     end else if(state == MERGE) begin
         for(i=0;i<8;i=i+1)begin // i: orig char idx, A, B ... V
             if(root_eq6[i])begin // bigger, insert 0
-                huff_code[i] <= {1'b0, huff_code[i][6:1]};
-                // huff_code[i][code_len[i]] <= 0;
+                // huff_code[i] <= {1'b0, huff_code[i][6:1]};
+                huff_code[i][code_len[i]] <= 0;
             end else if(root_eq7[i])begin // smaller, insert 1
-                // huff_code[i][code_len[i]] <= 1;
-                huff_code[i] <= {1'b1, huff_code[i][6:1]};
+                huff_code[i][code_len[i]] <= 1;
+                // huff_code[i] <= {1'b1, huff_code[i][6:1]};
             end
         end
     end else if (state == OUTPUT) begin
         // OUTPUT: shift left to output the next bit at the MSB position
-        if (code_len[out_char_idx] != 0) begin
-            huff_code[out_char_idx] <= {huff_code[out_char_idx][5:0], 1'b0};
-        end
+        // if (code_len[out_char_idx] != 0) begin
+        //     huff_code[out_char_idx] <= {huff_code[out_char_idx][5:0], 1'b0};
+        // end
     end
 end
 
@@ -408,7 +408,8 @@ end
 
 always @(*) begin
     out_valid = (state == OUTPUT);
-    out_code = (state == OUTPUT) ? huff_code[out_char_idx][6] : 1'b0;
+    // out_code = (state == OUTPUT) ? huff_code[out_char_idx][6] : 1'b0;
+    out_code = (state == OUTPUT) ? huff_code[out_char_idx][code_len[out_char_idx]-1] : 1'b0;
 end
 
 
