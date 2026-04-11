@@ -375,14 +375,18 @@ always @(posedge clk or negedge rst_n) begin : huff_code_ctrl
         end
     end else if(state == MERGE) begin
         for(i=0;i<5;i=i+1)begin // i: orig char idx, A, B ... V
-            // if(root_eq6[i])begin // bigger, insert 0
-            //     // huff_code[i] <= {1'b0, huff_code[i][6:1]};
-            //     huff_code[i][code_len[i]] <= 0;
-            // end else if(root_eq7[i])begin // smaller, insert 1
-            //     huff_code[i][code_len[i]] <= 1;
-            //     // huff_code[i] <= {1'b1, huff_code[i][6:1]};
-            // end
-            huff_code[i][code_len[i]] <= !root_eq6[i] || root_eq7[i];
+            if(root_eq6[i])begin // bigger, insert 0
+                huff_code[i] <= {1'b0, huff_code[i][6:1]};
+                // huff_code[i][code_len[i]] <= 0;
+            end else if(root_eq7[i])begin // smaller, insert 1
+                // huff_code[i][code_len[i]] <= 1;
+                huff_code[i] <= {1'b1, huff_code[i][6:1]};
+            end
+            // huff_code[i][code_len[i]] <= !root_eq6[i] || root_eq7[i];
+        end
+    end else if(state == OUTPUT)begin
+        for(i=0;i<5;i=i+1)begin
+            huff_code[main_cnt] <= {huff_code[main_cnt][5:0], 1'b0};
         end
     end
 end
@@ -436,7 +440,8 @@ end
 
 always @(*) begin : output_logic
     out_valid = (state == OUTPUT);
-    out_code  = (state == OUTPUT) ? huff_code[main_cnt][code_len[main_cnt]-1] : 1'b0;
+    // out_code  = (state == OUTPUT) ? huff_code[main_cnt][code_len[main_cnt]-1] : 1'b0;
+    out_code  = (state == OUTPUT) ? huff_code[main_cnt][6] : 1'b0;
 end
 
 
