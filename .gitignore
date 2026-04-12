@@ -5,7 +5,7 @@
 !*.md
 # except these
 !.gitignore
-
+!**/*.csv
 # Generic stage rules anywhere in the tree.
 # 02_SYN: ignore all generated files, but keep synthesis log.
 **/02_SYN/*
