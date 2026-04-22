@@ -103,11 +103,11 @@ end
 
 assign dram_cmd = {1'b0, state}; // CS_n is always 0 (active)
 // TODO: determine how to control nxt dram interface outputs: controled by is_reading selection?
-always @(*) begin : nxt_dram_output_logic
-    case(nxt_state)
+// always @(*) begin : nxt_dram_output_logic
+    // case(nxt_state)
     // ACT: nxt_dram_addr =
-    endcase
-end
+    // endcase
+// end
 
 always@(posedge clk or negedge rst_n) begin
     if(!rst_n) begin

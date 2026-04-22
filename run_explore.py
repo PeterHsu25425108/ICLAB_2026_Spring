@@ -179,24 +179,24 @@ def evaluate_clk(clk, rtl_dir, syn_dir, gate_dir, testbed_dir, base_dir, design_
         run_command("./09_clean_up", base_dir)
         return res, False
     
-    # print("  Running 03_GATE...")
-    # gate_out = run_command("./01_run_vcs_gate", gate_dir)
-    # if check_sim_pass(gate_out):
-    #     latency_mult = latency_cycles if latency_cycles is not None else 1
-    #     cost = round(area * clk * latency_mult, 2)
-    #     print(f"  Success! Area: {area}, Slack: {slack_val}, Cost: {cost}")
-    #     res = {"CLK": clk, "RTL": "PASS", "SYN": "MET", "GATE": "PASS", "Area": area, "Slack": slack_val, "Cost": cost}
-    #     cache[clk] = res
-    #     passed = True
-    # else:
-    #     print("  Gate Simulation Failed.")
-    #     res = {"CLK": clk, "RTL": "PASS", "SYN": "MET", "GATE": "FAIL", "Area": area, "Slack": slack_val, "Cost": "GATE_FAIL"}
-    #     cache[clk] = res
-    #     passed = False
+    print("  Running 03_GATE...")
+    gate_out = run_command("./01_run_vcs_gate", gate_dir)
+    if check_sim_pass(gate_out):
+        latency_mult = latency_cycles if latency_cycles is not None else 1
+        cost = round(area * clk * latency_mult, 2)
+        print(f"  Success! Area: {area}, Slack: {slack_val}, Cost: {cost}")
+        res = {"CLK": clk, "RTL": "PASS", "SYN": "MET", "GATE": "PASS", "Area": area, "Slack": slack_val, "Cost": cost}
+        cache[clk] = res
+        passed = True
+    else:
+        print("  Gate Simulation Failed.")
+        res = {"CLK": clk, "RTL": "PASS", "SYN": "MET", "GATE": "FAIL", "Area": area, "Slack": slack_val, "Cost": "GATE_FAIL"}
+        cache[clk] = res
+        passed = False
         
-    # append_to_csv(csv_path, res)
-    # print("  Running 09_clean_up...")
-    # run_command("./09_clean_up", base_dir)
+    append_to_csv(csv_path, res)
+    print("  Running 09_clean_up...")
+    run_command("./09_clean_up", base_dir)
 
     # If RTL/GATE blocks are temporarily disabled, still return a valid result.
     if area is None:
@@ -245,7 +245,7 @@ def main():
         return
     
     lab_num = int(match.group())
-    base_dir = os.path.join(os.path.expanduser("~"), f"SPRING2026_LAB{lab_num:02d}")
+    base_dir = os.path.join(os.path.expanduser("~"), f"SPRING2026_LAB{lab_num:02d}/HT")
     
     if not os.path.exists(base_dir):
         print(f"Directory not found: {base_dir}")

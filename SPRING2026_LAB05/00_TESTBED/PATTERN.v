@@ -1,191 +1,183 @@
-`define CYCLE_TIME  20.0
+`ifdef RTL
+    `define CYCLE_TIME 20.0
+`endif
+`ifdef GATE
+    `define CYCLE_TIME 20.0
+`endif
+`define CYCLE_TIME 20.0
 
 module PATTERN(
-    // output signals
+    // Output signals
     clk,
-    rst_n,
-    i_valid,
-    i_iter,
-    i_mode,
-    i_data,
-    i_weight,
-    
-    // input signals
-    o_valid,
-    o_data
+	rst_n,
+	in_valid,
+    in_weight, 
+	out_mode,
+    // Input signals
+    out_valid, 
+	out_code
 );
 
 // ========================================
-// I/O declaration
+// Parameter & Variables
 // ========================================
-// Output
-output reg          clk;
-output reg          rst_n;
-output reg          i_valid;
-output reg    [2:0] i_iter;
-output reg    [1:0] i_mode;
-output reg    [7:0] i_data;
-output reg    [3:0] i_weight;
+parameter PATNUM = 2; 
+parameter IN_WEIGHT_FILE ="../00_TESTBED/in_weight.txt" ;
+parameter OUT_MODE_FILE = "../00_TESTBED/out_mode.txt";
+parameter GOLDEN_FILE = "../00_TESTBED/golden.txt";
+parameter LAT_LIMIT=2000;
 
-// Input
-input               o_valid;
-input         [7:0] o_data;
+integer i_pat, i, j;
+// PIs
+reg [4:0] in_weight_arr[PATNUM-1:0][0:7];
+reg out_mode_arr[PATNUM-1:0];
+// Max length of a char's huffman code = 7 for 8 input chars
+// 5 output char -> at most 5*7=35 bits for the output code
+// gloden
+reg [34:0] golden_out[PATNUM-1:0];
+// capture the output code
+reg [34:0] out_code_capture;
 
-// ========================================
-// clock
-// ========================================
-real CYCLE = `CYCLE_TIME;
-initial clk = 1'b0;
-always  #(CYCLE/2.0) clk = ~clk; //clock
-
-// ========================================
-// integer & parameter
-// ========================================
-parameter PATNUM       = 10;   
-parameter IMG_HEIGHT   = 64;  
-parameter IMG_WIDTH    = 64;  
-parameter TOTAL_PIXELS = 4096;   // 64 * 64
-parameter WEIGHT_NUM   = 1312;   // 16x1x3x3(144) + 16x16x4(1024) + 1x16x3x3(144) = 1312
-
-parameter WEIGHT_FILE  = "../00_TESTBED/weight_in.txt";
-parameter IMAGE_FILE   = "../00_TESTBED/image_in.txt";  
-parameter GOLDEN_FILE  = "../00_TESTBED/output.txt"; 
-parameter ITER_FILE    = "../00_TESTBED/iter_in.txt";
-parameter MODE_FILE    = "../00_TESTBED/mode_in.txt";
-
+// integers
 integer patcount, total_latency, latency_per_pat;
-integer i, j, w_idx, base_idx, check_idx;
-integer file_iter, file_mode;
+// ========================================
+// Input & Output
+// ========================================
+output reg clk, rst_n, in_valid, out_mode;
+output reg [2:0] in_weight;
+input out_valid, out_code;
 
-integer error_count, total_errors;
-integer passed_patterns, failed_patterns;
+//================================================================
+// clock
+//================================================================
+real CYCLE = `CYCLE_TIME;
+initial clk = 0;
+always #(CYCLE/2.0) clk = ~clk;
 
 // ========================================
-// wire & reg
+// Pattern Start
 // ========================================
-reg [3:0] all_weight      [0:WEIGHT_NUM-1]; 
-reg [7:0] all_input_data  [0:PATNUM*TOTAL_PIXELS-1];
-reg [7:0] all_golden_data [0:PATNUM*TOTAL_PIXELS-1];
-reg [7:0] current_golden  [0:TOTAL_PIXELS-1];
-reg [2:0] all_iter        [0:PATNUM-1];
-reg [1:0] all_mode        [0:PATNUM-1];
-//================================================================
-// design
-//================================================================
 initial begin
-
-    rst_n    = 1'b1;
-    i_valid  = 1'b0;
-    i_data   = 'bx;
-    i_weight = 'bx;
-    i_mode   = 'bx;
-    i_iter   = 'bx;
-
-    total_latency   = 0;
-    error_count     = 0;
-    total_errors    = 0;
-    passed_patterns = 0;
-    failed_patterns = 0;
-    force clk = 0;
-	
-    load_test_data;
-    
+    load_data;
     reset_signal_task;
     #(CYCLE*3);
-    
-    $display("========================================================================");
-    $display("Total Patterns  : %0d", PATNUM);
-    $display("========================================================================");
-    $display("");
-    
-    $display("Sending Initial Weights (1312 cycles)...");
-    send_weight_task;
-    
-    for(patcount = 0; patcount < PATNUM; patcount = patcount + 1) begin
-        $display("------------------------------------------------------------------------");
-        $display("  Testing Pattern %0d/%0d", patcount+1, PATNUM);
-        $display("------------------------------------------------------------------------");
-        
-        repeat($urandom_range(1, 3)) @(negedge clk);
-        
-        extract_golden(patcount);
-        
 
-        file_iter = all_iter[patcount]; 
-        file_mode = all_mode[patcount];
-        
-        input_image_task(patcount, file_iter, file_mode);
-        wait_and_check_output;
-        
-        if(error_count == 0) begin
-            passed_patterns = passed_patterns + 1;
-            $display("  [PASS] Pattern %0d: All %0d pixels correct! (Latency: %0d)", patcount+1, TOTAL_PIXELS, latency_per_pat);
-        end else begin
-            failed_patterns = failed_patterns + 1;
-            $display("  [FAIL] Pattern %0d: %0d errors found!", patcount+1, error_count);
-            $display("========================================================================");
+    $display("Finish reset task");
+
+    for(patcount=0;patcount<PATNUM;patcount=patcount+1)begin
+        $display("Sending input of PATTERN %0d...", patcount);
+        send_input;
+        $display("Waiting for output of PATTERN %0d...", patcount);
+        wait_out_valid_and_check;
+        // print pass message for each pattern passed
+        $display("PATTERN %0d PASSED!", patcount);
+        // wait for 2~4 cycles before sending the next pattern
+        // randomize the wait time to better simulate real scenarios
+        #(CYCLE*(2 + $urandom_range(0, 2)));
+    end
+    
+    display_pass;
+end
+
+task wait_out_valid_and_check;
+begin
+    $display("enter wait out_valid");
+    @(negedge clk);
+    // latency = 1 if out_valid rises immediately after in_valid falls
+    latency_per_pat = 0;
+    while(out_valid !== 1) begin
+        latency_per_pat = latency_per_pat + 1;
+        $display("Waiting for out_valid=1, latency = %0d", latency_per_pat);
+        $display("out_valid=%b, out_code=%b", out_valid, out_code);
+        if(latency_per_pat > LAT_LIMIT) begin
+            $display("---------------------------------------------------------------------------------------------");
+            $display("             FAIL! Latency exceeds limit at %4t.", $time);
+            $display("             Execution latency: %0d cycles, Limit: %0d cycles", latency_per_pat, LAT_LIMIT);
+            $display("---------------------------------------------------------------------------------------------");
             $finish;
         end
-        $display("");
-    end 
-    
-    YOU_PASS_task;
-end
+       @(negedge clk);
+    end
 
+    $display("out_valid=1 arrived");
 
-always @(negedge clk) begin 
-    if(o_valid === 0 && o_data !== 8'b0) begin
+    j = 0;
+    out_code_capture = 6'd0;
+    while (out_valid === 1) begin
+        j = j + 1;
+        if(j > 35)begin // Max len of the huffman code of 8 characters should be <= 7
+            $display("---------------------------------------------------------------------------------------------");
+            $display("             FAIL! Output code length exceeds limit at %4t.", $time);
+            $display("             Output code length: %0d bits, Code length Limit: 35 bits", j);
+            $display("---------------------------------------------------------------------------------------------");
+            $finish;
+        end
+        out_code_capture = {out_code_capture[34:1], out_code};
+        
+        @(negedge clk);
+    end
+
+    if(out_code_capture !== golden_out[patcount]) begin
         $display("---------------------------------------------------------------------------------------------");
-        $display("             FAIL! The o_data should be 0 when o_valid is low.                               ");
-        $display("             Time: %0t, o_data = %0d", $time, o_data);
+        $display("             FAIL! Wrong output at %4t.", $time);
+        $display("             Expected: %b, Got: %b", golden_out[patcount], out_code);
         $display("---------------------------------------------------------------------------------------------");
-        repeat(2) #CYCLE;
         $finish;
     end
-end
 
-
-always @(negedge clk) begin 
-    if(o_valid === 1 && i_valid === 1) begin
-        $display("---------------------------------------------------------------------------------------------");
-        $display("             FAIL! The o_valid should not be high when i_valid is high.                      ");
-        $display("---------------------------------------------------------------------------------------------");
-        $finish;
-    end
-end
-
-//================================================================
-// tasks
-//================================================================
-task load_test_data;
-begin
-    $display("  Loading Weights...  (%s)", WEIGHT_FILE);
-    $readmemh(WEIGHT_FILE, all_weight);
-    $display("  Loading Images...   (%s)", IMAGE_FILE);
-    $readmemh(IMAGE_FILE, all_input_data);
-    $display("  Loading Golden...   (%s)", GOLDEN_FILE);
-    $readmemh(GOLDEN_FILE, all_golden_data);
-	
-	$readmemh(ITER_FILE, all_iter);
-    $readmemh(MODE_FILE, all_mode);
+    total_latency = total_latency + latency_per_pat;
 end
 endtask
 
-task extract_golden;
-    input integer pattern_id;
+task send_input;
 begin
-    base_idx = pattern_id * TOTAL_PIXELS;
-    for(j = 0; j < TOTAL_PIXELS; j = j + 1) begin
-        current_golden[j] = all_golden_data[base_idx + j];
+    @(negedge clk);
+    in_valid = 1'b1;
+    out_mode = out_mode_arr[patcount];
+    for(i=0;i<8;i=i+1)begin
+        $display("Sent out_mode for pat %0d", i);
+
+        in_weight = in_weight_arr[patcount][i];
+         $display("Sent in_weight for pat %0d", i);
+        @(negedge clk);
+        out_mode = 1'bx;
+    end
+    in_valid=0;
+    in_weight = 3'bx;
+    $display("Finished sending input for pat %0d", patcount);
+end
+endtask
+
+task load_data;
+begin
+    $display("  Loading Weights...  (%s)", IN_WEIGHT_FILE);
+    $readmemh(IN_WEIGHT_FILE, in_weight_arr);
+    $display("  Loading Modes...  (%s)", OUT_MODE_FILE);
+    $readmemh(OUT_MODE_FILE, out_mode_arr);
+    $display("  Loading Golden...  (%s)", GOLDEN_FILE);
+    $readmemh(GOLDEN_FILE, golden_out);
+
+    // print the content of the input and golden data for debugging
+    for(i_pat=0; i_pat<PATNUM; i_pat=i_pat+1)begin
+        $display("PATTERN %0d:", i_pat);
+        $display("  Weights: %p", in_weight_arr[i_pat]);
+        $display("  Mode: %b", out_mode_arr[i_pat]);
+        $display("  Golden Output Code: %b", golden_out[i_pat]);
     end
 end
 endtask
 
 task reset_signal_task; 
 begin 
+    rst_n = 1'b1;
+	in_valid = 1'b0;
+    in_weight = 3'bx;
+    out_mode = 1'bx;
+    force clk = 1'b0;
+
     #(CYCLE);  rst_n = 0;
     #(CYCLE*3); rst_n = 1;
-    if((o_valid !== 0) || (o_data !== 8'b0)) begin
+    if((out_valid !== 0) || (out_code !== 1'b0)) begin
         $display("---------------------------------------------------------------------------------------------");
         $display("             FAIL! Output signals should be 0 after reset at %4t.", $time);
         $display("---------------------------------------------------------------------------------------------");
@@ -196,101 +188,23 @@ begin
 end 
 endtask
 
-task send_weight_task;
+task display_pass;
 begin
-	@(negedge clk);
-    i_valid = 1'b1;
-    for(w_idx = 0; w_idx < WEIGHT_NUM; w_idx = w_idx + 1) begin
-        i_weight = all_weight[w_idx];
-        @(negedge clk);
-    end
-    i_valid = 1'b0;
-    i_weight = 'bx;
-end
-endtask
-
-task input_image_task; 
-    input integer pattern_id;
-    input integer current_iter;
-    input integer current_mode;
-begin
-    base_idx = pattern_id * TOTAL_PIXELS;
-    i_valid = 1'b1;
-    error_count = 0;
-
-    for(i = 0; i < TOTAL_PIXELS; i = i + 1) begin
-        i_data = all_input_data[base_idx + i];
-        
-        if (i == 0) begin
-            i_mode = current_mode;
-            i_iter = current_iter;
-        end else begin
-            i_mode = 'bx;
-            i_iter = 'bx;
-        end
-        
-        @(negedge clk);
-    end
-
-    i_valid = 1'b0;
-    i_data = 'bx;
-    i_mode = 'bx;
-    i_iter = 'bx;
-end
-endtask
-
-task wait_and_check_output; 
-begin
-    latency_per_pat = 0;
-    check_idx = 0;
-    
-    while(check_idx < TOTAL_PIXELS) begin
-        // Spec: Only cycles where o_valid is low are counted toward the latency
-        if(o_valid === 1'b0) begin
-            latency_per_pat = latency_per_pat + 1;
-        end 
-        // If o_valid pulls high after falling edge of i_valid, latency is counted as 1
-        else if (o_valid === 1'b1 && latency_per_pat == 0) begin
-            latency_per_pat = 1;
-        end
-        
-        if(latency_per_pat > file_iter * 150000) begin
-            $display("---------------------------------------------------------------------------------------------");
-            $display("             FAIL! The execution latency is over %0d cycles.", file_iter * 150000);
-            $display("             Received only %0d/%0d outputs", check_idx, TOTAL_PIXELS);
-            $display("---------------------------------------------------------------------------------------------");
-            repeat(2) @(negedge clk);
-            $finish;
-        end
-        
-        if(o_valid === 1'b1) begin
-            if (o_data !== current_golden[check_idx]) begin
-                error_count = error_count + 1;
-                total_errors = total_errors + 1;
-                $display("  [ERROR] Pixel %4d: Exp=%0d Got=%0d", check_idx, current_golden[check_idx], o_data);
-            end
-            check_idx = check_idx + 1;
-        end
-        
-        @(negedge clk);
-    end
-    
-    total_latency = total_latency + latency_per_pat;
-end 
-endtask
-
-task YOU_PASS_task; 
-begin
-    $display("========================================================================");
-    $display("                        Congratulations!                                ");
-    $display("                  You have passed all patterns!                         ");
-    $display("            Average Latency        : %0d cycles/pattern", total_latency/PATNUM);
-    $display("            Total Latency          : %0d cycles", total_latency);
-    $display("                                                                        ");
-    $display("========================================================================");
-
-    repeat(2) @(negedge clk);
-    $finish;
+        $display("\n");
+        $display("        ----------------------------               ");
+        $display("        --                        --       |\\__||  ");
+        $display("        --  Congratulations !!    --      / O.O  | ");
+        $display("        --                        --    /_____   | ");
+        $display("        --  Simulation out!!     --    /^ ^ ^ \\  |");
+        $display("        --                        --  |^ ^ ^ ^ |w| ");
+        $display("        ----------------------------   \\m___m__|_|");
+        $display("----------------------------------------------------------------------------------------------");
+        $display("            Total Patterns           : %0d", PATNUM);
+        $display("            Average Latency        : %0d cycles/pattern", total_latency/PATNUM);
+        $display("            Total Latency          : %0d cycles", total_latency);
+        $display("---------------------------------------------------------------------------------------------");
+        $display("\n");
+        $finish;
 end
 endtask
 

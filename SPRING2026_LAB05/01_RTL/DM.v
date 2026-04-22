@@ -508,6 +508,7 @@ reg [5:0] img_read_cnt;
 // stride-4 shift on 64 pixels -> 16 shifts in total
 reg [5:0] img_shift_cnt;
 reg img_pending; // has shifted all pixels in img_row_pixel_buf, still waiting for img_read_valid to be high to load the next row
+reg img_read_done;
 
 // shift regs for conv
 // up sampling: stride = 1
@@ -522,10 +523,13 @@ reg [127:0] us_3x3_window[0:15][0:8]; // to store the 3x3 window of the current 
 // down sampling: stride = 4
 // 64*2+2 = 130, each with 8 bit
 reg [7:0] ds_conv_sr[0:130];
-reg [65:0] ds_send2pipe; // high if we reach the stride-4 position, need to send the ds_3x3_window values to MACs
+reg [65:0] ds_center_valid; // high if we reach the stride-4 position, need to send the ds_3x3_window values to MACs
 // the row & col counter for ds_conv_sr, used to determine zero padding
 reg [5:0] ds_row_cnt, ds_col_cnt; // 64x64
+wire [3:0] out_x, out_y;
 reg [7:0] ds_3x3_window[0:8]; // to store the 3x3 window of the current pixel, used as the input of the MACs
+assign out_x = ds_row_cnt >> 2;
+assign out= ds_col_cnt >> 2;
 
 // final IOs of MACs
 reg [71:0] conv_mac_i_data[0:15];
@@ -592,6 +596,7 @@ always @(posedge clk or negedge rst_n) begin : img_read_ctrl
         img_read_cnt <= 0;
         img_pending <= 0;
         img_row_pixel_buf <= 0;
+        img_read_done <= 0;
     end else begin
         if(!en || !weight_allset)begin
             img_read_addr <= 0;
@@ -599,16 +604,19 @@ always @(posedge clk or negedge rst_n) begin : img_read_ctrl
             img_read_cnt <= 0;
             img_pending <= 0;
             img_row_pixel_buf <= 0;
+            img_read_done <= 0;
         end else begin
             
             // we can start reading the image data once all the weights are read, and the MACs are ready to compute
-            img_read_req <= (img_read_addr == 63 && img_read_valid) ? 0 : (img_shift_cnt==63); // stop requesting when we have read all the rows we need, and the last read value is returned
+            img_read_req <= (img_read_done) ? 0 : (img_shift_cnt==63); // stop requesting when we have read all the rows we need, and the last read value is returned
             img_read_addr <= img_read_valid ? img_read_addr + 1 : img_read_addr; // increment the read address when the read value is returned, so that the next value can be returned in the next cycle
             if(img_pending)begin
                 img_pending <= !img_read_valid;
             end else begin
-                img_pending <= (img_shift_cnt==63);
+                img_pending <= (img_shift_cnt==63) && !img_read_done;
             end
+
+            img_read_done <= img_read_done || (img_read_addr == 63 && img_read_valid);
 
             img_read_cnt <= img_read_valid ? img_read_cnt + 1 : img_read_cnt; // increment the row count when the read value is returned
              // update the pixel buffer with the new row of pixels when the read value is returned
@@ -649,6 +657,21 @@ always @(posedge clk or negedge rst_n) begin
     end
 end
 
+always @(posedge clk or negedge rst_n) begin
+    if(!rst_n)begin
+        ds_center_valid <= 0;
+        ds_row_cnt <= 0;
+        ds_col_cnt <= 0;
+    end else begin
+        ds_center_valid[0] <= (ds_row_cnt!=63 || ds_col_cnt != 63) && en && weight_allset && !is_us_conv && !img_pending;
+        for(integer i=1;i<66;i=i+1)begin
+            ds_center_valid[i] <= ds_center_valid[i-1];
+        end
+        ds_col_cnt <= ds_col_cnt + ds_center_valid[65];
+        ds_row_cnt <= ds_row_cnt + ds_center_valid[65] && (ds_col_cnt == 63);
+    end
+end
+
 // down sampling shift reg control logic (stride = 4)
 // read the first 4 elements in img_row_pixel_buf into ds_conv_sr
 // and img_row_pixel_buf will shift left 4 elements so the next 4 elements will be moved to the left end
@@ -662,7 +685,7 @@ always @(posedge clk or negedge rst_n) begin : img_row_pixel_buf_shift_logic
             ds_conv_sr[i] <= 0;
         end
     end else begin
-        if(!en)begin
+        if(!en|| !weight_allset)begin
             // ds_center_valid <= 0;
             img_shift_cnt <= 0;
             for(integer i=0;i<131;i=i+1)begin
@@ -672,7 +695,8 @@ always @(posedge clk or negedge rst_n) begin : img_row_pixel_buf_shift_logic
             // accept inputs from sram_img
             // shift the shift reg every cycle, and update the center valid signal accordingly
             if(!is_us_conv)begin
-                img_shift_cnt <= img_read_valid ? 0 : img_shift_cnt+1;
+                img_shift_cnt <= img_pending ? 0 : img_shift_cnt+1;
+
                 if(!img_pending)begin
                     // shift the first 8bit element in img_row_pixel_buf to ds_conv_sr
                     ds_conv_sr[0] <= img_row_pixel_buf[511:504];
@@ -690,14 +714,14 @@ end
 always @(posedge clk or negedge rst_n) begin
     if(!rst_n) begin
         us_center_valid <= 0;
-        img_shift_cnt <= 0;
+        
         for(integer i=0;i<35;i=i+1)begin
             us_conv_sr[i] <= 0;
         end
     end else begin
         if(!en)begin
             us_center_valid <= 0;
-            img_shift_cnt <= 0;
+            
             for(integer i=0;i<35;i=i+1)begin
                 us_conv_sr[i] <= 0;
             end
@@ -718,8 +742,7 @@ always @(*) begin : mac_input_valid_selection
         conv_mac_i_valid = us_center_valid;
     end else begin
         // TODO: make sure the stride-4 input can really be available
-        //  every cycle after the first input reaches ds center
-        conv_mac_i_valid = 0/*ds_center_valid*/;
+        conv_mac_i_valid = ds_center_valid[65] && (ds_row_cnt[1:0]==2'd0) && (ds_col_cnt[1:0]==2'd0);
     end
 end
 

@@ -15,7 +15,7 @@
 
 `include "PATTERN.v"
 `ifdef RTL
-    `include "DRAM_CTRL.vp"
+    `include "DRAM_CTRL.v"
     `include "HARVESTER.vp"
 `endif
 `ifdef GATE
