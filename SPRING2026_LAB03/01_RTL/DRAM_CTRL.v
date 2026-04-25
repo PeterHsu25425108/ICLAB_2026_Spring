@@ -1,25 +1,3 @@
-// submodule of DRAM_CTRL, maintains the state of a bank
-
-module BankFSM(
-    input clk,
-    input rst_n,
-    input accessed, // whether this bank is being accessed
-
-   
-    output reg any_row_open,
-    output reg active_row_addr
-
-);
-
-reg [1:0] wait_counter;
-reg [2:0] ras_counter[0:3];
-
-
-
-endmodule
-
-
-
 // Note:
 // 1. valids raise independent of readies, but they have to stay HIGH UNTIL HANDSHAKE OCCURS
 // 2. ready signals can wait for valids, but valids cannot wait for readies.
@@ -54,7 +32,7 @@ module DRAM_CTRL (
 
 
     // DRAM master interface
-    output      [3:0]   dram_cmd,  // {CS_n, RAS_n, CAS_n, WE_n}
+    output reg  [3:0]   dram_cmd,  // {CS_n, RAS_n, CAS_n, WE_n}
     output reg  [1:0]   dram_ba,
     output reg  [10:0]  dram_addr,
     output reg  [63:0]  dram_wdata,
@@ -64,34 +42,80 @@ module DRAM_CTRL (
 );
 // tracking whether we are processing read or write request rn
 reg is_reading;
-// control the refreshing of latched w_data, aw_addr, ar_addr
-wire refresh_addr_w, refresh_addr_r, refresh_data_w;
 // the latched aw_addr and ar_addr
-reg [15:0] addr_w_latched, addr_r_latched;
+reg [15:0] aw_addr_buf, ar_addr_buf;
 // the latched w_data
-reg [64:0] data_w_latched;
+reg [64:0] w_data_buf;
 
-
-// the prepared dram interface output for the nxt_cycle
-reg [1:0] nxt_dram_ba;
-reg [10:0] nxt_dram_addr;
-
-// dram ctrl states
+// dram ctrl commands
 parameter NOP = 3'b111;
 parameter ACT = 3'b011;
 parameter READ = 3'b101;
 parameter WRITE = 3'b100;
 parameter PRE = 3'b010;
 
-// indicate if there is a aw_addr without 
-// case 1: aw_valid = 1, w_valid = 1
-
-reg lingering_aw_handshake;
-// latched aw_addr
-reg [15:0] aw_addr_latched, nxt_aw_addr_latched;
-
 // the state of dram_ctrl, directly mapping to the current dram_cmd output
 reg [2:0] state, nxt_state;
+parameter BA_INIT = 2'd0;
+parameter BA_ACT_ROW = 2'd1;
+parameter BA_OPEN = 2'd2;
+parameter BA_PRE = 2'd3;
+// --- Control regs and wires for the 4 banks --- 
+// bank state
+reg [1:0] ba_st, nxt_ba_st;
+
+// counters
+reg [2:0] ras_cnt[0:3]; // count t_RAS
+reg [2:0] wait_cnt[0:3]; // count other wait times for each state
+
+genvar i;
+// -----------------------------------------------
+
+generate
+    for(i=0;i<4;i=i+1)begin : dram_bank_ctrl
+        always @(posedge clk or negedge rst_n) begin : bank_cnt_ctrl
+            if(!rst_n)begin
+                ras_cnt[i] <= 0;
+                wait_cnt[i] <= 0;
+            end else begin
+                if(ba_st[i] != nxt_ba_st[i]) begin
+                    wait_cnt[i] <= 0;
+                end
+            end
+        end
+
+        always @(*) begin : nxt_ba_st_logic
+
+            nxt_ba_st[i] = ba_st[i];
+            case(ba_st[i])
+            BA_INIT:begin
+                
+            end
+            BA_ACT_ROW:begin
+                
+            end
+            BA_PRE:begin
+                
+            end
+            BA_OPEN:begin
+                
+            end
+            default:begin
+                
+            end
+            endcase
+        end
+
+        always @(posedge clk or negedge rst_n) begin
+            if(!rst_n)begin
+                ba_st[i] <= BA_INIT;
+            end else begin
+                ba_st[i] <= nxt_ba_st[i];
+            end
+        end
+
+    end
+endgenerate
 
 always @(posedge clk or negedge rst_n) begin
     if(!rst_n) begin
@@ -101,21 +125,12 @@ always @(posedge clk or negedge rst_n) begin
     end
 end
 
-assign dram_cmd = {1'b0, state}; // CS_n is always 0 (active)
-// TODO: determine how to control nxt dram interface outputs: controled by is_reading selection?
-// always @(*) begin : nxt_dram_output_logic
-    // case(nxt_state)
-    // ACT: nxt_dram_addr =
-    // endcase
-// end
-
-always@(posedge clk or negedge rst_n) begin
+always@(posedge clk or negedge rst_n) begin : dram_interface_ctrl
     if(!rst_n) begin
         {dram_ba, dram_addr, dram_wdata} <= 0;
+        dram_cmd <= NOP;
     end else begin
-        dram_ba <= nxt_dram_ba;
-        dram_addr <= nxt_dram_addr;
-        dram_wdata <= data_w_latched;
+        
     end
 end
 
@@ -131,20 +146,11 @@ assign b_resp = 2'b0;
 assign aw_ready = (nxt_state == WRITE);
 
 
-
-always @(*) begin : nxt_aw_addr_latched_logic
-    if(aw_addr_wait_w_data) begin
-        
-    end else begin
-        
-    end
-end
-
-always @(posedge clk or negedge rst_n) begin : aw_addr_latching
+always @(posedge clk or negedge rst_n) begin : read_ch_buffers
     if(!rst_n) begin
-        aw_addr_latched <= 0;
+        ar_addr_buf <= 0;
     end else begin
-        aw_addr_latched <= nxt_aw_addr_latched;
+        
     end
 end
 
