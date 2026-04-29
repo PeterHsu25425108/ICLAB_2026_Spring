@@ -5,12 +5,13 @@ module Sync_FIFO #(
     PTR_WID = 4
 )(
     input w_en,
-    input r_en,
+    input pop_en,
     input clk,
     input rst_n,
     input [DATA_WID-1:0] w_data,
 
     output reg [DATA_WID-1:0] r_data,
+    // output [DATA_WID-1:0] peek,
     output full,
     output empty
 );
@@ -18,6 +19,11 @@ module Sync_FIFO #(
 reg [PTR_WID-1:0] w_ptr, r_ptr;
 reg [DATA_WID-1:0] fifo [0:FIFO_LEN-1];
 integer i;
+
+// assign peek = fifo[r_ptr[PTR_WID-2:0]];
+assign empty = &(w_ptr ^~ r_ptr); // (w_ptr == r_ptr)
+assign full = (w_ptr[PTR_WID-1] ^ r_ptr[PTR_WID-1]) && 
+                &(w_ptr[PTR_WID-2:0] ^~ r_ptr[PTR_WID-2:0]); // (w_ptr[PTR_WID-2:0] == r_ptr[PTR_WID-2:0])
 
 always @(posedge clk or negedge  rst_n) begin
     if(!rst_n)begin
@@ -34,16 +40,12 @@ always @(posedge clk or negedge  rst_n) begin
         end
 
         // read
-        if(!empty && r_en)begin
+        if(!empty && pop_en)begin
             r_ptr <= r_ptr + 1;
             r_data <= fifo[r_ptr[PTR_WID-2:0]];
         end
     end
 end
-
-assign empty = &(w_ptr ^~ r_ptr); // (w_ptr == r_ptr)
-assign full = (w_ptr[PTR_WID-1] ^ r_ptr[PTR_WID-1]) && 
-                &(w_ptr[PTR_WID-2:0] ^~ r_ptr[PTR_WID-2:0]); // (w_ptr[PTR_WID-2:0] == r_ptr[PTR_WID-2:0])
 
 endmodule
 
@@ -82,9 +84,9 @@ module DRAM_CTRL (
 
     // DRAM master interface
     output reg  [3:0]   dram_cmd,  // {CS_n, RAS_n, CAS_n, WE_n}
-    output reg  [1:0]   dram_ba,
-    output reg  [10:0]  dram_addr,
-    output reg  [63:0]  dram_wdata,
+    output   [1:0]   dram_ba,
+    output  [10:0]  dram_addr,
+    output  [63:0]  dram_wdata, // directly connected to wdata_fifo's rdata so it is a reg output
     input [63:0]        dram_rdata,
     input               dram_valid
 
@@ -99,22 +101,30 @@ parameter PRE = 3'b010;
 // --- Control regs and wires for the 4 banks --- 
 
 // the state of the axi interface ctrl
-reg [1:0] axi_st, nxt_axi_st;
+reg [2:0] axi_st, nxt_axi_st;
+// the nxt dram cmd
+reg [3:0] nxt_dram_cmd;
 
 parameter AXI_IDLE = 'd0;
 parameter AXI_WRITE = 'd1;
 parameter AXI_READ = 'd2;
-parameter AXI_WAIT_WDATA = 'd3; // got aw_addr but w_data_buf is empty, cannot proceed to send write command just yet
+parameter AXI_W_WAIT = 'd3; // got aw_addr but w_data_buf is empty or opened_row[req_ba] != req_row, cannot proceed to send write command just yet
+parameter AXI_R_WAIT = 'd4;
+parameter AXI_CHECK_AW = 'd5;
+parameter AXI_CHECK_AR = 'd6;
 
 // the latched aw_addr and ar_addr
-wire [15:0] aw_buf_wdata, ar_buf_wdata, aw_buf_rdata, ar_buf_rdata;
+wire [15:0] /*aw_buf_wdata, ar_buf_wdata,*/ aw_buf_rdata, ar_buf_rdata;
 // the latched w_data
-wire [63:0] w_buf_wdata, w_buf_rdata;
+wire [63:0] /*w_buf_wdata,*/ w_buf_rdata;
+// wire [15:0] peek_aw, peek_ar;
 
 // ctrl signals of the 3 buffers
-wire w_en_aw, r_en_aw, full_aw, empty_aw;
-wire w_en_ar, r_en_ar, full_ar, empty_ar;
-wire w_en_wdata, r_en_wdata, full_wdata, empty_wdata;
+wire w_en_aw, full_aw, empty_aw;
+wire w_en_ar, full_ar, empty_ar;
+wire w_en_wdata, full_wdata, empty_wdata;
+
+reg pop_en_ar, pop_en_aw, pop_en_wdata;
 
 // the requested dram addr (selected from aw_addr_buf and ar_addr_buf)
 wire [15:0] req_addr;
@@ -122,12 +132,17 @@ wire [1:0] req_ba;
 wire [5:0] req_row;
 wire [7:0] req_col;
 
+// wire [15:0] peek_addr;
+// wire [1:0] peek_ba;
+// wire [5:0] peek_row;
+// wire [7:0] peek_col;
+
 // --- Control regs and wires for the 4 banks --- 
 
 // bank state
 reg [1:0] ba_st[0:3], nxt_ba_st[0:3];
 
-parameter BA_INIT = 2'd0;
+parameter BA_IDLE = 2'd0;
 parameter BA_ACT_ROW = 2'd1; // ACT is issued at the first cycle of this state
 parameter BA_OPEN = 2'd2;
 parameter BA_PRE = 2'd3; // PRE is issued at the first cycle of this state
@@ -135,6 +150,10 @@ parameter BA_PRE = 2'd3; // PRE is issued at the first cycle of this state
 // record the opened row of each bank
 reg [5:0] opened_row[0:3];
 reg [3:0] any_row_opened;
+
+// indicate if the requested addr result in row miss 
+// either no rows are opened, or the opened row != req_row
+wire [3:0] row_miss;
 
 // counters
 reg [2:0] ras_cnt[0:3]; // count t_RAS
@@ -144,20 +163,22 @@ wire [3:0] can_precharge; // indicate if it has been 5 cycles after ACT is issue
 genvar i;
 // -----------------------------------------------
 
-// axi buffers
+// axi buffers w_en
 assign w_en_ar = ar_valid && !full_ar;
 assign w_en_aw = aw_valid && !full_aw;
 assign w_en_wdata = w_valid && !full_wdata;
-assign r_en_ar = (nxt_axi_st == READ);
-assign r_en_aw = (nxt_axi_st == WRITE);
-assign r_en_wdata = (nxt_axi_st == WRITE);
 
 // req dram addr
-assign req_addr = (axi_st == READ) ? ar_buf_rdata : aw_buf_rdata;
+assign req_addr = (axi_st == READ || axi_st == AXI_R_WAIT) ? ar_buf_rdata : aw_buf_rdata;
 assign req_ba = req_addr[15:14];
 assign req_row = req_addr[13:8];
 assign req_col = req_addr[7:0];
 
+// peek addr (commented out - using req_ counterparts instead)
+// assign peek_addr = (axi_st == READ || axi_st == AXI_W_WAIT) ? peek_ar : peek_aw;
+// assign peek_ba = peek_addr[15:14];
+// assign peek_row = peek_addr[13:8];
+// assign peek_col = peek_addr[7:0];
 
 // ==== ar handshake logic ====
 // READ command sent <= ar handshake, to ensure the correctness of r_data output order 
@@ -184,52 +205,59 @@ assign w_ready = !full_wdata && w_valid;
 assign aw_ready = !full_aw && aw_valid;
 
 // ==== b ch logic ========
-assign b_valid = axi_st == AXI_WRITE;
+// raise b_valid at the same cycle as when the write cmd is sent
+assign b_valid = (dram_cmd == WRITE);
 
 // ========= FIFOs ========
-Sync_FIFO  #(.DATA_WID(64)) w_buf(
+Sync_FIFO  #(.DATA_WID(64)) wdata_fifo(
     .clk(clk), 
     .rst_n(rst_n), 
-    .w_data(w_buf_wdata), 
+    .w_data(/*w_buf_wdata*/w_data), 
     .r_data(w_buf_rdata),
     .w_en(w_en_wdata),
-    .r_en(r_en_wdata),
+    .pop_en(pop_en_wdata),
     .full(full_wdata),
+    // .peek(),
     .empty(empty_wdata)
 );
 
-Sync_FIFO #(.DATA_WID(16)) aw_buf(
+Sync_FIFO #(.DATA_WID(16)) aw_fifo(
     .clk(clk), 
     .rst_n(rst_n), 
-    .w_data(aw_buf_wdata), 
+    .w_data(/*aw_buf_wdata*/aw_addr[15:0]), 
     .r_data(aw_buf_rdata),
     .w_en(w_en_aw),
-    .r_en(r_en_aw),
+    .pop_en(pop_en_aw),
     .full(full_aw),
+    // .peek(peek_aw),
     .empty(empty_aw)
+    
 );
 
-Sync_FIFO #(.DATA_WID(16)) ar_buf(
+Sync_FIFO #(.DATA_WID(16)) ar_fifo(
     .clk(clk), 
     .rst_n(rst_n), 
-    .w_data(ar_buf_wdata), 
+    .w_data(/*ar_buf_wdata*/ar_addr[15:0]), 
     .r_data(ar_buf_rdata),
     .w_en(w_en_ar),
-    .r_en(r_en_ar),
+    .pop_en(pop_en_ar),
     .full(full_ar),
+    // .peek(peek_ar),
     .empty(empty_ar)
 );
 
 // dram bank counters and fsm
 generate
     for(i=0;i<4;i=i+1)begin : dram_bank_ctrl
-        always @(posedge clk or negedge rst_n) begin
+
+        assign row_miss[i] = !any_row_opened[i] || (opened_row[req_ba] != req_row);
+        always @(posedge clk or negedge rst_n) begin : row_ctrl_signals
             if(!rst_n)begin
                 opened_row[i] <= 0;
                 any_row_opened[i] <= 0;
             end else begin
                 // update opened_row when ACTing it
-                if(ba_st[i] == BA_ACT_ROW)begin
+                if(nxt_ba_st[i] == BA_ACT_ROW)begin
                     opened_row[i] <= req_row;
                     any_row_opened[i] <= 1;
                 // reset any_row_opened when transitioning to PRE
@@ -248,7 +276,8 @@ generate
                 if(ba_st[i] != nxt_ba_st[i]) begin
                     wait_cnt[i] <= 0;
                 end else begin
-                    wait_cnt[i] <= wait_cnt[i] + 1;
+                    // hold if wait_cnt reaches 7
+                    wait_cnt[i] <= (&wait_cnt[i]) ? wait_cnt[i] : wait_cnt[i] + 1;
                 end
 
                 if(ba_st[i] != BA_ACT_ROW && nxt_ba_st[i] == BA_ACT_ROW)begin
@@ -267,20 +296,30 @@ generate
             nxt_ba_st[i] = ba_st[i];
 
             case(ba_st[i])
-            BA_INIT:begin
-                // transisition when !empty_ar or !empty_aw?
-                if((axi_st == READ || axi_st == WRITE) && req_ba == i) nxt_ba_st[i] = BA_ACT_ROW;
+            // transition to BA_ACT_ROW when ACT is sent
+            BA_IDLE:begin
+                if(nxt_dram_cmd == ACT && req_ba == i) nxt_ba_st[i] = BA_ACT_ROW;
             end
+            // transition to Ba_open BY ITSELF
             BA_ACT_ROW:begin
-                if(wait_cnt[i] == 1) nxt_ba_st[i] = BA_OPEN;
+                if(wait_cnt[i] >= 1) nxt_ba_st[i] = BA_OPEN;
             end
+            // 1. stay the same until wait_cnt[i] == 2
+            // 2. if the nxt_dram_cmd == ACT at this moment, transition to BA_ACT_ROW
+            // 3. else, transition tp BA_IDLE and wait for ACT command
             BA_PRE:begin
-                if(wait_cnt[i]==2 && ras_cnt[i] == 4) nxt_ba_st[i] = BA_ACT_ROW;
-            end
-            BA_OPEN:begin
-                if(req_ba == i && req_row != opened_row[i])begin
-                    nxt_ba_st[i] = BA_PRE;
+                if(wait_cnt[i] >= 2)begin
+                    if(nxt_dram_cmd == ACT && req_ba == i)begin
+                        nxt_ba_st[i] = BA_ACT_ROW;
+                    end else begin
+                        nxt_ba_st[i] = BA_IDLE;
+                    end
                 end
+            end
+            // stay the same until PRE is sent
+            // ras_cnt check should be handled by nxt_dram_ctrl logic
+            BA_OPEN:begin
+                if(req_ba == i && nxt_dram_cmd == PRE) nxt_ba_st[i] = BA_PRE;
             end
             // maintain the current state
             default:begin
@@ -289,9 +328,9 @@ generate
             endcase
         end
 
-        always @(posedge clk or negedge rst_n) begin
+        always @(posedge clk or negedge rst_n) begin : ba_st_seq
             if(!rst_n)begin
-                ba_st[i] <= BA_INIT;
+                ba_st[i] <= BA_IDLE;
             end else begin
                 ba_st[i] <= nxt_ba_st[i];
             end
@@ -300,7 +339,7 @@ generate
     end
 endgenerate
 
-always @(posedge clk or negedge rst_n) begin
+always @(posedge clk or negedge rst_n) begin : axi_st_seq
     if(!rst_n) begin
         axi_st <= NOP;
     end else begin
@@ -308,36 +347,58 @@ always @(posedge clk or negedge rst_n) begin
     end
 end
 
-always @(*) begin : nxt_axi_state
+always @(*) begin : pop_en_logic
+    // pop wdata when writting in the nxt cycle
+    pop_en_wdata = (nxt_axi_st == AXI_WRITE);
+end
+// DO NOT take nxt_dram_cmd or nxt_ba_st as input
+always @(*) begin : nxt_axi_state_logic
     nxt_axi_st = axi_st;
+
     case(axi_st)
     AXI_IDLE:begin
         if(!empty_ar)begin
-            nxt_axi_st = AXI_READ;
+            nxt_axi_st = AXI_CHECK_AR;
         end else if(!empty_aw)begin
-            if(!empty_wdata)begin
-                // switch to the write mode
-                nxt_axi_st = AXI_WRITE;
-            end else begin
-                // need to wait for the wdata
-                nxt_axi_st = AXI_WAIT_WDATA;
-            end
+            nxt_axi_st = AXI_CHECK_AW;
         end
     end
 
-    AXI_READ:begin
-        if(empty_ar) nxt_axi_st = AXI_IDLE;
+    AXI_CHECK_AR:begin
+        if(!row_miss[req_ba])begin
+            nxt_axi_st = AXI_READ;
+        end else begin // row miss, precharge the bank if ras_cnt >= 4
+            nxt_axi_st = AXI_R_WAIT;
+        end
     end
 
-    AXI_WAIT_WDATA:begin
-        if(!empty_wdata) nxt_axi_st = AXI_WRITE;
+    AXI_CHECK_AW:begin
+        if(!empty_wdata && !row_miss[req_ba])begin
+            nxt_axi_st = AXI_WRITE;
+        end else begin
+            nxt_axi_st = AXI_W_WAIT;
+        end
+    end
+
+    AXI_R_WAIT:begin
+        if(!row_miss[req_ba]) nxt_axi_st = AXI_READ;
+    end
+
+    AXI_READ:begin
+        if(empty_ar && empty_aw) nxt_axi_st = AXI_IDLE;
+        else if(empty_ar) nxt_axi_st = AXI_CHECK_AW;
+        else nxt_axi_st = AXI_CHECK_AR;
+    end
+
+    AXI_W_WAIT:begin
+        if(!empty_wdata&& !row_miss[req_ba]) nxt_axi_st = AXI_WRITE;
     end
 
     AXI_WRITE:begin
         if(empty_aw)begin
             nxt_axi_st = AXI_IDLE;
         end else if(empty_wdata)begin
-            nxt_axi_st = AXI_WAIT_WDATA;
+            nxt_axi_st = AXI_W_WAIT;
         end
     end
     default:begin
@@ -349,33 +410,72 @@ end
 // TODO: rewrite dram_cmd ctrl, nxt_ba_st, wait_cnt control logic 
 // so the timing when PRE, ACT, WRITE, READ cmd is sent is clearly defined
 // also, nxt_ba_st should referece from dram_cmd cuz we cannot possibly send ACT/PRE to multiple banks
-always@(*) begin : dram_cmd_ctrl
-    // dram cmd
-    dram_cmd = NOP;
-    case(axi_st)
-    AXI_WRITE:begin
-        if(ba_st[req_ba] == BA_OPEN)begin
-            dram_cmd = (req_row != opened_row[req_ba]) ? PRE : WRITE;
-        end else if(ba_st[req_ba] == ACT) begin
-            // dram_cmd = (wait_cnt[req_ba] == 1) ? 
-        end else if(ba_st[req_ba] == PRE)begin
-            // dram_cmd = 
-        end
+always@(posedge clk or negedge rst_n) begin : dram_cmd_seq
+    
+    if(!rst_n)begin
+        dram_cmd <= NOP;
+    end else begin
+        dram_cmd <= nxt_dram_cmd;
     end
-    AXI_READ:begin
-        if(ba_st[req_ba] == BA_OPEN)begin
-            dram_cmd = (req_row != opened_row[req_ba]) ? PRE : READ;
-        end
-    end
-    AXI_WAIT_WDATA:begin
-        
-    end
-
-    default:begin
-        dram_cmd = NOP;
-    end
-    endcase
 end
 
+// cannot take nxt_ba_st as input otherwise latch will be synthesized
+always @(*) begin : nxt_dram_cmd_logic
+    nxt_dram_cmd = NOP;
+    // req_addr is yet to be poped at AXI_IDLE, leave the dram alone
+    if(axi_st != AXI_IDLE) begin
+        case(ba_st[req_ba])
+        BA_IDLE:begin
+            // send ACT if row_miss occurs
+            if(row_miss[req_ba]) nxt_dram_cmd = ACT;
+        end
+
+        BA_ACT_ROW:begin
+            // CAN send write/read if wait_cnt[req_ba] >= 1 (and !row_miss[req_ba]
+            // tho at this point there shouldn't be row_miss)
+            if(wait_cnt[req_ba] >= 1 /*&& !row_miss[req_ba]*/) begin
+                if(nxt_axi_st == AXI_WRITE)begin
+                    nxt_dram_cmd = WRITE;
+                end else if(nxt_axi_st == AXI_READ)begin
+                    nxt_dram_cmd = READ;
+                end
+            end
+        end
+
+        BA_OPEN:begin
+            // CAN send write/read if nxt_axi_st == AXI_WRITE/READ
+            // send PRE if row_miss[req_ba] && ras_cnt[req_ba] >= 4
+            if(row_miss[req_ba] && ras_cnt[req_ba] >= 4)begin
+                nxt_dram_cmd = PRE;
+            end
+            else if(nxt_axi_st == AXI_READ)begin
+                nxt_dram_cmd = READ;
+            end else if(nxt_axi_st == AXI_WRITE)begin
+                nxt_dram_cmd = WRITE;
+            end
+        end
+
+        BA_PRE:begin
+            // send ACT if wait_cnt[req_ba] >= 2
+            if(wait_cnt[req_ba] >= 2) begin
+                nxt_dram_cmd = ACT;
+            end
+        end
+
+        default:begin
+            nxt_dram_cmd = NOP;
+        end
+        endcase
+    end
+end
+
+// dram_addr, dram_ba, dram_wdata
+assign dram_wdata = w_buf_rdata;
+assign dram_ba = req_ba;
+// dram_addr = col addr for ACT
+// dram_addr = row addr for W/R
+assign dram_addr = (dram_cmd == ACT) ? req_col : req_row;
+// dram_addr is determined by the operation we are applying to the dram
+// assign dram_addr = ;
 
 endmodule
