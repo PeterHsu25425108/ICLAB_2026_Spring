@@ -149,7 +149,7 @@ parameter BA_PRE = 2'd3; // PRE is issued at the first cycle of this state
 
 // record the opened row of each bank
 reg [5:0] opened_row[0:3];
-reg [3:0] any_row_opened;
+wire [3:0] any_row_opened;
 
 // indicate if the requested addr result in row miss 
 // either no rows are opened, or the opened row != req_row
@@ -160,8 +160,52 @@ reg [2:0] ras_cnt[0:3]; // count t_RAS
 reg [2:0] wait_cnt[0:3]; // count other wait times for each state
 wire [3:0] can_precharge; // indicate if it has been 5 cycles after ACT is issued
 
+// bank state transition conditions && dram_cmd issue condition
+reg send_ACT_nxt, send_PRE_nxt;
+reg send_WR_nxt;
+
+// axi state transition conditions
+
+
 genvar i;
 // -----------------------------------------------
+
+// bank state transition conditions && dram_cmd issue condition
+always @(*) begin
+    send_ACT_nxt = 0;
+    send_PRE_nxt = 0;
+    send_WR_nxt = 0;
+
+    // send NOP at AXI_IDLE cuz req_addr is yet to be poped
+    if(axi_st != AXI_IDLE)begin
+        case(ba_st[req_ba])
+        BA_OPEN:begin
+            if(!row_miss[req_ba]) send_WR_nxt = 1;
+            else if(ras_cnt[req_ba] >= 5) send_PRE_nxt = 1;
+        end
+
+        BA_ACT_ROW:begin
+            // in reality row_miss[req_ba] should be 1 at this moment
+            if(wait_cnt[req_ba]>=2 /*&& !row_miss[req_ba]*/) send_WR_nxt = 1;
+        end
+
+        BA_PRE:begin
+            if(wait_cnt[req_ba] >= 3) send_ACT_nxt = 1;
+        end
+
+        BA_IDLE:begin
+            // activate the row right away
+            send_ACT_nxt = 1;
+        end
+
+        default:begin
+            send_ACT_nxt = 0;
+            send_PRE_nxt = 0;
+            send_WR_nxt = 0;
+        end
+        endcase
+    end
+end
 
 // axi buffers w_en
 assign w_en_ar = ar_valid && !full_ar;
@@ -249,20 +293,20 @@ Sync_FIFO #(.DATA_WID(16)) ar_fifo(
 // dram bank counters and fsm
 generate
     for(i=0;i<4;i=i+1)begin : dram_bank_ctrl
-
+        assign any_row_opened[i] = (ba_st[i] == BA_ACT_ROW) || (ba_st[i] == BA_OPEN);
         assign row_miss[i] = !any_row_opened[i] || (opened_row[req_ba] != req_row);
         always @(posedge clk or negedge rst_n) begin : row_ctrl_signals
             if(!rst_n)begin
                 opened_row[i] <= 0;
-                any_row_opened[i] <= 0;
+                // any_row_opened[i] <= 0;
             end else begin
                 // update opened_row when ACTing it
                 if(nxt_ba_st[i] == BA_ACT_ROW)begin
                     opened_row[i] <= req_row;
-                    any_row_opened[i] <= 1;
+                    // any_row_opened[i] <= 1;
                 // reset any_row_opened when transitioning to PRE
                 end else if(nxt_ba_st[i] == BA_PRE) begin
-                    any_row_opened[i] <= 0;
+                    // any_row_opened[i] <= 0;
                 end
             end
         end
@@ -280,13 +324,14 @@ generate
                     wait_cnt[i] <= (&wait_cnt[i]) ? wait_cnt[i] : wait_cnt[i] + 1;
                 end
 
+                // reset ras_cnt when transitioning into BA_ACT_ROW
                 if(ba_st[i] != BA_ACT_ROW && nxt_ba_st[i] == BA_ACT_ROW)begin
-                    // reset ras_cnt when transitioning into BA_ACT_ROW
                     ras_cnt[i] <= 0;
-                end else if(ras_cnt[i] < 5) begin
-                    ras_cnt[i] <= ras_cnt[i] + 1;
+                // end else if(ras_cnt[i] < 5) begin
+                //     ras_cnt[i] <= ras_cnt[i] + 1;
                 end else begin
-                    ras_cnt[i] <= ras_cnt[i];
+                    // ras_cnt[i] <= ras_cnt[i];
+                    ras_cnt[i] <= &ras_cnt[i] ? ras_cnt[i] : ras_cnt[i] + 1;
                 end
             end
         end
@@ -296,31 +341,36 @@ generate
             nxt_ba_st[i] = ba_st[i];
 
             case(ba_st[i])
-            // transition to BA_ACT_ROW when ACT is sent
-            BA_IDLE:begin
-                if(nxt_dram_cmd == ACT && req_ba == i) nxt_ba_st[i] = BA_ACT_ROW;
-            end
+
             // transition to Ba_open BY ITSELF
             BA_ACT_ROW:begin
                 if(wait_cnt[i] >= 2) nxt_ba_st[i] = BA_OPEN;
             end
-            // 1. stay the same until wait_cnt[i] == 2
+
+            // 1. stay the same until wait_cnt[i] >= 3
             // 2. if the nxt_dram_cmd == ACT at this moment, transition to BA_ACT_ROW
             // 3. else, transition tp BA_IDLE and wait for ACT command
             BA_PRE:begin
                 if(wait_cnt[i] >= 3)begin
-                    if(nxt_dram_cmd == ACT && req_ba == i)begin
+                    if(/*nxt_dram_cmd == ACT*/send_ACT_nxt && req_ba == i)begin
                         nxt_ba_st[i] = BA_ACT_ROW;
                     end else begin
                         nxt_ba_st[i] = BA_IDLE;
                     end
                 end
             end
+
+            // transition to BA_ACT_ROW when ACT is sent
+            BA_IDLE:begin
+                if(/*nxt_dram_cmd == ACT*/send_ACT_nxt && req_ba == i) nxt_ba_st[i] = BA_ACT_ROW;
+            end
+
             // stay the same until PRE is sent
             // ras_cnt check should be handled by nxt_dram_ctrl logic
             BA_OPEN:begin
-                if(req_ba == i && nxt_dram_cmd == PRE) nxt_ba_st[i] = BA_PRE;
+                if(req_ba == i && send_PRE_nxt/*nxt_dram_cmd == PRE*/) nxt_ba_st[i] = BA_PRE;
             end
+            
             // maintain the current state
             default:begin
                 nxt_ba_st[i] = ba_st[i];
