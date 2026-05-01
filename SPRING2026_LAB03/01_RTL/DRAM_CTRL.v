@@ -76,9 +76,9 @@ module DRAM_CTRL (
     input               ar_valid,
     output              ar_ready,
 
-    output reg [63:0]   r_data,
+    output  [63:0]   r_data,
     output wire [1:0]   r_resp,
-    output reg          r_valid,
+    output           r_valid,
     input               r_ready,
 
 
@@ -87,7 +87,7 @@ module DRAM_CTRL (
     output reg  [3:0]   dram_cmd,  // {CS_n, RAS_n, CAS_n, WE_n}
     output reg  [1:0]   dram_ba,
     output reg [10:0]  dram_addr,
-    output  [63:0]  dram_wdata, // directly connected to wdata_fifo's rdata so it is a reg output
+    output reg [63:0]  dram_wdata, // directly connected to wdata_fifo's rdata so it is a reg output
     input [63:0]        dram_rdata,
     input               dram_valid
 
@@ -117,13 +117,18 @@ parameter AXI_READ = 'd2;
 // the latched aw_addr and ar_addr
 wire [15:0] /*aw_buf_wdata, ar_buf_wdata,*/ aw_buf_rdata, ar_buf_rdata;
 // the latched w_data
-wire [63:0] /*w_buf_wdata,*/ w_buf_rdata;
 // wire [15:0] peek_aw, peek_ar;
 
 // ctrl signals of the 3 buffers
 wire w_en_aw, full_aw, empty_aw;
 wire w_en_ar, full_ar, empty_ar;
 wire w_en_wdata, full_wdata, empty_wdata;
+
+// indicate if the wdata is available at req_wdata
+// this need to be true before issuing a WRITE to dram
+// during axi_st == AXI_WRITE, if this is false, we should 
+// wait for !empty_wdata before poping one element from fifo_wdata
+reg req_wdata_valid;
 
 reg pop_en_ar, pop_en_aw, pop_en_wdata;
 
@@ -132,6 +137,7 @@ wire [15:0] req_addr;
 wire [1:0] req_ba;
 wire [5:0] req_row;
 wire [7:0] req_col;
+wire [63:0] req_wdata;
 
 // wire [15:0] peek_addr;
 // wire [1:0] peek_ba;
@@ -181,13 +187,13 @@ always @(*) begin
     if(axi_st != AXI_IDLE)begin
         case(ba_st[req_ba])
         BA_OPEN:begin
-            if(!row_miss[req_ba]) send_WR_nxt = (axi_st == AXI_READ) ? 1 : !empty_wdata;
+            if(!row_miss[req_ba]) send_WR_nxt = (axi_st == AXI_READ) ? 1 : req_wdata_valid;
             else if(ras_cnt[req_ba] >= 5) send_PRE_nxt = 1;
         end
 
         BA_ACT_ROW:begin
             // in reality row_miss[req_ba] should be 1 at this moment
-            if(wait_cnt[req_ba]>=2 /*&& !row_miss[req_ba]*/) send_WR_nxt = (axi_st == AXI_READ) ? 1 : !empty_wdata;
+            if(wait_cnt[req_ba]>=2 /*&& !row_miss[req_ba]*/) send_WR_nxt = (axi_st == AXI_READ) ? 1 : req_wdata_valid;
         end
 
         BA_PRE:begin
@@ -214,7 +220,7 @@ end
 
 // axi buffers w_en
 assign w_en_ar = ar_valid && !full_ar;
-assign w_en_aw = aw_valid && !full_aw && w_ready;
+assign w_en_aw = aw_valid && !full_aw /*&& w_ready*/;
 assign w_en_wdata = w_valid && !full_wdata;
 
 // req dram addr
@@ -223,26 +229,41 @@ assign req_ba = req_addr[15:14];
 assign req_row = req_addr[13:8];
 assign req_col = req_addr[7:0];
 
-// peek addr (commented out - using req_ counterparts instead)
-// assign peek_addr = (axi_st == READ || axi_st == AXI_W_WAIT) ? peek_ar : peek_aw;
-// assign peek_ba = peek_addr[15:14];
-// assign peek_row = peek_addr[13:8];
-// assign peek_col = peek_addr[7:0];
+// ctrl of req_wdata_valid
+always @(posedge clk or negedge rst_n) begin : req_wdata_valid_logic
+    if(!rst_n)begin
+        req_wdata_valid <= 0;
+    end else begin
+        if(axi_st!= AXI_WRITE && nxt_axi_st == AXI_WRITE)begin
+            req_wdata_valid <= !empty_wdata;
+        end else if(axi_st == AXI_WRITE)begin
+            if(send_WR_nxt)begin
+                req_wdata_valid <= !empty_wdata;
+            end else begin
+                req_wdata_valid <= req_wdata_valid || !empty_wdata;
+            end
+        end else begin
+            req_wdata_valid <= 0;
+        end
+    end
+end
 
 // ==== ar handshake logic ====
 // READ command sent <= ar handshake, to ensure the correctness of r_data output order 
 assign ar_ready = !full_ar && ar_valid;
 
 // ==== r ch logic =====
-always @(posedge clk or negedge rst_n) begin : dram_read_outputs
-    if(!rst_n)begin
-        r_valid <= 0;
-        r_data <= 0;
-    end else begin
-        r_valid <= dram_valid;
-        r_data <= dram_valid ? dram_rdata : 0;
-    end
-end
+assign r_data = dram_rdata;
+assign r_valid = dram_valid;
+// always @(posedge clk or negedge rst_n) begin : dram_read_outputs
+//     if(!rst_n)begin
+//         r_valid <= 0;
+//         r_data <= 0;
+//     end else begin
+//         r_valid <= dram_valid;
+//         r_data <= dram_valid ? dram_rdata : 0;
+//     end
+// end
 
 // both response signals are set to OKAY
 assign r_resp = 2'b00;
@@ -251,7 +272,7 @@ assign b_resp = 2'b00;
 // ==== w and aw handshake logic ====
 // WRITE command sent <= b valid=1(b handshake), aw_ready=1, ensuring write orders are correct
 assign w_ready = !full_wdata && w_valid;
-assign aw_ready = !full_aw && aw_valid && w_ready;
+assign aw_ready = !full_aw && aw_valid /*&& w_ready*/;
 
 // ==== b ch logic ========
 // raise b_valid at the same cycle as when the write cmd is sent
@@ -262,7 +283,7 @@ Sync_FIFO  #(.DATA_WID(64)) wdata_fifo(
     .clk(clk), 
     .rst_n(rst_n), 
     .w_data(/*w_buf_wdata*/w_data), 
-    .r_data(w_buf_rdata),
+    .r_data(req_wdata),
     .w_en(w_en_wdata),
     .pop_en(pop_en_wdata),
     .full(full_wdata),
@@ -403,17 +424,15 @@ always @(posedge clk or negedge rst_n) begin : axi_st_seq
 end
 
 always @(*) begin : pop_en_logic
-    // pop wdata when writting in the nxt cycle
-    pop_en_wdata = (send_WR_nxt && axi_st == AXI_WRITE);
-    
-    // pop_en_ar and pop_en_aw
     pop_en_ar = 0;
     pop_en_aw = 0;
+    pop_en_wdata = 0;
 
     case(axi_st)
     AXI_IDLE:begin
         pop_en_ar = !empty_ar;//(nxt_axi_st == AXI_READ);
         pop_en_aw = empty_ar && !empty_aw;//(nxt_axi_st == AXI_WRITE);
+        pop_en_wdata = pop_en_aw && !empty_wdata;
     end
 
     AXI_READ:begin
@@ -422,10 +441,12 @@ always @(*) begin : pop_en_logic
         pop_en_ar = (!empty_ar && send_WR_nxt);
         // current req_addr will be sent & no more ar_addr to pop && still have aw_addr to pop
         pop_en_aw = (empty_ar && send_WR_nxt && !empty_aw);
+        pop_en_wdata = pop_en_aw && !empty_wdata;
     end
 
     AXI_WRITE:begin
         pop_en_aw = (!empty_aw && send_WR_nxt);
+        pop_en_wdata = (!req_wdata_valid && !empty_wdata && !pop_en_aw) || (pop_en_aw && !empty_wdata);
          // current req_addr will be sent & no more aw_addr to pop && still have ar_addr to pop
         pop_en_ar = (empty_aw && send_WR_nxt && !empty_ar);
     end
@@ -542,13 +563,15 @@ always @(*) begin : nxt_dram_cmd_logic
 end
 
 // dram_addr, dram_ba, dram_wdata
-assign dram_wdata = w_buf_rdata;
+// assign dram_wdata = req_wdata;
 always @(posedge clk or negedge rst_n) begin
     if(!rst_n)begin
         dram_ba <= 0;
         dram_addr <= 0;
+        dram_wdata <= 0;
     end else begin
         dram_ba <= req_ba;
+        dram_wdata <= req_wdata;
         dram_addr <= (nxt_dram_cmd == ACT) ? req_row : req_col;
     end
 end
