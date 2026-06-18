@@ -107,6 +107,8 @@ reg sys_rst = 0; // indicate if the sys has been reset
 //---------------------------------------------------------------------
 reg err_main1, err_main2, err_main3, err_main4, err_main5;
 reg err_axi1, err_axi2, err_axi3, err_axi4, err_axi5, err_axi6;
+reg err_wdata_valid, err_rdata_valid;
+reg err_wdata_reset, err_rdata_reset;
 
 always @(*) begin
     dbg_golden = golden_DRAM[{2'd3, 6'd50, 8'd255}];
@@ -175,6 +177,10 @@ always @(*) begin
     else if (err_main3) SPEC_MAIN3_FAIL;
     else if (err_main4) SPEC_MAIN4_FAIL;
     else if (err_main5) SPEC_MAIN5_FAIL;
+    else if(err_rdata_reset) SPEC_RDATA_RESET_FAIL;
+    else if(err_rdata_valid) SPEC_RDATA_VALID_FAIL;
+    else if(err_wdata_reset) SPEC_WDATA_RESET_FAIL;
+    else if(err_wdata_valid) SPEC_WDATA_VALID_FAIL;
 end
 
 task YOU_PASS_task; begin
@@ -1070,6 +1076,34 @@ always @(negedge clk) begin
     end
 end
 
+// check if wdata and rdata are reset when their valid is low
+always @(negedge clk) begin : data_reset_check
+    if (w_valid === 1'b0) begin
+        if (w_data !== 64'd0) begin
+            err_wdata_reset = 1'b1;
+        end
+    end
+    if (r_valid === 1'b0) begin
+        if (r_data !== 64'd0) begin
+            err_rdata_reset = 1'b1;
+        end
+    end
+end
+
+// check if wdata and rdata are valid when their valid is high
+always @(negedge clk) begin : data_valid_check
+    if (w_valid === 1'b1) begin
+        if (w_data === 64'dx || w_data === 64'dz) begin
+            err_wdata_valid = 1'b1;
+        end
+    end
+    if (r_valid === 1'b1) begin
+        if (r_data === 64'dx || r_data === 64'dz) begin
+            err_rdata_valid = 1'b1;
+        end
+    end
+end
+
 task SPEC_AXI6_FAIL; begin
     // fail_icon_task;
     $display("*************************************************************************");
@@ -1120,6 +1154,54 @@ task SPEC_MAIN5_FAIL; begin
     $display("* SPEC MAIN-5 FAIL                            *");
     $display("* The data in the DRAM should be correct when out_valid is high. *");
     $display(" Error detected at output cycle %d. ", valid_count);
+    $display("*************************************************************************");
+    $finish;
+end endtask
+
+task SPEC_RDATA_RESET_FAIL; begin
+    // fail_icon_task;
+    $display("*************************************************************************");
+    $display("* SPEC RDATA RESET FAIL                            *");
+    $display("* The r_data should be reset when r_valid is low.     *");
+    // display the actual r_data value for debugging
+    $display("* r_data: %h *", r_data);
+    $display(" Error detected at time %t. ", $time);
+    $display("*************************************************************************");
+    $finish;
+end endtask
+
+task SPEC_WDATA_RESET_FAIL; begin
+    // fail_icon_task;
+    $display("*************************************************************************");
+    $display("* SPEC WDATA RESET FAIL                            *");
+    $display("* The w_data should be reset when w_valid is low.     *");
+    // display the actual w_data value for debugging
+    $display("* w_data: %h *", w_data);
+    $display(" Error detected at time %t. ", $time);
+    $display("*************************************************************************");
+    $finish;
+end endtask
+
+task SPEC_WDATA_VALID_FAIL; begin
+    // fail_icon_task;
+    $display("*************************************************************************");
+    $display("* SPEC WDATA VALID FAIL                            *");
+    $display("* The w_data should be valid when w_valid is high.     *");
+    // display the actual w_data value for debugging
+    $display("* w_data: %h *", w_data);
+    $display(" Error detected at time %t. ", $time);
+    $display("*************************************************************************");
+    $finish;
+end endtask
+
+task SPEC_RDATA_VALID_FAIL; begin
+    // fail_icon_task;
+    $display("*************************************************************************");
+    $display("* SPEC RDATA VALID FAIL                            *");
+    $display("* The r_data should be valid when r_valid is high.     *");
+    // display the actual r_data value for debugging
+    $display("* r_data: %h *", r_data);
+    $display(" Error detected at time %t. ", $time);
     $display("*************************************************************************");
     $finish;
 end endtask
