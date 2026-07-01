@@ -1,0 +1,437 @@
+The repository file is HARVESTER.v, not HARTVEST.v. No files were modified.
+
+  ## 1. Required behaviors
+
+   Mode     Value    Input                             Required operation                 Output
+  ━━━━━━━  ━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   READ         0    Bank + source row                 Read columns 0–255                 256 consecutive valid data
+  ───────  ───────  ────────────────────────────────  ─────────────────────────────────  ─────────────────────────────────────
+   WRITE        1    Bank + destination row + 256      Write columns 0–255                One-cycle completion
+                     data
+  ───────  ───────  ────────────────────────────────  ─────────────────────────────────  ─────────────────────────────────────
+   CALC         2    Source row                        Evaluate one tree in each bank     Four consecutive results, banks 0–3
+  ───────  ───────  ────────────────────────────────  ─────────────────────────────────  ─────────────────────────────────────
+   SORT         3    Source and destination rows       Sort 1024 entries across four      One-cycle completion
+                                                       banks
+
+  DRAM address format:
+
+  {bank[1:0], row[5:0], column[7:0]}
+
+  The official behavioral checks are in /RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB03/00_TESTBED/PATTERN.v:375.
+
+  ## 2. Proposed top-level architecture
+
+  Split HARVESTER into five logical blocks:
+
+  Input capture
+       │
+       v
+  Main operation FSM
+       ├── Row buffer: READ/WRITE, 256 × 64
+       ├── Tree evaluator: CALC
+       ├── Sort storage: 1024 × {data, original address}
+       └── AXI master transaction engine
+                      │
+                      v
+                  DRAM_CTRL
+
+  Keep the main operation logic separate from AXI handshaking. This avoids embedding aw_ready, r_valid, etc. throughout every
+  mode.
+
+  ## 3. AXI master transaction engine
+
+  Design two internal request paths.
+
+  ### Read requester
+
+  Inputs from the operation FSM:
+
+  - Read-request valid
+  - 16-bit DRAM address
+
+  Responsibilities:
+
+  - Drive {16'd0, request_address} onto ar_addr.
+  - Hold ar_valid and ar_addr until ar_ready.
+  - Count accepted requests.
+  - Assert r_ready while receiving.
+  - Produce an internal read_response_valid pulse with r_data.
+
+  Because DRAM_CTRL returns reads in order, responses can be assigned to sequential buffer indices.
+
+  Pipeline multiple reads rather than waiting for every response before issuing the next request. READ and SORT would
+  otherwise risk the 10,000-cycle limit.
+
+  ### Write requester
+
+  Inputs:
+
+  - Write-request valid
+  - Address
+  - Data
+
+  Responsibilities:
+
+  - Handle AW and W handshakes independently.
+  - Do not advance to the next item until both current AW and W handshakes complete.
+  - If one channel completes first, deassert that valid while holding the other.
+  - Never issue W without a corresponding current or previously accepted AW.
+  - Count b_valid responses separately.
+  - Declare completion only when every expected response has arrived.
+
+  When a valid is low, its payload must be zero.
+
+  ## 4. Main FSM
+
+  A reasonable state partition is:
+
+  IDLE
+  CAPTURE_REQUEST
+
+  READ_ISSUE
+  READ_COLLECT
+  READ_OUTPUT
+
+  WRITE_CAPTURE
+  WRITE_DRAIN
+  WRITE_WAIT_RESP
+  WRITE_DONE
+
+  CALC_INIT
+  CALC_FETCH
+  CALC_DECODE
+  CALC_PROPAGATE
+  CALC_OUTPUT
+
+  SORT_LOAD_ISSUE
+  SORT_LOAD_COLLECT
+  SORT_RUN
+  SORT_WRITE
+  SORT_WAIT_RESP
+  SORT_DONE
+
+  Latch in_mode on in_mode_valid, then latch mode-dependent parameters on in_valid.
+
+  Do not use input fields after their valid cycle because the testbench drives them to X.
+
+  ## 5. READ plan
+
+  Use a 256-entry local row buffer to guarantee uninterrupted output.
+
+  1. Latch in_bank and in_src_row.
+  2. Issue 256 AR transactions for columns 0–255.
+  3. Store read responses sequentially into row_buffer[0:255].
+  4. After all responses arrive, enter READ_OUTPUT.
+  5. Assert out_valid for exactly 256 consecutive cycles.
+  6. Output row_buffer[0] through row_buffer[255].
+  7. Return to IDLE.
+
+  Buffering first is safer than directly forwarding r_valid, because out_valid may not contain gaps.
+
+  ## 6. WRITE plan
+
+  The 256 input data values arrive continuously with no input-side ready signal, so local buffering is required.
+
+  1. Latch bank and destination row on the first in_valid.
+  2. Store each incoming in_data into row_buffer[input_count].
+  3. Count exactly 256 input cycles.
+  4. Issue AW/W transactions for destination columns 0–255.
+  5. Count all write responses.
+  6. After 256 b_valid responses, assert out_valid for exactly one cycle.
+  7. Use zero for out_data in completion modes.
+
+  Capturing and writing may be overlapped later, but implement capture-then-drain first.
+
+  ## 7. CALC plan
+
+  The root addresses are:
+
+  Bank 0: {2'd0, src_row, 8'd0}
+  Bank 1: {2'd1, src_row, 8'd0}
+  Bank 2: {2'd2, src_row, 8'd0}
+  Bank 3: {2'd3, src_row, 8'd0}
+
+  ### Node format
+
+  - node_data[63] == 0: number node
+      - Signed value = sign extension of [62:32]
+
+  - node_data[63] == 1: operator node
+      - Opcode: [33:32]
+      - Left address: [31:16]
+      - Right address: [15:0]
+
+  Operations:
+
+  00: left + right
+  01: left - right
+  10: left * right
+  11: left >>> right[5:0]
+
+  ### Iterative DFS architecture
+
+  Use a hardware stack rather than recursion. Each stack entry contains:
+
+  - Opcode
+  - Right-child address
+  - Saved left result
+  - Phase: waiting for left or waiting for right
+
+  Algorithm:
+
+  1. Fetch current node.
+  2. For a number node, generate its signed value.
+  3. For an operator:
+      - Push operator and right address.
+      - Fetch left child.
+
+  4. When a subtree result is available:
+      - If top frame awaits left, save it and fetch right.
+      - If top frame awaits right, apply the operation, pop, and propagate the result upward.
+
+  5. When the stack is empty, save the tree result.
+  6. Repeat for banks 0 through 3.
+  7. Output four results in four consecutive cycles.
+
+  The golden algorithm is shown at /RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB03/00_TESTBED/PATTERN.v:255.
+
+  ## 8. SORT plan
+
+  Read all 1024 source entries in ascending original-address order:
+
+  Bank 0, columns 0–255
+  Bank 1, columns 0–255
+  Bank 2, columns 0–255
+  Bank 3, columns 0–255
+
+  Each internal sorting record should contain:
+
+  {data[63:0], original_address[15:0]}
+
+  Comparison is ascending by:
+
+  1. Unsigned data[62:32]
+  2. Original address when keys are equal
+
+  This tie-break is mandatory; see /RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB03/00_TESTBED/PATTERN.v:306.
+
+  ### Recommended sorter
+
+  Use an iterative bitonic sorting network over 1024 records.
+
+  - log2(1024) = 10
+  - Total network stages: 10 × 11 / 2 = 55
+  - Each stage has 512 compare-exchange pairs.
+
+  Process several pairs per cycle:
+
+   Comparator lanes    Sorting cycles
+  ━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━
+                  4             7,040
+  ──────────────────  ────────────────
+                  8             3,520
+  ──────────────────  ────────────────
+                 16             1,760
+
+  Eight lanes are a reasonable starting point. Four lanes leave little margin after 1024 reads, 1024 writes, and DRAM
+  overhead.
+
+  After sorting:
+
+  1. Write sorted entries 0–255 to bank 0 destination row.
+  2. Write 256–511 to bank 1.
+  3. Write 512–767 to bank 2.
+  4. Write 768–1023 to bank 3.
+  5. Wait for all 1024 write responses.
+  6. Pulse out_valid for one cycle.
+
+  Before coding, verify that the proposed multi-lane access to the 1024-entry storage synthesizes acceptably. Dynamic multi-
+  port access can create large mux networks.
+
+  ## 9. Reset and output rules
+
+  The existing line:
+
+  assign b_ready = 1;
+
+  conflicts with the testbench’s reset requirement, which expects b_ready == 0 while reset is asserted.
+
+  Plan for reset:
+
+  - Asynchronous active-low reset.
+  - Clear every output, counter, state, stack pointer, and validity flag.
+  - b_ready must be zero during reset and ready during normal operation.
+  - Whenever aw_valid, w_valid, or ar_valid is zero, also drive the corresponding payload to zero.
+  - Drive out_data = 0 whenever out_valid = 0.
+
+  Reset checking starts at /RAID2/COURSE/2026_Spring/iclab/iclab067/SPRING2026_LAB03/00_TESTBED/PATTERN.v:608.
+
+  ## 10. Recommended implementation order
+
+  1. Implement reset-safe output defaults.
+  2. Implement and independently verify the AXI read requester.
+  3. Implement and verify the AXI write requester.
+  4. Add READ mode.
+  5. Add WRITE mode.
+  6. Add the iterative CALC stack.
+  7. Add SORT loading and write-back without sorting.
+  8. Add the bitonic compare-exchange controller.
+  9. Verify exact out_valid lengths.
+  10. Run synthesis early, especially after adding sort storage and comparator lanes.
+
+  The highest-risk areas are SORT latency/area, CALC stack control, and independent AW/W handshakes.
+
+
+› How should I design the interactions btw the computing units and the AXI handler in HARVESTOR.v? Explain with brief text
+  and architectural illustratrion
+
+
+• Use a request/response interface between the computing units and one centralized AXI handler. The computing units should
+  never directly manipulate aw_valid, w_valid, ar_valid, or handshake timing.
+
+                           HARVESTER
+  ┌──────────────────────────────────────────────────────────────┐
+  │                                                              │
+  │  ┌────────────────────────────────────────────────────────┐  │
+  │  │ Main FSM / Mode Controller                             │  │
+  │  │ Selects READ, WRITE, CALC, or SORT                     │  │
+  │  └───────────────┬────────────────────────────────────────┘  │
+  │                  │ ownership                                  │
+  │      ┌───────────┼──────────────┬───────────────┐             │
+  │      v           v              v               v             │
+  │  Row Unit    Tree Unit      Sort Unit      Completion Unit    │
+  │      └───────────┴───────┬──────┴───────────────┘             │
+  │                          │                                    │
+  │                   Internal memory interface                   │
+  │        req_valid, req_write, req_addr, req_wdata              │
+  │        req_ready, rsp_valid, rsp_rdata                        │
+  │                          │                                    │
+  │                          v                                    │
+  │  ┌────────────────────────────────────────────────────────┐  │
+  │  │ AXI Handler                                            │  │
+  │  │ Read FSM │ Write FSM │ outstanding/response counters   │  │
+  │  └──────────┬───────────────────────────────┬─────────────┘  │
+  │             │ AXI read                     │ AXI write        │
+  └─────────────┼───────────────────────────────┼─────────────────┘
+                v                               v
+                      DRAM_CTRL
+
+  ## Internal interface
+
+  A simple internal interface is:
+
+  Request:
+      mem_req_valid
+      mem_req_write
+      mem_req_addr[15:0]
+      mem_req_wdata[63:0]
+      mem_req_ready
+
+  Response:
+      mem_rsp_valid
+      mem_rsp_rdata[63:0]
+
+  A request is accepted when:
+
+  mem_req_valid && mem_req_ready
+
+  The computing unit must keep its request address and data stable until that handshake.
+
+  ## Read interaction
+
+  Computing unit                 AXI handler                 DRAM_CTRL
+        │ req_valid, address          │                          │
+        ├────────────────────────────>│                          │
+        │                             │ ar_valid, ar_addr        │
+        │                             ├─────────────────────────>│
+        │                             │<────────────── ar_ready  │
+        │<────────────── req_ready    │                          │
+        │                             │<────── r_valid, r_data   │
+        │<──── rsp_valid, rsp_rdata   │                          │
+
+  The computing unit:
+
+  1. Presents an address.
+  2. Waits for mem_req_ready.
+  3. Advances its issue counter.
+  4. Stores or processes data only when mem_rsp_valid arrives.
+
+  Request and response counters must be separate because several reads can be outstanding.
+
+  ## Write interaction
+
+  Computing unit                 AXI handler                 DRAM_CTRL
+        │ write request              │                           │
+        ├───────────────────────────>│                           │
+        │                            │── AW channel ─────────────>│
+        │                            │── W channel ──────────────>│
+        │                            │                           │
+        │<──────────── req_ready     │  after both handshakes    │
+        │                            │<─────────────── b_valid   │
+        │<──────── write_done/rsp    │                           │
+
+  The handler must track AW and W independently:
+
+  write transaction
+      ├── AW accepted?
+      └── W accepted?
+
+  request complete = AW accepted && W accepted
+
+  Do not replace the current request until both channels finish. Count b_valid separately to determine when all writes are
+  committed.
+
+  ## Arbitration
+
+  Only the active mode should own the internal interface. A mux controlled by the main FSM is sufficient:
+
+                    ┌── Row unit request
+                    ├── Tree unit request
+  Active mode mux ──┼── Sort-load request
+                    └── Sort-write request
+                             │
+                             v
+                        AXI handler
+
+  Since modes do not overlap, a complex arbiter is unnecessary. Route responses back using the active mode:
+
+  rsp_valid ─────┬──> row_buffer write enable
+                 ├──> tree-node decoder
+                 └──> sort_buffer write enable
+
+  Do not change modes while transactions are outstanding.
+
+  ## Computing-unit responsibilities
+
+  Each unit controls algorithmic progress:
+
+  - Row unit: column issue and receive indices.
+  - Tree unit: current node address and evaluation stack.
+  - Sort unit: load index, sorting indices, and write-back index.
+
+  The AXI handler controls only protocol details:
+
+  - Holding valid and payload stable.
+  - Detecting handshakes.
+  - Coordinating AW and W.
+  - Receiving R and B responses.
+  - Tracking outstanding transactions.
+
+  ## Completion conditions
+
+  Avoid using “last request issued” as operation completion.
+
+  READ complete:
+      received_read_count == expected_read_count
+
+  WRITE complete:
+      received_b_count == expected_write_count
+
+  CALC node fetch complete:
+      mem_rsp_valid for the requested node
+
+  SORT complete:
+      all 1024 B responses received
+
+  This separation keeps the compute FSM independent of AXI timing and prevents early out_valid assertions.

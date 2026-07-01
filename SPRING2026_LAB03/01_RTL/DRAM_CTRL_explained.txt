@@ -1,0 +1,299 @@
+DRAM_CTRL is a buffered, open-row DRAM controller built from:
+
+  1. Three request FIFOs
+  2. One global AXI scheduling FSM
+  3. Four per-bank DRAM FSMs
+  4. Timing counters and row-hit detection
+  5. A single DRAM command generator
+
+  Source: DRAM_CTRL.v:53
+
+  ## Overall architecture
+
+   AXI4-Lite side
+   ┌───────────────┐
+   │ AR address    │──> AR FIFO ──┐
+   │ AW address    │──> AW FIFO ──┼──> Global AXI scheduler
+   │ W data        │──> W FIFO  ──┘          │
+   └───────────────┘                         │ selected request
+                                             v
+                                Address decoder
+                           bank / row / column
+                                             │
+                      ┌──────────────────────┼──────────────────────┐
+                      v                      v                      v
+                Bank-state FSMs       Row-hit logic          Timing counters
+                  bank 0–3           opened_row[0:3]      tRCD / tRP / tRAS
+                      └──────────────────────┬──────────────────────┘
+                                             v
+                                DRAM command generator
+                               ACT / PRE / READ / WRITE
+                                             │
+                                             v
+                                      DRAM interface
+
+  Only one DRAM command can be issued per cycle. Although each bank has independent state and timing registers, request
+  processing remains globally serialized.
+
+  ## Request buffering
+
+  There are three eight-entry synchronous FIFOs:
+
+   FIFO            Width    Purpose
+  ━━━━━━━━━━━━  ━━━━━━━━━  ━━━━━━━━━━━━━━━━━
+   ar_fifo       16 bits    Read addresses
+  ────────────  ─────────  ─────────────────
+   aw_fifo       16 bits    Write addresses
+  ────────────  ─────────  ─────────────────
+   wdata_fifo    64 bits    Write data
+
+  The FIFO implementation is at DRAM_CTRL.v:1, and instances begin at DRAM_CTRL.v:249.
+
+  FIFO reads are registered: asserting pop_en advances the pointer and places the selected entry into r_data at the next clock
+  edge. Therefore, the global FSM first pops a request, then processes the registered FIFO output.
+
+  Only address bits [15:0] are retained:
+
+  [15:14] = bank number, 4 banks
+  [13:8]  = row, 64 rows per bank
+  [7:0]   = column, 256 columns per row
+
+  See DRAM_CTRL.v:203.
+
+  ## Global AXI scheduling FSM
+
+  The global FSM selects whether the current request comes from the read-address FIFO or write-address FIFO.
+
+                read available
+         ┌────────────────────────┐
+         v                        │
+     AXI_READ ────────> AXI_IDLE ────────> AXI_WRITE
+         ^              │   ^               │
+         │              │   │               │
+         └──────────────┘   └───────────────┘
+          writes pending       reads pending
+
+  Implementation: DRAM_CTRL.v:374.
+
+  ### AXI_IDLE
+
+  - No DRAM command is generated.
+  - Reads have priority over writes.
+  - Pops the first AR request if available.
+  - Otherwise pops one AW request and, if available, corresponding write data.
+
+  Transition logic:
+
+  if (!empty_ar)
+      AXI_READ;
+  else if (!empty_aw)
+      AXI_WRITE;
+
+  ### AXI_READ
+
+  - req_addr comes from ar_buf_rdata.
+  - The controller performs the bank operations required for that address.
+  - When send_WR_nxt becomes true, it means a DRAM READ can be issued.
+  - At the same time, the controller prefetches the next read address.
+  - It remains in AXI_READ while reads are queued.
+  - When reads are exhausted, it switches to writes or idle.
+
+  ### AXI_WRITE
+
+  - req_addr comes from aw_buf_rdata.
+  - A WRITE is not issued until req_wdata_valid is set.
+  - After issuing a write, the next AW and W entries are prefetched.
+  - When writes are exhausted, it switches to reads or idle.
+
+  ### Scheduling policy
+
+  The controller processes requests in batches:
+
+  - Reads are selected first from idle.
+  - Once reading, queued reads are drained before switching to writes.
+  - Once writing, queued writes are drained before switching to reads.
+
+  Consequently, it is not strict chronological ordering between read and write channels. Continuous traffic of the active type
+  can also delay the other type.
+
+  ## Per-bank FSM
+
+  Each of the four banks has an independent FSM:
+
+   BA_IDLE
+      │ ACT
+      v
+   BA_ACT_ROW
+      │ wait tRCD
+      v
+   BA_OPEN
+      │
+      │ row hit ──────────────> READ/WRITE, remain BA_OPEN
+      │
+      │ row miss + tRAS met
+      v
+   BA_PRE
+      │ wait tRP
+      │ ACT next requested row
+      v
+   BA_ACT_ROW
+
+  States are declared at DRAM_CTRL.v:133, with transitions at DRAM_CTRL.v:323.
+
+  ### BA_IDLE
+
+  The bank has no active row.
+
+  For a request targeting this bank:
+
+  - Issue ACT.
+  - Record the requested row.
+  - Enter BA_ACT_ROW.
+
+  ### BA_ACT_ROW
+
+  An ACT has just been issued.
+
+  - wait_cnt enforces activation-to-access delay, effectively tRCD.
+  - Once wait_cnt >= 2, the controller may issue READ or WRITE.
+  - The FSM moves to BA_OPEN.
+
+  For writes, valid write data must also be available.
+
+  ### BA_OPEN
+
+  A row is active.
+
+  For the requested bank:
+
+  - If opened_row == req_row, this is a row hit.
+      - Issue READ immediately.
+      - Issue WRITE when write data is available.
+      - Keep the row open.
+
+  - If the row differs, this is a row miss.
+      - Wait until ras_cnt >= 5.
+      - Issue PRE.
+      - Enter BA_PRE.
+
+  This open-page policy makes repeated accesses to the same row faster.
+
+  ### BA_PRE
+
+  The bank is being precharged.
+
+  - wait_cnt enforces precharge delay, effectively tRP.
+  - At wait_cnt >= 3, issue ACT for the requested row.
+  - Re-enter BA_ACT_ROW.
+
+  ## Timing counters
+
+  Each bank has two saturating 3-bit counters at DRAM_CTRL.v:301:
+
+  - wait_cnt[i]: cycles spent in the current bank state.
+  - ras_cnt[i]: cycles since entering BA_ACT_ROW.
+
+  The intended constraints are:
+
+   Constraint                 Check
+  ━━━━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━
+   ACT → READ/WRITE (tRCD)    wait_cnt >= 2
+  ─────────────────────────  ───────────────
+   PRE → ACT (tRP)            wait_cnt >= 3
+  ─────────────────────────  ───────────────
+   ACT → PRE (tRAS)           ras_cnt >= 5
+
+  Both counters saturate at seven.
+
+  ## Row tracking
+
+  Each bank maintains an opened_row[i] register.
+
+  row hit  = bank has active row AND opened_row == requested row
+  row miss = no active row OR opened_row != requested row
+
+  The row register is updated when entering BA_ACT_ROW.
+
+  One coding issue exists at DRAM_CTRL.v:287:
+
+  opened_row[req_ba] != req_row
+
+  Inside the generated bank loop, this would more naturally be:
+
+  opened_row[i] != req_row
+
+  The current expression still produces the correct value when inspecting row_miss[req_ba], but all four row_miss bits compare
+  against the requested bank rather than their corresponding banks.
+
+  ## DRAM command generation
+
+  Three combinational signals describe the next legal operation:
+
+  - send_ACT_nxt
+  - send_PRE_nxt
+  - send_WR_nxt
+
+  Despite its name, send_WR_nxt means “send a column access”; it covers both READ and WRITE.
+
+  Command priority is:
+
+  ACT > PRE > READ/WRITE > NOP
+
+  The actual READ versus WRITE command is selected from axi_st.
+
+  See DRAM_CTRL.v:460.
+
+  dram_cmd, dram_ba, dram_addr, and dram_wdata are all registered. For an ACT, dram_addr carries the row; otherwise it carries
+  the column.
+
+  ## Example request sequences
+
+  ### Row hit
+
+  Current state: bank 2 has row 10 open
+  Request:       bank 2, row 10, column 25
+
+  BA_OPEN → row hit → READ/WRITE
+
+  No activation or precharge is needed.
+
+  ### Closed bank
+
+  Current state: BA_IDLE
+  Request arrives
+  ACT row
+  wait tRCD
+  READ/WRITE column
+  BA_OPEN
+
+  The row remains open afterward.
+
+  ### Row conflict
+
+  Current state: row 10 open
+  Request:       row 20
+
+  wait until tRAS is satisfied
+  PRE
+  wait tRP
+  ACT row 20
+  wait tRCD
+  READ/WRITE
+
+  ## AXI-side behavior and limitations
+
+  This is a simplified AXI4-Lite-like interface rather than a fully general implementation.
+
+  - READY is asserted only when the corresponding VALID is high.
+  - r_ready is unused; r_valid directly follows dram_valid.
+  - b_ready is assumed always high.
+  - b_valid is asserted only during the DRAM WRITE command cycle.
+  - Responses are always OKAY.
+  - AW and W use separate FIFOs, so they are paired by FIFO order.
+  - There is no transaction ID, burst support, refresh logic, or error handling.
+  - The declared dram_cmd is four bits, but command parameters are three bits; assignment zero-extends them, effectively
+    making CS_n = 0.
+
+  In summary, the controller is an open-row, four-bank, single-command scheduler. FIFOs decouple AXI arrival timing, the
+  global FSM selects read or write traffic, and the bank FSMs enforce simplified DRAM activation, precharge, and minimum
+  timing requirements.
